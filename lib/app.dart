@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'package:ecom/core/theme/app_theme.dart';
 import 'package:ecom/shared/presentation/navigation/router.dart';
 
@@ -8,18 +9,18 @@ class EnterpriseMarketplaceApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Watch the GoRouter provider to handle all navigation, deep linking, and guard checks
-    final goRouter = ref.watch(routerProvider);
+    final router = ref.watch(routerProvider);
 
     return MaterialApp.router(
-      title: "Anjali's Nail Art",
-      debugShowCheckedModeBanner: false, // Hide the debug banner for a clean look
+      title: 'LuxeMarket',
+      debugShowCheckedModeBanner: false,
 
-      // Apply our centralized luxury design system
+      // Premium Blue Theme
       theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.system,
 
-      // Pass the router configuration
-      routerConfig: goRouter,
+      routerConfig: router,
     );
   }
 }

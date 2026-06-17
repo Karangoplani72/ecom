@@ -5,10 +5,9 @@ class SellerFinancesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: Text('Seller Finances'),
-      ),
+    return Scaffold(
+      appBar: AppBar(title: const Text('Finances')),
+      body: const Center(child: Text('Finance Dashboard Coming Soon')),
     );
   }
 }

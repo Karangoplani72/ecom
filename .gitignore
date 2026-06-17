@@ -47,3 +47,5 @@ functions/serviceAccountKey.json
 *.json.bak
 .env
 .env.*
+private/
+*.json

@@ -1,41 +1,51 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
-import 'package:fpdart/fpdart.dart';
-import 'package:ecom/features/auth/domain/repositories/auth_repository.dart';
 import 'package:ecom/features/auth/data/dtos/user_dto.dart';
 import 'package:ecom/features/auth/domain/entities/app_user.dart';
+import 'package:ecom/features/auth/domain/repositories/auth_repository.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:flutter/cupertino.dart';
+import 'package:fpdart/fpdart.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
   final firebase_auth.FirebaseAuth _firebaseAuth;
   final FirebaseFirestore _firestore;
 
-  AuthRepositoryImpl({
-    required this._firebaseAuth,
-    required this._firestore,
-  });
+  AuthRepositoryImpl({required this._firebaseAuth, required this._firestore});
 
   /// Stream authentication state changes with user data sync
   @override
   Stream<Option<AppUser>> get authStateChanges {
     return _firebaseAuth.authStateChanges().asyncMap((firebaseUser) async {
-      if (firebaseUser == null) return const None();
+      if (firebaseUser == null) {
+        return const None();
+      }
 
       try {
-        // Fetch user document from Firestore
         final doc = await _firestore
             .collection('users')
             .doc(firebaseUser.uid)
             .get();
 
         if (!doc.exists) {
-          // Auto-create user profile if missing
           await _createUserProfile(firebaseUser);
-          return const None();
+
+          final freshDoc = await _firestore
+              .collection('users')
+              .doc(firebaseUser.uid)
+              .get();
+
+          if (!freshDoc.exists) {
+            return const None();
+          }
+
+          return Some(UserDto.fromFirestore(freshDoc).toDomain());
         }
 
         return Some(UserDto.fromFirestore(doc).toDomain());
-      } catch (e) {
-        print('Error in authStateChanges: $e');
+      } catch (e, stackTrace) {
+        debugPrint('Auth sync error: $e');
+        debugPrintStack(stackTrace: stackTrace);
+
         return const None();
       }
     });
@@ -44,9 +54,9 @@ class AuthRepositoryImpl implements AuthRepository {
   /// Sign in with email and password
   @override
   Future<Either<String, AppUser>> signInWithEmailAndPassword(
-      String email,
-      String password,
-      ) async {
+    String email,
+    String password,
+  ) async {
     try {
       // Validate inputs
       if (email.trim().isEmpty) {
@@ -87,11 +97,12 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   /// Sign up new user with email and password
+  @override
   Future<Either<String, AppUser>> signUpWithEmailAndPassword(
-      String email,
-      String password,
-      String displayName,
-      ) async {
+    String email,
+    String password,
+    String displayName,
+  ) async {
     try {
       // Validate inputs
       if (email.trim().isEmpty) {
@@ -122,7 +133,7 @@ class AuthRepositoryImpl implements AuthRepository {
         'uid': userId,
         'email': email.trim(),
         'displayName': displayName.trim(),
-        'roles': ['user'], // Default role
+        'roles': ['buyer'], // Default role
         'isActive': true,
         'walletBalance': 0.0,
         'phoneNumber': '',
@@ -208,7 +219,7 @@ class AuthRepositoryImpl implements AuthRepository {
         'uid': firebaseUser.uid,
         'email': firebaseUser.email ?? '',
         'displayName': firebaseUser.displayName ?? '',
-        'roles': ['user'],
+        'roles': ['buyer'],
         'isActive': true,
         'walletBalance': 0.0,
         'phoneNumber': firebaseUser.phoneNumber ?? '',
@@ -221,8 +232,9 @@ class AuthRepositoryImpl implements AuthRepository {
         'updatedAt': Timestamp.fromDate(now),
         'lastLoginAt': Timestamp.fromDate(now),
       });
-    } catch (e) {
-      print('Error creating user profile: $e');
+    } catch (e, stackTrace) {
+      debugPrint('Failed to create user profile: $e');
+      debugPrintStack(stackTrace: stackTrace);
     }
   }
 
@@ -252,9 +264,9 @@ class AuthRepositoryImpl implements AuthRepository {
 
   /// Update user profile
   Future<Either<String, Unit>> updateUserProfile(
-      String userId,
-      Map<String, dynamic> updates,
-      ) async {
+    String userId,
+    Map<String, dynamic> updates,
+  ) async {
     try {
       // Never allow privilege escalation
       updates.remove('roles');

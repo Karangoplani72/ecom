@@ -1,8 +1,8 @@
+import 'package:ecom/shared/presentation/navigation/router.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:ecom/shared/presentation/navigation/router.dart';
+import 'package:go_router/go_router.dart';
 // import 'package:ecom/features/marketplace/presentation/controllers/communication_controller.dart';
 
 // 1. Top-Level Background Handler (Must be outside any class so it can run when app is killed)
@@ -13,15 +13,16 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 // 2. Riverpod Provider for the Notification Service
-final pushNotificationServiceProvider = Provider<PushNotificationService>((ref) {
-  return PushNotificationService(ref);
+final pushNotificationServiceProvider = Provider<PushNotificationService>((
+  ref,
+) {
+  return PushNotificationService();
 });
 
 class PushNotificationService {
-  final Ref _ref;
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
 
-  PushNotificationService(this._ref);
+  PushNotificationService();
 
   Future<void> initialize() async {
     // 1. Request OS-level permissions (Critical for iOS)
@@ -56,7 +57,7 @@ class PushNotificationService {
     // 4. Handle Foreground Messages (App is open and active)
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       debugPrint('Received foreground message: ${message.notification?.title}');
-      // Here you could trigger a local in-app snackbar or banner
+      // Here you could trigger a local in-app snack bar or banner
     });
 
     // 5. Handle Background/Terminated Deep Links (User tapped the notification)
@@ -65,7 +66,8 @@ class PushNotificationService {
 
   void _setupDeepLinking() async {
     // Scenario A: App was completely closed, user tapped notification to open it
-    RemoteMessage? initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+    RemoteMessage? initialMessage = await FirebaseMessaging.instance
+        .getInitialMessage();
     if (initialMessage != null) {
       _handleNotificationRoute(initialMessage);
     }
@@ -80,12 +82,14 @@ class PushNotificationService {
     final route = message.data['route'];
 
     if (route != null) {
-      // Use the global navigator key defined in router.dart to route contextlessly
+      // Use the global navigator key defined in router.dart to route contextualises
       final context = rootNavigatorKey.currentContext;
       if (context != null) {
         context.push(route);
       } else {
-        debugPrint("Warning: Tried to deep link but rootNavigatorKey context was null.");
+        debugPrint(
+          "Warning: Tried to deep link but rootNavigatorKey context was null.",
+        );
       }
     }
   }

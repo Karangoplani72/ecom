@@ -1,53 +1,97 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:json_annotation/json_annotation.dart';
-import 'package:ecom/features/seller/domain/entities/store_profile.dart';
 
-part 'store_profile_dto.g.dart';
+import '../../domain/entities/store_profile.dart';
 
-@JsonSerializable(explicitToJson: true)
 class StoreProfileDto {
   final String id;
   final String sellerId;
-  final String name;
+  final String storeName;
   final String description;
-  final String logoUrl;
-  final double averageRating;
+  final String? logoUrl;
+  final String? bannerUrl;
+  final String? phone;
+  final String? email;
+  final String? address;
+  final String? gstNumber;
+  final String? category;
   final String status;
-  final Map<String, List<String>> operationalHours;
-  final List<String> fallbackCategoryTags;
+  final Timestamp? createdAt;
+  final Timestamp? updatedAt;
 
-  StoreProfileDto({
+  const StoreProfileDto({
     required this.id,
     required this.sellerId,
-    required this.name,
+    required this.storeName,
     required this.description,
-    required this.logoUrl,
-    required this.averageRating,
+    this.logoUrl,
+    this.bannerUrl,
+    this.phone,
+    this.email,
+    this.address,
+    this.gstNumber,
+    this.category,
     required this.status,
-    required this.operationalHours,
-    required this.fallbackCategoryTags,
+    this.createdAt,
+    this.updatedAt,
   });
 
-  factory StoreProfileDto.fromJson(Map<String, dynamic> json) => _$StoreProfileDtoFromJson(json);
-  Map<String, dynamic> toJson() => _$StoreProfileDtoToJson(this);
+  factory StoreProfileDto.fromFirestore(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final data = doc.data() ?? {};
 
-  factory StoreProfileDto.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    data['id'] = doc.id;
-    return StoreProfileDto.fromJson(data);
+    return StoreProfileDto(
+      id: doc.id,
+      sellerId: data['sellerId'] ?? '',
+      storeName: data['storeName'] ?? '',
+      description: data['description'] ?? '',
+      logoUrl: data['logoUrl'],
+      bannerUrl: data['bannerUrl'],
+      phone: data['phone'],
+      email: data['email'],
+      address: data['address'],
+      gstNumber: data['gstNumber'],
+      category: data['category'],
+      status: data['status'] ?? 'applied',
+      createdAt: data['createdAt'],
+      updatedAt: data['updatedAt'],
+    );
   }
 
   StoreProfile toDomain() {
     return StoreProfile(
       id: id,
       sellerId: sellerId,
-      name: name,
+      storeName: storeName,
       description: description,
       logoUrl: logoUrl,
-      averageRating: averageRating,
+      bannerUrl: bannerUrl,
+      phone: phone,
+      email: email,
+      address: address,
+      gstNumber: gstNumber,
+      category: category,
       status: VerificationStatus.values.byName(status),
-      operationalHours: operationalHours,
-      fallbackCategoryTags: fallbackCategoryTags,
+      createdAt: createdAt?.toDate() ?? DateTime.now(),
+      updatedAt: updatedAt?.toDate(),
     );
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'sellerId': sellerId,
+      'storeName': storeName,
+      'description': description,
+      'logoUrl': logoUrl,
+      'bannerUrl': bannerUrl,
+      'phone': phone,
+      'email': email,
+      'address': address,
+      'gstNumber': gstNumber,
+      'category': category,
+      'status': status,
+      'createdAt': createdAt,
+      'updatedAt': updatedAt,
+    };
   }
 }

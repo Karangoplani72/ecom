@@ -1,1 +1,23 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"ecom-750fc","appId":"1:282984146836:android:b2e0fc2653b1c62ff8d181","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"ecom-750fc","configurations":{"android":"1:282984146836:android:b2e0fc2653b1c62ff8d181","ios":"1:282984146836:ios:f64b9431ca75e522f8d181","macos":"1:282984146836:ios:f64b9431ca75e522f8d181","web":"1:282984146836:web:582a099fc0809296f8d181","windows":"1:282984146836:web:bc6cefa9e1b25ff0f8d181"}}}}}}
+{
+  "firestore": {
+    "database": "(default)",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "functions": [
+    {
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run lint"
+      ],
+      "source": "functions"
+    }
+  ]
+}
