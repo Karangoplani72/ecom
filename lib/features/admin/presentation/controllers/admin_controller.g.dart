@@ -51,6 +51,48 @@ final class AdminRepositoryProvider
 
 String _$adminRepositoryHash() => r'90dd63123cf72f50c34c19ab6e36f8e68a6315d1';
 
+@ProviderFor(pendingSellerApplications)
+final pendingSellerApplicationsProvider = PendingSellerApplicationsProvider._();
+
+final class PendingSellerApplicationsProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<SellerApplication>>,
+          List<SellerApplication>,
+          FutureOr<List<SellerApplication>>
+        >
+    with
+        $FutureModifier<List<SellerApplication>>,
+        $FutureProvider<List<SellerApplication>> {
+  PendingSellerApplicationsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'pendingSellerApplicationsProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$pendingSellerApplicationsHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<List<SellerApplication>> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<List<SellerApplication>> create(Ref ref) {
+    return pendingSellerApplications(ref);
+  }
+}
+
+String _$pendingSellerApplicationsHash() =>
+    r'e19649ce6f82db9e811eb8efe8d5914f987b61c8';
+
 @ProviderFor(AdminController)
 final adminControllerProvider = AdminControllerProvider._();
 
@@ -75,7 +117,7 @@ final class AdminControllerProvider
   AdminController create() => AdminController();
 }
 
-String _$adminControllerHash() => r'cb5da3899cbb5954461785d36c2b2025b525d8e2';
+String _$adminControllerHash() => r'b96f4f54494a3d65031236e47c9e1af63d6e40b0';
 
 abstract class _$AdminController extends $AsyncNotifier<List<DisputeTicket>> {
   FutureOr<List<DisputeTicket>> build();

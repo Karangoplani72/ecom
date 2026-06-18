@@ -14,8 +14,18 @@ SellerProductRepository sellerProductRepository(Ref ref) {
 }
 
 @riverpod
+FirebaseFirestore _firebaseFirestoreProvider(Ref ref) {
+  return FirebaseFirestore.instance;
+}
+
+@riverpod
+String? currentSellerId(Ref ref) {
+  return FirebaseAuth.instance.currentUser?.uid;
+}
+
+@riverpod
 Stream<List<SellerProduct>> sellerProducts(Ref ref) {
-  final sellerId = FirebaseAuth.instance.currentUser?.uid;
+  final sellerId = ref.watch(currentSellerIdProvider);
 
   if (sellerId == null) {
     return Stream.value([]);
@@ -32,72 +42,93 @@ class SellerInventoryController extends _$SellerInventoryController {
   FutureOr<void> build() {}
 
   Future<void> deleteProduct({required String productId}) async {
-    final sellerId = FirebaseAuth.instance.currentUser?.uid;
+    final sellerId = ref.read(currentSellerIdProvider);
 
     if (sellerId == null) {
-      throw Exception('Seller not authenticated');
+      state = AsyncValue.error(
+        Exception('Seller not authenticated'),
+        StackTrace.current,
+      );
+      return;
     }
 
-    state = const AsyncLoading();
+    state = const AsyncValue.loading();
 
-    try {
-      await ref
-          .read(sellerProductRepositoryProvider)
-          .deleteProduct(sellerId: sellerId, productId: productId);
+    final result = await ref
+        .read(sellerProductRepositoryProvider)
+        .deleteProduct(sellerId: sellerId, productId: productId);
 
-      state = const AsyncData(null);
-    } catch (e, st) {
-      state = AsyncError(e, st);
-    }
+    state = result.fold(
+      (error) => AsyncValue.error(error, StackTrace.current),
+      (_) => const AsyncValue.data(null),
+    );
   }
 
   Future<void> updateStock({
     required String productId,
     required int stock,
   }) async {
-    final sellerId = FirebaseAuth.instance.currentUser?.uid;
+    final sellerId = ref.read(currentSellerIdProvider);
 
     if (sellerId == null) {
-      throw Exception('Seller not authenticated');
+      state = AsyncValue.error(
+        Exception('Seller not authenticated'),
+        StackTrace.current,
+      );
+      return;
     }
 
-    state = const AsyncLoading();
-
-    try {
-      await ref
-          .read(sellerProductRepositoryProvider)
-          .updateStock(sellerId: sellerId, productId: productId, stock: stock);
-
-      state = const AsyncData(null);
-    } catch (e, st) {
-      state = AsyncError(e, st);
+    if (stock < 0) {
+      state = AsyncValue.error(
+        Exception('Stock cannot be negative'),
+        StackTrace.current,
+      );
+      return;
     }
+
+    state = const AsyncValue.loading();
+
+    final result = await ref
+        .read(sellerProductRepositoryProvider)
+        .updateStock(sellerId: sellerId, productId: productId, stock: stock);
+
+    state = result.fold(
+      (error) => AsyncValue.error(error, StackTrace.current),
+      (_) => const AsyncValue.data(null),
+    );
   }
 
   Future<void> updateStatus({
     required String productId,
     required String status,
   }) async {
-    final sellerId = FirebaseAuth.instance.currentUser?.uid;
+    final sellerId = ref.read(currentSellerIdProvider);
 
     if (sellerId == null) {
-      throw Exception('Seller not authenticated');
+      state = AsyncValue.error(
+        Exception('Seller not authenticated'),
+        StackTrace.current,
+      );
+      return;
     }
 
-    state = const AsyncLoading();
-
-    try {
-      await ref
-          .read(sellerProductRepositoryProvider)
-          .updateStatus(
-            sellerId: sellerId,
-            productId: productId,
-            status: status,
-          );
-
-      state = const AsyncData(null);
-    } catch (e, st) {
-      state = AsyncError(e, st);
+    if (status.isEmpty) {
+      state = AsyncValue.error(
+        Exception('Status cannot be empty'),
+        StackTrace.current,
+      );
+      return;
     }
+
+    state = const AsyncValue.loading();
+
+    final result = await ref
+        .read(sellerProductRepositoryProvider)
+        .updateStatus(sellerId: sellerId, productId: productId, status: status);
+
+    state = result.fold(
+      (error) => AsyncValue.error(error, StackTrace.current),
+      (_) => const AsyncValue.data(null),
+    );
   }
 }

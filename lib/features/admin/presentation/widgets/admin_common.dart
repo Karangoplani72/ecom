@@ -151,21 +151,12 @@ class AdminSectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Container(
-      width: double.infinity,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkCard : AppColors.lightCard,
-        borderRadius: AppRadius.borderLG,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: child,
+    return Material(
+      color: isDark ? AppColors.darkCard : AppColors.lightCard,
+      borderRadius: AppRadius.borderLG,
+      elevation: isDark ? 2 : 1,
+      shadowColor: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+      child: Container(width: double.infinity, padding: padding, child: child),
     );
   }
 }

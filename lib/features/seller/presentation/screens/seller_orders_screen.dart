@@ -1,28 +1,13 @@
 import 'package:ecom/core/widgets/app_empty_view.dart';
 import 'package:ecom/core/widgets/app_error_view.dart';
 import 'package:ecom/core/widgets/app_loading_view.dart';
-import 'package:ecom/core/widgets/app_price_text.dart';
-import 'package:ecom/core/widgets/app_scaffold.dart';
+import 'package:ecom/features/orders/domain/entities/order_status.dart';
+import 'package:ecom/features/orders/presentation/controllers/order_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-import '../controllers/seller_orders_controller.dart';
-
-const _statusLabels = {
-  'pending': 'Pending',
-  'processing': 'Processing',
-  'shipped': 'Shipped',
-  'delivered': 'Delivered',
-  'cancelled': 'Cancelled',
-};
-
-const _statusColors = {
-  'pending': Colors.orange,
-  'processing': Colors.blue,
-  'shipped': Colors.purple,
-  'delivered': Colors.green,
-  'cancelled': Colors.redAccent,
-};
+import '../widgets/seller_order_card.dart';
 
 class SellerOrdersScreen extends ConsumerStatefulWidget {
   const SellerOrdersScreen({super.key});
@@ -32,112 +17,134 @@ class SellerOrdersScreen extends ConsumerStatefulWidget {
 }
 
 class _SellerOrdersScreenState extends ConsumerState<SellerOrdersScreen> {
-  String _filter = 'all';
+  String _selectedFilter = 'all';
+
+  Future<void> _showStatusPicker(
+    BuildContext context,
+    String orderId,
+    OrderStatus currentStatus,
+  ) async {
+    final selectedStatus = await showModalBottomSheet<OrderStatus>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Text(
+                  'Update Order Status',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                ),
+              ),
+              ...OrderStatus.values.map((status) {
+                return ListTile(
+                  title: Text(status.name.toUpperCase()),
+                  trailing: status == currentStatus
+                      ? const Icon(Icons.check, color: Colors.green)
+                      : null,
+                  onTap: () => Navigator.pop(sheetContext, status),
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (selectedStatus == null || selectedStatus == currentStatus) return;
+
+    await ref
+        .read(orderControllerProvider.notifier)
+        .updateStatus(orderId: orderId, status: selectedStatus);
+  }
 
   @override
   Widget build(BuildContext context) {
     final ordersAsync = ref.watch(sellerOrdersProvider);
 
-    return AppScaffold(
-      title: 'Orders',
+    ref.listen(orderControllerProvider, (previous, next) {
+      next.whenOrNull(
+        error: (error, _) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(error.toString())));
+        },
+      );
+    });
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Store Orders'), centerTitle: true),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: SizedBox(
-              height: 40,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: [
-                  _filterChip('all', 'All'),
-                  ..._statusLabels.entries.map(
-                    (e) => _filterChip(e.key, e.value),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                _FilterChip(
+                  label: 'All',
+                  isSelected: _selectedFilter == 'all',
+                  onSelected: (val) => setState(() => _selectedFilter = 'all'),
+                ),
+                ...OrderStatus.values.map(
+                  (status) => Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: _FilterChip(
+                      label: status.name.toUpperCase(),
+                      isSelected: _selectedFilter == status.name,
+                      onSelected: (val) =>
+                          setState(() => _selectedFilter = status.name),
+                    ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-
           Expanded(
             child: ordersAsync.when(
               loading: () => const AppLoadingView(),
-
-              error: (e, st) =>
-                  AppErrorView(message: 'Failed to load orders: $e'),
-
+              error: (error, _) => AppErrorView(message: error.toString()),
               data: (orders) {
-                var filteredOrders = orders;
-
-                if (_filter != 'all') {
-                  filteredOrders = orders
-                      .where((o) => o.status == _filter)
-                      .toList();
-                }
+                final filteredOrders = _selectedFilter == 'all'
+                    ? orders
+                    : orders
+                          .where((o) => o.status.name == _selectedFilter)
+                          .toList();
 
                 if (filteredOrders.isEmpty) {
-                  return const AppEmptyView(
-                    title: 'No orders yet',
-                    subtitle:
-                        'Orders placed against your store will show up here.',
+                  return AppEmptyView(
+                    title: _selectedFilter == 'all'
+                        ? 'No Orders Yet'
+                        : 'No ${_selectedFilter[0].toUpperCase() + _selectedFilter.substring(1)} Orders',
+                    subtitle: 'Orders from your customers will show up here.',
                     icon: Icons.receipt_long_outlined,
                   );
                 }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: filteredOrders.length,
-                  itemBuilder: (context, index) {
-                    final order = filteredOrders[index];
-
-                    final itemSummary = order.items.isEmpty
-                        ? 'No items'
-                        : order.items.map((e) => e.title).join(', ');
-
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(18),
-                        onTap: () {},
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'Order #${order.id.substring(0, order.id.length < 8 ? order.id.length : 8)}',
-                                  ),
-                                  _StatusChip(status: order.status),
-                                ],
-                              ),
-
-                              const SizedBox(height: 8),
-
-                              Text(
-                                itemSummary,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-
-                              const SizedBox(height: 4),
-
-                              Text('Buyer: ${order.buyerName}'),
-
-                              const SizedBox(height: 8),
-
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: AppPriceText(amount: order.totalAmount),
-                              ),
-                            ],
-                          ),
+                return RefreshIndicator(
+                  onRefresh: () => ref.refresh(sellerOrdersProvider.future),
+                  child: ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                    itemCount: filteredOrders.length,
+                    itemBuilder: (context, index) {
+                      final order = filteredOrders[index];
+                      return SellerOrderCard(
+                        order: order,
+                        onTap: () =>
+                            context.push('/seller/orders/${order.orderId}'),
+                        onStatusChangePressed: () => _showStatusPicker(
+                          context,
+                          order.orderId,
+                          order.status,
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 );
               },
             ),
@@ -146,48 +153,26 @@ class _SellerOrdersScreenState extends ConsumerState<SellerOrdersScreen> {
       ),
     );
   }
-
-  Widget _filterChip(String value, String label) {
-    final selected = _filter == value;
-
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: ChoiceChip(
-        label: Text(label),
-        selected: selected,
-        onSelected: (_) {
-          setState(() {
-            _filter = value;
-          });
-        },
-      ),
-    );
-  }
 }
 
-class _StatusChip extends StatelessWidget {
-  final String status;
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final ValueChanged<bool> onSelected;
 
-  const _StatusChip({required this.status});
+  const _FilterChip({
+    required this.label,
+    required this.isSelected,
+    required this.onSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final color = _statusColors[status] ?? Colors.grey;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        _statusLabels[status] ?? status,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.w600,
-          fontSize: 12,
-        ),
-      ),
+    return FilterChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: onSelected,
+      showCheckmark: false,
     );
   }
 }

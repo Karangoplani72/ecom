@@ -1,11 +1,3 @@
-// lib/features/admin/presentation/screens/admin_users_screen.dart
-//
-// User Management (route: /admin/users)
-// Real screen — backed by `adminUsersProvider` / `adminUserControllerProvider`.
-// Only the outer chrome was updated (now uses AdminScaffold so it shares the
-// sidebar nav with the rest of the admin console); the data + role/suspend
-// logic below is unchanged and already live.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -35,6 +27,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+
             child: TextField(
               decoration: const InputDecoration(
                 hintText: 'Search email...',

@@ -52,9 +52,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           _passwordController.text,
           onFailure: (message) {
             if (!mounted) return;
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(message)));
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(message),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            );
           },
           onSuccess: () {
             // Router redirect handles navigation.
@@ -74,6 +80,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
               title: const Text('Reset Password'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -82,11 +91,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const Text(
                     'Enter your account email and we will send you a reset link.',
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
                   AppTextField(
                     controller: resetEmailController,
-                    label: 'Email',
-                    hint: 'Enter your email',
+                    label: 'Email Address',
+                    hint: 'e.g. name@domain.com',
+                    prefixIcon: Icons.email_outlined,
                     keyboardType: TextInputType.emailAddress,
                   ),
                 ],
@@ -105,6 +115,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ScaffoldMessenger.of(dialogContext).showSnackBar(
                               const SnackBar(
                                 content: Text('Enter a valid email address'),
+                                behavior: SnackBarBehavior.floating,
                               ),
                             );
                             return;
@@ -122,6 +133,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 content: Text(
                                   'Password reset link sent to $email',
                                 ),
+                                behavior: SnackBarBehavior.floating,
                               ),
                             );
                           } on FirebaseAuthException catch (e) {
@@ -131,6 +143,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 content: Text(
                                   e.message ?? 'Failed to send reset link',
                                 ),
+                                behavior: SnackBarBehavior.floating,
                               ),
                             );
                           }
@@ -141,7 +154,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           width: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('Send Link'),
+                      : const Text('Send Reset Link'),
                 ),
               ],
             );
@@ -158,10 +171,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
+      backgroundColor: colorScheme.surface,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 450),
               child: Form(
@@ -169,38 +183,55 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Icon(
-                      Icons.shopping_bag_outlined,
-                      size: 64,
-                      color: colorScheme.primary,
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'Welcome Back',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.headlineMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Sign in to continue shopping',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium,
+                    Hero(
+                      tag: 'app_logo',
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.shopping_bag_outlined,
+                          size: 64,
+                          color: colorScheme.primary,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 32),
+                    Text(
+                      'Welcome Back!',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.headlineLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Sign in to your account to continue shopping premium products.',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 48),
 
                     AppTextField(
                       controller: _emailController,
-                      label: 'Email',
-                      hint: 'Enter your email',
+                      label: 'Email Address',
+                      hint: 'name@example.com',
+                      prefixIcon: Icons.email_outlined,
                       keyboardType: TextInputType.emailAddress,
                       validator: _validateEmail,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 20),
 
                     AppTextField(
                       controller: _passwordController,
                       label: 'Password',
                       hint: 'Enter your password',
+                      prefixIcon: Icons.lock_outline,
                       obscureText: _obscurePassword,
                       validator: _validatePassword,
                       suffixIcon: IconButton(
@@ -208,6 +239,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           _obscurePassword
                               ? Icons.visibility_off_outlined
                               : Icons.visibility_outlined,
+                          size: 20,
                         ),
                         onPressed: () => setState(
                           () => _obscurePassword = !_obscurePassword,
@@ -221,29 +253,40 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         onPressed: authState.isLoading
                             ? null
                             : _showForgotPasswordDialog,
+                        style: TextButton.styleFrom(
+                          foregroundColor: colorScheme.primary,
+                        ),
                         child: const Text('Forgot Password?'),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 24),
 
                     AppPrimaryButton(
-                      text: 'Log In',
+                      text: 'Sign In',
                       isLoading: authState.isLoading,
                       onPressed: _login,
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 32),
 
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
                           "Don't have an account?",
-                          style: theme.textTheme.bodyMedium,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
                         ),
                         TextButton(
                           onPressed: authState.isLoading
                               ? null
                               : () => context.push('/signup'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: colorScheme.primary,
+                            textStyle: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                           child: const Text('Sign Up'),
                         ),
                       ],

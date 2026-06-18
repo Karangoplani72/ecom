@@ -117,5 +117,22 @@ service cloud.firestore {
       allow read: if true; // Public configuration variables (like rate limits)
       allow write: if hasRole('superAdmin');
     }
+
+    // ========================================================================
+    // 8. ORDERS & CHECKOUT
+    // ========================================================================
+    match /orders/{orderId} {
+      allow read: if isLoggedIn() && (
+        resource.data.buyerId == request.auth.uid ||
+        resource.data.storeId == request.auth.uid ||
+        hasRole('admin')
+      );
+      allow create: if isLoggedIn() && request.resource.data.buyerId == request.auth.uid;
+      allow update: if isLoggedIn() && (
+        (resource.data.storeId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])) ||
+        hasRole('admin')
+      );
+      allow delete: if hasRole('superAdmin');
+    }
   }
 }

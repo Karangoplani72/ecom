@@ -17,6 +17,7 @@ class StoreVerificationStatusWidget extends StatelessWidget {
     switch (status) {
       case VerificationStatus.applied:
       case VerificationStatus.underReview:
+      case VerificationStatus.pending:
         return const Color(0xFFF59E0B); // Amber
       case VerificationStatus.verified:
         return const Color(0xFF16A34A); // Green
@@ -39,6 +40,8 @@ class StoreVerificationStatusWidget extends StatelessWidget {
         return Icons.cancel_rounded;
       case VerificationStatus.suspended:
         return Icons.block_rounded;
+      case VerificationStatus.pending:
+        return Icons.pending_actions_rounded;
     }
   }
 
@@ -54,6 +57,8 @@ class StoreVerificationStatusWidget extends StatelessWidget {
         return 'Rejected';
       case VerificationStatus.suspended:
         return 'Suspended';
+      case VerificationStatus.pending:
+        return 'Pending';
     }
   }
 
@@ -69,6 +74,8 @@ class StoreVerificationStatusWidget extends StatelessWidget {
         return 'Your store application was rejected. Please review feedback and reapply.';
       case VerificationStatus.suspended:
         return 'Your store has been suspended. Please contact support for details.';
+      case VerificationStatus.pending:
+        return 'Your store verification is pending. Please check back soon.';
     }
   }
 

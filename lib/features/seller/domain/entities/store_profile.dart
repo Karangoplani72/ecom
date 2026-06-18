@@ -1,5 +1,26 @@
-enum VerificationStatus { applied, underReview, verified, rejected, suspended }
+import 'package:flutter/foundation.dart';
 
+enum VerificationStatus {
+  pending('pending'),
+  applied('applied'),
+  underReview('underReview'),
+  verified('verified'),
+  rejected('rejected'),
+  suspended('suspended');
+
+  final String value;
+
+  const VerificationStatus(this.value);
+
+  static VerificationStatus fromString(String? value) {
+    return values.firstWhere(
+      (status) => status.value == value,
+      orElse: () => VerificationStatus.pending,
+    );
+  }
+}
+
+@immutable
 class StoreProfile {
   final String id;
   final String sellerId;
@@ -33,15 +54,74 @@ class StoreProfile {
     this.updatedAt,
   });
 
+  /// Check if store is verified and active
   bool get isVerified => status == VerificationStatus.verified;
 
+  /// Check if store is pending approval
   bool get isPending =>
       status == VerificationStatus.applied ||
       status == VerificationStatus.underReview;
 
+  /// Check if store verification was rejected
   bool get isRejected => status == VerificationStatus.rejected;
 
+  /// Check if store is suspended
   bool get isSuspended => status == VerificationStatus.suspended;
+
+  /// Check if store profile is complete for verification
+  bool get isProfileComplete =>
+      storeName.isNotEmpty &&
+      description.isNotEmpty &&
+      phone != null &&
+      phone!.isNotEmpty &&
+      email != null &&
+      email!.isNotEmpty &&
+      address != null &&
+      address!.isNotEmpty &&
+      category != null &&
+      category!.isNotEmpty &&
+      logoUrl != null &&
+      logoUrl!.isNotEmpty;
+
+  /// Check if store can be verified (complete and not rejected/suspended)
+  bool get canBeVerified => isProfileComplete && !isRejected && !isSuspended;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StoreProfile &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          sellerId == other.sellerId &&
+          storeName == other.storeName &&
+          description == other.description &&
+          logoUrl == other.logoUrl &&
+          bannerUrl == other.bannerUrl &&
+          phone == other.phone &&
+          email == other.email &&
+          address == other.address &&
+          gstNumber == other.gstNumber &&
+          category == other.category &&
+          status == other.status &&
+          createdAt == other.createdAt &&
+          updatedAt == other.updatedAt;
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      sellerId.hashCode ^
+      storeName.hashCode ^
+      description.hashCode ^
+      logoUrl.hashCode ^
+      bannerUrl.hashCode ^
+      phone.hashCode ^
+      email.hashCode ^
+      address.hashCode ^
+      gstNumber.hashCode ^
+      category.hashCode ^
+      status.hashCode ^
+      createdAt.hashCode ^
+      updatedAt.hashCode;
 
   StoreProfile copyWith({
     String? id,
@@ -75,5 +155,11 @@ class StoreProfile {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
+  }
+
+  @override
+  String toString() {
+    return 'StoreProfile(id: $id, storeName: $storeName, '
+        'status: ${status.value}, isVerified: $isVerified)';
   }
 }

@@ -4,12 +4,14 @@ class AppEmptyView extends StatelessWidget {
   final String title;
   final String subtitle;
   final IconData icon;
+  final Widget? action;
 
   const AppEmptyView({
     super.key,
     required this.title,
     required this.subtitle,
     required this.icon,
+    this.action,
   });
 
   @override
@@ -22,15 +24,10 @@ class AppEmptyView extends StatelessWidget {
           children: [
             Icon(icon, size: 80),
             const SizedBox(height: 16),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-            ),
+            Text(subtitle, textAlign: TextAlign.center),
+            if (action != null) ...[const SizedBox(height: 24), action!],
           ],
         ),
       ),

@@ -1,6 +1,6 @@
 name: ecom
-description:
-publish_to:
+description: A multi-vendor marketplace app
+publish_to: "none"
 
 
 version: 1.0.0+1
@@ -28,6 +28,7 @@ dependencies:
   google_fonts: ^8.1.0
   http: ^1.2.1
   intl: ^0.20.2
+  uuid: ^4.5.1
 
 dev_dependencies:
   flutter_test:

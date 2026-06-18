@@ -42,19 +42,19 @@ class StoreProfileDto {
 
     return StoreProfileDto(
       id: doc.id,
-      sellerId: data['sellerId'] ?? '',
-      storeName: data['storeName'] ?? '',
-      description: data['description'] ?? '',
-      logoUrl: data['logoUrl'],
-      bannerUrl: data['bannerUrl'],
-      phone: data['phone'],
-      email: data['email'],
-      address: data['address'],
-      gstNumber: data['gstNumber'],
-      category: data['category'],
-      status: data['status'] ?? 'applied',
-      createdAt: data['createdAt'],
-      updatedAt: data['updatedAt'],
+      sellerId: data['sellerId'] as String? ?? '',
+      storeName: data['storeName'] as String? ?? '',
+      description: data['description'] as String? ?? '',
+      logoUrl: data['logoUrl'] as String?,
+      bannerUrl: data['bannerUrl'] as String?,
+      phone: data['phone'] as String?,
+      email: data['email'] as String?,
+      address: data['address'] as String?,
+      gstNumber: data['gstNumber'] as String?,
+      category: data['category'] as String?,
+      status: data['status'] as String? ?? 'pending',
+      createdAt: data['createdAt'] as Timestamp?,
+      updatedAt: data['updatedAt'] as Timestamp?,
     );
   }
 
@@ -71,7 +71,7 @@ class StoreProfileDto {
       address: address,
       gstNumber: gstNumber,
       category: category,
-      status: VerificationStatus.values.byName(status),
+      status: VerificationStatus.fromString(status),
       createdAt: createdAt?.toDate() ?? DateTime.now(),
       updatedAt: updatedAt?.toDate(),
     );
@@ -91,7 +91,46 @@ class StoreProfileDto {
       'category': category,
       'status': status,
       'createdAt': createdAt,
-      'updatedAt': updatedAt,
+      'updatedAt': updatedAt ?? FieldValue.serverTimestamp(),
     };
+  }
+
+  StoreProfileDto copyWith({
+    String? id,
+    String? sellerId,
+    String? storeName,
+    String? description,
+    String? logoUrl,
+    String? bannerUrl,
+    String? phone,
+    String? email,
+    String? address,
+    String? gstNumber,
+    String? category,
+    String? status,
+    Timestamp? createdAt,
+    Timestamp? updatedAt,
+  }) {
+    return StoreProfileDto(
+      id: id ?? this.id,
+      sellerId: sellerId ?? this.sellerId,
+      storeName: storeName ?? this.storeName,
+      description: description ?? this.description,
+      logoUrl: logoUrl ?? this.logoUrl,
+      bannerUrl: bannerUrl ?? this.bannerUrl,
+      phone: phone ?? this.phone,
+      email: email ?? this.email,
+      address: address ?? this.address,
+      gstNumber: gstNumber ?? this.gstNumber,
+      category: category ?? this.category,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return 'StoreProfileDto(id: $id, storeName: $storeName, status: $status)';
   }
 }

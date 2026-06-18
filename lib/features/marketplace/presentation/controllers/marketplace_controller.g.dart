@@ -103,3 +103,78 @@ abstract class _$MarketplaceController
     return element.handleCreate(ref, build);
   }
 }
+
+@ProviderFor(productDetail)
+final productDetailProvider = ProductDetailFamily._();
+
+final class ProductDetailProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<CatalogItem>,
+          CatalogItem,
+          FutureOr<CatalogItem>
+        >
+    with $FutureModifier<CatalogItem>, $FutureProvider<CatalogItem> {
+  ProductDetailProvider._({
+    required ProductDetailFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'productDetailProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$productDetailHash();
+
+  @override
+  String toString() {
+    return r'productDetailProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<CatalogItem> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<CatalogItem> create(Ref ref) {
+    final argument = this.argument as String;
+    return productDetail(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ProductDetailProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$productDetailHash() => r'fd7fdf6f3783788815bbff76073d410aff0d116b';
+
+final class ProductDetailFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<CatalogItem>, String> {
+  ProductDetailFamily._()
+    : super(
+        retry: null,
+        name: r'productDetailProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  ProductDetailProvider call(String productId) =>
+      ProductDetailProvider._(argument: productId, from: this);
+
+  @override
+  String toString() => r'productDetailProvider';
+}

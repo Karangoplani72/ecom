@@ -16,6 +16,8 @@ class AppNetworkImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Image.network(
       imageUrl,
       height: height,
@@ -24,10 +26,30 @@ class AppNetworkImage extends StatelessWidget {
       loadingBuilder: (context, child, progress) {
         if (progress == null) return child;
 
-        return const Center(child: CircularProgressIndicator());
+        return Container(
+          height: height,
+          width: width,
+          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          child: const Center(
+            child: SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        );
       },
       errorBuilder: (context, error, stackTrace) {
-        return const Icon(Icons.image_not_supported);
+        return Container(
+          height: height,
+          width: width,
+          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          child: Icon(
+            Icons.image_not_supported_outlined,
+            color: colorScheme.primary.withValues(alpha: 0.5),
+            size: 32,
+          ),
+        );
       },
     );
   }

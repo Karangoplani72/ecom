@@ -1,10 +1,10 @@
-// lib/features/seller/data/dtos/seller_application_dto.dart
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../domain/entities/seller_application.dart';
 
 class SellerApplicationDto {
+  static const String collectionPath = 'storeApplications';
+
   final String? id;
   final String sellerId;
   final String fullName;
@@ -15,6 +15,10 @@ class SellerApplicationDto {
   final String description;
   final String status;
   final DateTime submittedAt;
+
+  final DateTime? reviewedAt;
+  final String? reviewedBy;
+  final String? rejectionReason;
 
   const SellerApplicationDto({
     this.id,
@@ -27,12 +31,16 @@ class SellerApplicationDto {
     required this.description,
     required this.status,
     required this.submittedAt,
+    this.reviewedAt,
+    this.reviewedBy,
+    this.rejectionReason,
   });
 
   factory SellerApplicationDto.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,
   ) {
     final data = doc.data() ?? {};
+
     return SellerApplicationDto(
       id: doc.id,
       sellerId: data['sellerId'] as String? ?? '',
@@ -45,6 +53,9 @@ class SellerApplicationDto {
       status: data['status'] as String? ?? 'pending',
       submittedAt:
           (data['submittedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      reviewedAt: (data['reviewedAt'] as Timestamp?)?.toDate(),
+      reviewedBy: data['reviewedBy'] as String?,
+      rejectionReason: data['rejectionReason'] as String?,
     );
   }
 
@@ -59,6 +70,9 @@ class SellerApplicationDto {
       'description': description,
       'status': status,
       'submittedAt': Timestamp.fromDate(submittedAt),
+      if (reviewedAt != null) 'reviewedAt': Timestamp.fromDate(reviewedAt!),
+      if (reviewedBy != null) 'reviewedBy': reviewedBy,
+      if (rejectionReason != null) 'rejectionReason': rejectionReason,
     };
   }
 
@@ -74,6 +88,9 @@ class SellerApplicationDto {
       description: application.description,
       status: application.status,
       submittedAt: application.submittedAt,
+      reviewedAt: application.reviewedAt,
+      reviewedBy: application.reviewedBy,
+      rejectionReason: application.rejectionReason,
     );
   }
 
@@ -89,6 +106,9 @@ class SellerApplicationDto {
       description: description,
       status: status,
       submittedAt: submittedAt,
+      reviewedAt: reviewedAt,
+      reviewedBy: reviewedBy,
+      rejectionReason: rejectionReason,
     );
   }
 }

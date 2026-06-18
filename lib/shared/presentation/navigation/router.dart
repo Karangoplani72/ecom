@@ -16,6 +16,7 @@ import 'package:ecom/features/admin/presentation/screens/admin_store_approvals_s
 import 'package:ecom/features/admin/presentation/screens/admin_stores_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_users_screen.dart';
 import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:ecom/features/auth/presentation/screens/address_screen.dart';
 import 'package:ecom/features/auth/presentation/screens/landing_screen.dart';
 import 'package:ecom/features/auth/presentation/screens/login_screen.dart';
 import 'package:ecom/features/auth/presentation/screens/signup_screen.dart';
@@ -29,11 +30,16 @@ import 'package:ecom/features/buyer/presentation/screens/products_screen.dart';
 import 'package:ecom/features/buyer/presentation/screens/profile_screen.dart';
 import 'package:ecom/features/buyer/presentation/screens/wishlist_screen.dart';
 import 'package:ecom/features/marketplace/presentation/screens/chat_screen.dart';
+import 'package:ecom/features/orders/presentation/screens/order_detail_screen.dart';
 import 'package:ecom/features/seller/presentation/screens/add_product_screen.dart';
 import 'package:ecom/features/seller/presentation/screens/edit_product_screen.dart';
 import 'package:ecom/features/seller/presentation/screens/seller_analytics_screen.dart';
 import 'package:ecom/features/seller/presentation/screens/seller_dashboard_screen.dart';
 import 'package:ecom/features/seller/presentation/screens/seller_inventory_screen.dart';
+import 'package:ecom/features/seller/presentation/screens/seller_orders_screen.dart';
+import 'package:ecom/features/seller/presentation/screens/seller_settings_screen.dart';
+import 'package:ecom/features/seller/presentation/screens/seller_store_profile_screen.dart';
+import 'package:ecom/features/seller_application/presentation/screens/seller_application_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,11 +48,6 @@ import 'package:go_router/go_router.dart';
 import '../../../features/auth/domain/entities/app_user.dart';
 import '../../../features/seller/presentation/screens/seller_customers_screen.dart';
 import '../../../features/seller/presentation/screens/seller_finances_screen.dart';
-import '../../../features/seller/presentation/screens/seller_order_detail_screen.dart';
-import '../../../features/seller/presentation/screens/seller_orders_screen.dart';
-import '../../../features/seller/presentation/screens/seller_settings_screen.dart';
-import '../../../features/seller/presentation/screens/seller_store_profile_screen.dart';
-import '../../../features/seller_application/presentation/screens/seller_application_screen.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'rootNav',
@@ -74,6 +75,8 @@ abstract class AppRoutes {
   static const buyerCart = '/buyer/cart';
   static const buyerCheckout = '/buyer/checkout';
   static const buyerOrders = '/buyer/orders';
+  static const buyerOrderDetail = '/buyer/orders/:orderId';
+  static const buyerAddresses = '/buyer/addresses';
   static const productDetail = '/buyer/home/product/:productId';
   static const chat = '/chat/:chatId';
 
@@ -173,15 +176,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       if (user != null && isAuthRoute) {
-        if (user.roles.any((r) => r.name == 'superAdmin')) {
+        if (user.roles.contains(UserRole.superAdmin) ||
+            user.roles.contains(UserRole.admin)) {
           return AppRoutes.adminPanel;
         }
 
-        if (user.roles.any((r) => r.name == 'admin')) {
-          return AppRoutes.adminPanel;
-        }
-
-        if (user.roles.any((r) => r.name == 'seller')) {
+        if (user.roles.contains(UserRole.seller)) {
           return AppRoutes.sellerDashboard;
         }
 
@@ -190,15 +190,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (loc == AppRoutes.root) {
         if (user == null) return AppRoutes.landing;
 
-        if (user.roles.any((r) => r.name == 'superAdmin')) {
+        if (user.roles.contains(UserRole.superAdmin) ||
+            user.roles.contains(UserRole.admin)) {
           return AppRoutes.adminPanel;
         }
 
-        if (user.roles.any((r) => r.name == 'admin')) {
-          return AppRoutes.adminPanel;
-        }
-
-        if (user.roles.any((r) => r.name == 'seller')) {
+        if (user.roles.contains(UserRole.seller)) {
           return AppRoutes.sellerDashboard;
         }
 
@@ -249,6 +246,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.buyerOrders,
         builder: (context, state) => const BuyerOrdersScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.buyerOrderDetail,
+        builder: (context, state) =>
+            OrderDetailScreen(orderId: state.pathParameters['orderId']!),
+      ),
+      GoRoute(
+        path: AppRoutes.buyerAddresses,
+        builder: (context, state) => const AddressScreen(),
       ),
       GoRoute(
         path: AppRoutes.productDetail,
@@ -325,7 +331,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.sellerOrderDetail,
         builder: (context, state) =>
-            SellerOrderDetailScreen(orderId: state.pathParameters['orderId']!),
+            OrderDetailScreen(orderId: state.pathParameters['orderId']!),
       ),
       GoRoute(
         path: AppRoutes.sellerSettings,

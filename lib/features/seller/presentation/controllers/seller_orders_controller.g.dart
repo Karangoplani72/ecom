@@ -9,6 +9,94 @@ part of 'seller_orders_controller.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 
+@ProviderFor(firebaseFirestore)
+final firebaseFirestoreProvider = FirebaseFirestoreProvider._();
+
+final class FirebaseFirestoreProvider
+    extends
+        $FunctionalProvider<
+          FirebaseFirestore,
+          FirebaseFirestore,
+          FirebaseFirestore
+        >
+    with $Provider<FirebaseFirestore> {
+  FirebaseFirestoreProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'firebaseFirestoreProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$firebaseFirestoreHash();
+
+  @$internal
+  @override
+  $ProviderElement<FirebaseFirestore> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  FirebaseFirestore create(Ref ref) {
+    return firebaseFirestore(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(FirebaseFirestore value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<FirebaseFirestore>(value),
+    );
+  }
+}
+
+String _$firebaseFirestoreHash() => r'963402713bf9b7cc1fb259d619d9b0184d4dcec1';
+
+@ProviderFor(currentSellerId)
+final currentSellerIdProvider = CurrentSellerIdProvider._();
+
+final class CurrentSellerIdProvider
+    extends $FunctionalProvider<String?, String?, String?>
+    with $Provider<String?> {
+  CurrentSellerIdProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'currentSellerIdProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$currentSellerIdHash();
+
+  @$internal
+  @override
+  $ProviderElement<String?> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  String? create(Ref ref) {
+    return currentSellerId(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(String? value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<String?>(value),
+    );
+  }
+}
+
+String _$currentSellerIdHash() => r'2a56907f530afafdbcf85ab10231be86bad2598a';
+
 @ProviderFor(sellerOrderRepository)
 final sellerOrderRepositoryProvider = SellerOrderRepositoryProvider._();
 
@@ -55,7 +143,7 @@ final class SellerOrderRepositoryProvider
 }
 
 String _$sellerOrderRepositoryHash() =>
-    r'7932919640505c35826cd2ea112e31a4a75e7c4a';
+    r'7f0dc7be14b9bbfd56e3652f29b525727492c1c4';
 
 @ProviderFor(sellerOrders)
 final sellerOrdersProvider = SellerOrdersProvider._();
@@ -96,7 +184,7 @@ final class SellerOrdersProvider
   }
 }
 
-String _$sellerOrdersHash() => r'6bb8c5d396d1cc598fb34afd7401baad4117ea75';
+String _$sellerOrdersHash() => r'59b9bcc480987b2e952f176367263b5ff3ec40d9';
 
 @ProviderFor(SellerOrdersController)
 final sellerOrdersControllerProvider = SellerOrdersControllerProvider._();
@@ -123,7 +211,7 @@ final class SellerOrdersControllerProvider
 }
 
 String _$sellerOrdersControllerHash() =>
-    r'44874647c4dc15a97da90d76fbd1d36a18ad6b1a';
+    r'192da3209a56f5bac0ffdd09e7316d292fc7ee39';
 
 abstract class _$SellerOrdersController extends $AsyncNotifier<void> {
   FutureOr<void> build();

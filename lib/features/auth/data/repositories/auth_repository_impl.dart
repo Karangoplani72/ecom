@@ -133,8 +133,9 @@ class AuthRepositoryImpl implements AuthRepository {
         'uid': userId,
         'email': email.trim(),
         'displayName': displayName.trim(),
-        'roles': ['buyer'], // Default role
+        'roles': ['buyer'],
         'isActive': true,
+        'sellerApproved': false,
         'walletBalance': 0.0,
         'phoneNumber': '',
         'photoUrl': null,
@@ -221,6 +222,7 @@ class AuthRepositoryImpl implements AuthRepository {
         'displayName': firebaseUser.displayName ?? '',
         'roles': ['buyer'],
         'isActive': true,
+        'sellerApproved': false,
         'walletBalance': 0.0,
         'phoneNumber': firebaseUser.phoneNumber ?? '',
         'photoUrl': firebaseUser.photoURL,

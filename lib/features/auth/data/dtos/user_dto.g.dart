@@ -9,19 +9,21 @@ part of 'user_dto.dart';
 UserDto _$UserDtoFromJson(Map<String, dynamic> json) => UserDto(
   uid: json['uid'] as String,
   email: json['email'] as String,
-  phoneNumber: json['phoneNumber'] as String,
+  displayName: json['displayName'] as String,
+  photoUrl: json['photoUrl'] as String?,
   roles: (json['roles'] as List<dynamic>).map((e) => e as String).toList(),
-  activeStoreId: json['activeStoreId'] as String?,
   isActive: json['isActive'] as bool,
+  sellerApproved: json['sellerApproved'] as bool? ?? false,
   createdAt: UserDto._timestampToDateTime(json['createdAt']),
 );
 
 Map<String, dynamic> _$UserDtoToJson(UserDto instance) => <String, dynamic>{
   'uid': instance.uid,
   'email': instance.email,
-  'phoneNumber': instance.phoneNumber,
+  'displayName': instance.displayName,
+  'photoUrl': instance.photoUrl,
   'roles': instance.roles,
-  'activeStoreId': instance.activeStoreId,
   'isActive': instance.isActive,
+  'sellerApproved': instance.sellerApproved,
   'createdAt': UserDto._dateTimeToTimestamp(instance.createdAt),
 };

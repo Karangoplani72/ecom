@@ -1,162 +1,156 @@
-import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:ecom/features/buyer/data/repositories/cart_repository_impl.dart';
 import 'package:ecom/features/buyer/domain/entities/cart_item.dart';
+import 'package:ecom/features/buyer/domain/repositories/cart_repository.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'cart_controller.g.dart';
+
+@riverpod
+CartRepository cartRepository(Ref ref) {
+  return CartRepositoryImpl(firestore: FirebaseFirestore.instance);
+}
+
+@riverpod
+Stream<List<CartItem>> cartStream(Ref ref) {
+  final currentUser = FirebaseAuth.instance.currentUser;
+
+  if (currentUser == null) {
+    return Stream.value(<CartItem>[]);
+  }
+
+  final repo = ref.watch(cartRepositoryProvider);
+
+  return repo
+      .watchCart(userId: currentUser.uid)
+      .map((either) => either.fold((_) => <CartItem>[], (items) => items));
+}
 
 @riverpod
 class CartController extends _$CartController {
   @override
   List<CartItem> build() {
-    return [
-      const CartItem(
-        id: 'c1',
-        productId: 'p1',
-        title: 'Rose Gold Gel Extensions',
-        storeId: 's1',
-        storeName: "Anjali's Elite Studio",
-        unitPrice: 1200,
-        imageUrl:
-        'https://images.unsplash.com/photo-1604654894610-df63bc536371?q=80&w=400',
-        quantity: 1,
-      ),
-      const CartItem(
-        id: 'c2',
-        productId: 'p2',
-        title: 'Matte Top Coat 15ml',
-        storeId: 's1',
-        storeName: "Anjali's Elite Studio",
-        unitPrice: 450,
-        imageUrl: '',
-        quantity: 2,
-      ),
-      const CartItem(
-        id: 'c3',
-        productId: 'p3',
-        title: 'Luxury Spa Pedicure Kit',
-        storeId: 's2',
-        storeName: 'Nail Aesthetics Co.',
-        unitPrice: 899,
-        imageUrl: '',
-        quantity: 1,
-      ),
-    ];
+    final cartAsync = ref.watch(cartStreamProvider);
+    return cartAsync.value ?? <CartItem>[];
   }
 
-  // -------------------------
-  // Add Item
-  // -------------------------
+  // ==================================================
+  // ADD ITEM
+  // ==================================================
 
-  void addItem(CartItem item) {
-    final existing = state.cast<CartItem?>().firstWhere(
-          (e) => e?.productId == item.productId,
-      orElse: () => null,
-    );
+  Future<void> addItem(CartItem item) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
 
-    if (existing != null) {
-      state = state.map((e) {
-        if (e.productId == item.productId) {
-          return e.copyWith(
-            quantity: e.quantity + item.quantity,
-          );
-        }
-        return e;
-      }).toList();
+    if (currentUser == null) return;
 
+    final repo = ref.read(cartRepositoryProvider);
+
+    final result = await repo.addCartItem(userId: currentUser.uid, item: item);
+
+    // FIX: propagate Firestore write errors instead of silently swallowing them.
+    // ProductDetailScreen already wraps addItem() in try/catch and shows an error
+    // snackbar, so throwing here is the correct and complete fix.
+    result.fold((error) => throw Exception(error), (_) {});
+  }
+
+  // ==================================================
+  // UPDATE QUANTITY
+  // ==================================================
+
+  Future<void> updateQuantity(String itemId, int delta) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser == null) return;
+
+    CartItem? item;
+
+    for (final cartItem in state) {
+      if (cartItem.id == itemId) {
+        item = cartItem;
+        break;
+      }
+    }
+
+    if (item == null) return;
+
+    final newQuantity = item.quantity + delta;
+
+    if (newQuantity < 1) {
+      await removeItem(itemId);
       return;
     }
 
-    state = [...state, item];
+    final repo = ref.read(cartRepositoryProvider);
+
+    await repo.updateCartItemQuantity(
+      userId: currentUser.uid,
+      itemId: itemId,
+      quantity: newQuantity,
+    );
   }
 
-  // -------------------------
-  // Increment / Decrement
-  // -------------------------
+  // ==================================================
+  // SET QUANTITY
+  // ==================================================
 
-  void updateQuantity(
-      String itemId,
-      int delta,
-      ) {
-    final updated = <CartItem>[];
-
-    for (final item in state) {
-      if (item.id == itemId) {
-        final newQty = item.quantity + delta;
-
-        if (newQty > 0) {
-          updated.add(
-            item.copyWith(
-              quantity: newQty,
-            ),
-          );
-        }
-      } else {
-        updated.add(item);
-      }
-    }
-
-    state = updated;
-  }
-
-  // -------------------------
-  // Set Exact Quantity
-  // -------------------------
-
-  void setQuantity(
-      String itemId,
-      int quantity,
-      ) {
+  Future<void> setQuantity(String itemId, int quantity) async {
     if (quantity < 1) return;
 
-    state = state.map((item) {
-      if (item.id == itemId) {
-        return item.copyWith(
-          quantity: quantity,
-        );
-      }
+    final currentUser = FirebaseAuth.instance.currentUser;
 
-      return item;
-    }).toList();
+    if (currentUser == null) return;
+
+    final repo = ref.read(cartRepositoryProvider);
+
+    await repo.updateCartItemQuantity(
+      userId: currentUser.uid,
+      itemId: itemId,
+      quantity: quantity,
+    );
   }
 
-  // -------------------------
-  // Remove
-  // -------------------------
+  // ==================================================
+  // REMOVE ITEM
+  // ==================================================
 
-  void removeItem(String itemId) {
-    state = state
-        .where(
-          (item) => item.id != itemId,
-    )
-        .toList();
+  Future<void> removeItem(String itemId) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser == null) return;
+
+    final repo = ref.read(cartRepositoryProvider);
+
+    await repo.removeCartItem(userId: currentUser.uid, itemId: itemId);
   }
 
-  // -------------------------
-  // Clear Cart
-  // -------------------------
+  // ==================================================
+  // CLEAR CART
+  // ==================================================
 
-  void clearCart() {
-    state = [];
+  Future<void> clearCart() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser == null) return;
+
+    final repo = ref.read(cartRepositoryProvider);
+
+    await repo.clearCart(userId: currentUser.uid);
   }
 
-  // -------------------------
-  // Getters
-  // -------------------------
+  // ==================================================
+  // GETTERS
+  // ==================================================
 
   double get subtotal {
     return state.fold(
-      0,
-          (sum, item) =>
-      sum +
-          (item.unitPrice * item.quantity),
+      0.0,
+      (total, item) => total + (item.unitPrice * item.quantity),
     );
   }
 
   int get totalItems {
-    return state.fold(
-      0,
-          (sum, item) =>
-      sum + item.quantity,
-    );
+    return state.fold(0, (total, item) => total + item.quantity);
   }
 
   int get totalUniqueProducts {
@@ -171,19 +165,12 @@ class CartController extends _$CartController {
     return state.isNotEmpty;
   }
 
-  Map<String, List<CartItem>>
-  get groupedByStore {
-    final grouped =
-    <String, List<CartItem>>{};
+  Map<String, List<CartItem>> get groupedByStore {
+    final grouped = <String, List<CartItem>>{};
 
     for (final item in state) {
-      grouped.putIfAbsent(
-        item.storeName,
-            () => [],
-      );
-
-      grouped[item.storeName]!
-          .add(item);
+      grouped.putIfAbsent(item.storeId, () => <CartItem>[]);
+      grouped[item.storeId]!.add(item);
     }
 
     return grouped;
