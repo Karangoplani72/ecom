@@ -1,23 +1,30 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:ecom/core/providers/common_providers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../widgets/chat_bubble.dart';
 
-class ChatScreen extends StatefulWidget {
+class ChatScreen extends ConsumerStatefulWidget {
   final String chatId;
+
   const ChatScreen({super.key, required this.chatId});
 
   @override
-  State<ChatScreen> createState() => _ChatScreenState();
+  ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends ConsumerState<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
-  final String currentUserId = 'buyer_001'; // Placeholder
+  final ScrollController _scrollController = ScrollController();
+
+  String get currentUserId => ref.read(currentUserIdProvider) ?? 'unknown';
 
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
+
+    _messageController.clear();
 
     await FirebaseFirestore.instance
         .collection('chats')
@@ -28,12 +35,36 @@ class _ChatScreenState extends State<ChatScreen> {
           'senderId': currentUserId,
           'createdAt': FieldValue.serverTimestamp(),
         });
-    _messageController.clear();
+
+    // Update last message metadata
+    await FirebaseFirestore.instance.collection('chats').doc(widget.chatId).set(
+      {
+        'lastMessage': text,
+        'lastMessageAt': FieldValue.serverTimestamp(),
+        'participants': FieldValue.arrayUnion([currentUserId]),
+      },
+      SetOptions(merge: true),
+    );
+
+    _scrollToBottom();
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   @override
   void dispose() {
     _messageController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -62,7 +93,7 @@ class _ChatScreenState extends State<ChatScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Support Chat',
+                  'Seller Chat',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -78,7 +109,6 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.call_outlined), onPressed: () {}),
           IconButton(icon: const Icon(Icons.more_vert), onPressed: () {}),
         ],
       ),
@@ -101,6 +131,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 }
 
                 final docs = snapshot.data?.docs ?? [];
+
                 if (docs.isEmpty) {
                   return Center(
                     child: Column(
@@ -112,19 +143,29 @@ class _ChatScreenState extends State<ChatScreen> {
                           color: colorScheme.primary.withValues(alpha: 0.2),
                         ),
                         const SizedBox(height: 16),
-                        const Text('Start a conversation'),
+                        Text(
+                          'Start the conversation',
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
                       ],
                     ),
                   );
                 }
 
+                WidgetsBinding.instance.addPostFrameCallback(
+                  (_) => _scrollToBottom(),
+                );
+
                 return ListView.builder(
+                  controller: _scrollController,
                   padding: const EdgeInsets.all(20),
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
                     final data = docs[index].data() as Map<String, dynamic>;
                     return ChatBubble(
-                      message: data['text'] ?? '',
+                      message: data['text'] as String? ?? '',
                       isMe: data['senderId'] == currentUserId,
                     );
                   },
@@ -144,36 +185,38 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ],
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: InputDecoration(
-                      hintText: 'Type a message...',
-                      filled: true,
-                      fillColor: colorScheme.surfaceContainerHighest.withValues(
-                        alpha: 0.3,
+            child: SafeArea(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _messageController,
+                      decoration: InputDecoration(
+                        hintText: 'Type a message...',
+                        filled: true,
+                        fillColor: colorScheme.surfaceContainerHighest
+                            .withValues(alpha: 0.3),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
                       ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 10,
-                      ),
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _sendMessage(),
                     ),
-                    onSubmitted: (_) => _sendMessage(),
                   ),
-                ),
-                const SizedBox(width: 12),
-                FloatingActionButton.small(
-                  onPressed: _sendMessage,
-                  elevation: 0,
-                  child: const Icon(Icons.send),
-                ),
-              ],
+                  const SizedBox(width: 12),
+                  FloatingActionButton.small(
+                    onPressed: _sendMessage,
+                    elevation: 0,
+                    child: const Icon(Icons.send),
+                  ),
+                ],
+              ),
             ),
           ),
         ],

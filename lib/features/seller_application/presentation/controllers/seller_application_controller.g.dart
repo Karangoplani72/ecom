@@ -56,7 +56,49 @@ final class SellerApplicationRepositoryProvider
 }
 
 String _$sellerApplicationRepositoryHash() =>
-    r'1cc696a3d6a15e0c701c10998f5f9e341b34817a';
+    r'b55d5b9ed9635b67afce3f89119f7944b3d2e4ad';
+
+@ProviderFor(userSellerApplication)
+final userSellerApplicationProvider = UserSellerApplicationProvider._();
+
+final class UserSellerApplicationProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<SellerApplication?>,
+          SellerApplication?,
+          FutureOr<SellerApplication?>
+        >
+    with
+        $FutureModifier<SellerApplication?>,
+        $FutureProvider<SellerApplication?> {
+  UserSellerApplicationProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'userSellerApplicationProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$userSellerApplicationHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<SellerApplication?> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<SellerApplication?> create(Ref ref) {
+    return userSellerApplication(ref);
+  }
+}
+
+String _$userSellerApplicationHash() =>
+    r'7be474a7f2cdb2bcfe85f56d17414c66eb2c8785';
 
 @ProviderFor(SellerApplicationController)
 final sellerApplicationControllerProvider =
@@ -84,7 +126,7 @@ final class SellerApplicationControllerProvider
 }
 
 String _$sellerApplicationControllerHash() =>
-    r'f7921110824373793ddd48b0e983e74aedd54518';
+    r'cb4a2580e20b9f8132b393e882914af0505fada3';
 
 abstract class _$SellerApplicationController extends $AsyncNotifier<void> {
   FutureOr<void> build();

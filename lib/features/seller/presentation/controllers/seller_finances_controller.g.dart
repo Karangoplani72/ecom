@@ -55,48 +55,7 @@ final class SellerFinanceRepositoryProvider
 }
 
 String _$sellerFinanceRepositoryHash() =>
-    r'ea114323aa4d23681fa70da8437e704ece80bc3b';
-
-@ProviderFor(currentSellerId)
-final currentSellerIdProvider = CurrentSellerIdProvider._();
-
-final class CurrentSellerIdProvider
-    extends $FunctionalProvider<String?, String?, String?>
-    with $Provider<String?> {
-  CurrentSellerIdProvider._()
-    : super(
-        from: null,
-        argument: null,
-        retry: null,
-        name: r'currentSellerIdProvider',
-        isAutoDispose: true,
-        dependencies: null,
-        $allTransitiveDependencies: null,
-      );
-
-  @override
-  String debugGetCreateSourceHash() => _$currentSellerIdHash();
-
-  @$internal
-  @override
-  $ProviderElement<String?> $createElement($ProviderPointer pointer) =>
-      $ProviderElement(pointer);
-
-  @override
-  String? create(Ref ref) {
-    return currentSellerId(ref);
-  }
-
-  /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(String? value) {
-    return $ProviderOverride(
-      origin: this,
-      providerOverride: $SyncValueProvider<String?>(value),
-    );
-  }
-}
-
-String _$currentSellerIdHash() => r'2a56907f530afafdbcf85ab10231be86bad2598a';
+    r'4567bf459dd667a0d2152ed7a26f2499edba63c3';
 
 @ProviderFor(merchantWallet)
 final merchantWalletProvider = MerchantWalletProvider._();
@@ -135,7 +94,7 @@ final class MerchantWalletProvider
   }
 }
 
-String _$merchantWalletHash() => r'26837831fb5c052046c07e3b236fe8349026f508';
+String _$merchantWalletHash() => r'58a32536254bd493797bd7633bf9e7acc709e7a4';
 
 @ProviderFor(SellerFinancesController)
 final sellerFinancesControllerProvider = SellerFinancesControllerProvider._();
@@ -162,7 +121,7 @@ final class SellerFinancesControllerProvider
 }
 
 String _$sellerFinancesControllerHash() =>
-    r'cc1ff870815b4182e58f1b0305e5ae493243ad5a';
+    r'6dd8594f8a302c9b9453349b3079f9fa69bf36c1';
 
 abstract class _$SellerFinancesController
     extends $AsyncNotifier<MerchantWallet> {

@@ -24,6 +24,12 @@ class OrderRepositoryImpl implements OrderRepository {
             final productRef = firestore
                 .collection('catalog')
                 .doc(item.productId);
+            final storeProductRef = firestore
+                .collection('stores')
+                .doc(order.storeId)
+                .collection('products')
+                .doc(item.productId);
+
             final productDoc = await transaction.get(productRef);
 
             if (!productDoc.exists) {
@@ -38,14 +44,18 @@ class OrderRepositoryImpl implements OrderRepository {
               throw Exception('Insufficient stock for ${item.title}');
             }
 
-            // 2. Deduct Stock
-            transaction.update(productRef, {
-              'metadata.stock': currentStock - item.quantity,
-              'status': (currentStock - item.quantity) <= 0
-                  ? 'outOfStock'
-                  : data['status'],
+            final newStock = currentStock - item.quantity;
+            final newStatus = newStock <= 0 ? 'outOfStock' : data['status'];
+
+            final stockUpdate = {
+              'metadata.stock': newStock,
+              'status': newStatus,
               'updatedAt': FieldValue.serverTimestamp(),
-            });
+            };
+
+            // 2. Deduct Stock in both collections
+            transaction.update(productRef, stockUpdate);
+            transaction.update(storeProductRef, stockUpdate);
           }
         }
 

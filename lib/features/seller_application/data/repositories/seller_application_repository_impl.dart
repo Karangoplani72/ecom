@@ -10,7 +10,7 @@ import '../dtos/seller_application_dto.dart';
 class SellerApplicationRepositoryImpl implements SellerApplicationRepository {
   final FirebaseFirestore _firestore;
 
-  static const _collection = 'storeApplications';
+  static const _collection = SellerApplicationDto.collectionPath;
 
   SellerApplicationRepositoryImpl({required this._firestore});
 
@@ -19,22 +19,31 @@ class SellerApplicationRepositoryImpl implements SellerApplicationRepository {
     SellerApplication application,
   ) async {
     try {
-      // Check for existing pending application
-      final existing = await _firestore
-          .collection(_collection)
-          .where('sellerId', isEqualTo: application.sellerId)
-          .where('status', isEqualTo: 'pending')
-          .limit(1)
-          .get();
+      final docRef = _firestore.collection(_collection).doc(application.userId);
+      final existing = await docRef.get();
 
-      if (existing.docs.isNotEmpty) {
-        return const Left(
-          'You already have a pending seller application. Please wait for review.',
-        );
+      if (existing.exists) {
+        final currentStatus = existing.data()?['status'] as String?;
+        if (currentStatus == 'pending') {
+          return const Left(
+            'You already have a pending seller application. Please wait for review.',
+          );
+        }
       }
 
       final dto = SellerApplicationDto.fromDomain(application);
-      await _firestore.collection(_collection).add(dto.toFirestore());
+
+      final batch = _firestore.batch();
+      
+      // Save application
+      batch.set(docRef, dto.toFirestore()..['status'] = 'pending');
+
+      // Update user application status
+      batch.update(_firestore.collection('users').doc(application.userId), {
+        'sellerApplicationStatus': 'pending',
+      });
+
+      await batch.commit();
 
       return const Right(unit);
     } on FirebaseException catch (e) {

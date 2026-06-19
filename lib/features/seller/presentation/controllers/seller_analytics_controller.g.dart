@@ -55,48 +55,7 @@ final class SellerAnalyticsRepositoryProvider
 }
 
 String _$sellerAnalyticsRepositoryHash() =>
-    r'1f2672c86c55cd5c00c2efc4141a287a1f0da930';
-
-@ProviderFor(currentSellerId)
-final currentSellerIdProvider = CurrentSellerIdProvider._();
-
-final class CurrentSellerIdProvider
-    extends $FunctionalProvider<String?, String?, String?>
-    with $Provider<String?> {
-  CurrentSellerIdProvider._()
-    : super(
-        from: null,
-        argument: null,
-        retry: null,
-        name: r'currentSellerIdProvider',
-        isAutoDispose: true,
-        dependencies: null,
-        $allTransitiveDependencies: null,
-      );
-
-  @override
-  String debugGetCreateSourceHash() => _$currentSellerIdHash();
-
-  @$internal
-  @override
-  $ProviderElement<String?> $createElement($ProviderPointer pointer) =>
-      $ProviderElement(pointer);
-
-  @override
-  String? create(Ref ref) {
-    return currentSellerId(ref);
-  }
-
-  /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(String? value) {
-    return $ProviderOverride(
-      origin: this,
-      providerOverride: $SyncValueProvider<String?>(value),
-    );
-  }
-}
-
-String _$currentSellerIdHash() => r'2a56907f530afafdbcf85ab10231be86bad2598a';
+    r'4111ec6648b2dc9a6671cb2162ca27c73c6a8778';
 
 @ProviderFor(sellerAnalytics)
 final sellerAnalyticsProvider = SellerAnalyticsProvider._();
@@ -135,7 +94,7 @@ final class SellerAnalyticsProvider
   }
 }
 
-String _$sellerAnalyticsHash() => r'808b638e6c6977fd36f47c181dadbc1af52ee2a0';
+String _$sellerAnalyticsHash() => r'85ee50ea45a7a7e032743069f53fc772e1b2c0d8';
 
 @ProviderFor(SellerAnalyticsController)
 final sellerAnalyticsControllerProvider = SellerAnalyticsControllerProvider._();
@@ -162,7 +121,7 @@ final class SellerAnalyticsControllerProvider
 }
 
 String _$sellerAnalyticsControllerHash() =>
-    r'1fc00253722086177366d41b9a9bddd1838bde10';
+    r'9c619f64cf1cb78c9886a89f710243a02c893012';
 
 abstract class _$SellerAnalyticsController
     extends $AsyncNotifier<SellerAnalytics> {

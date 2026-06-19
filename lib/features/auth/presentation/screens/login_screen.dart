@@ -1,3 +1,4 @@
+import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/core/widgets/app_primary_button.dart';
 import 'package:ecom/core/widgets/app_text_field.dart';
 import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
@@ -122,9 +123,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           }
                           setDialogState(() => isSending = true);
                           try {
-                            await FirebaseAuth.instance.sendPasswordResetEmail(
-                              email: email,
-                            );
+                            await ref
+                                .read(firebaseAuthProvider)
+                                .sendPasswordResetEmail(email: email);
                             if (!dialogContext.mounted) return;
                             Navigator.of(dialogContext).pop();
                             if (!mounted) return;

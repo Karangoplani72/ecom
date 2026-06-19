@@ -5,9 +5,9 @@ import 'package:ecom/features/seller/domain/repositories/seller_repository.dart'
 import 'package:fpdart/fpdart.dart';
 
 class SellerRepositoryImpl implements SellerRepository {
-  final FirebaseFirestore _firestore;
+  final FirebaseFirestore firestore;
 
-  SellerRepositoryImpl({required this._firestore});
+  SellerRepositoryImpl({required this.firestore});
 
   @override
   Future<Either<Exception, StoreProfile>> getStoreProfileBySeller(
@@ -18,22 +18,74 @@ class SellerRepositoryImpl implements SellerRepository {
         return Left(Exception('Invalid seller ID: seller ID cannot be empty'));
       }
 
-      final snapshot = await _firestore
-          .collection('stores')
-          .where('sellerId', isEqualTo: sellerId)
-          .limit(1)
-          .get();
+      final doc = await firestore.collection('stores').doc(sellerId).get();
 
-      if (snapshot.docs.isEmpty) {
-        return Left(
-          Exception('No active storefront registered for this seller'),
-        );
+      if (!doc.exists) {
+        // Store doc is missing! Let's recover it.
+        final userDoc = await firestore.collection('users').doc(sellerId).get();
+        if (!userDoc.exists) {
+          return Left(Exception('User profile not found. Recovery failed.'));
+        }
+
+        final userData = userDoc.data() ?? {};
+        final displayName = userData['displayName'] as String? ?? 'Seller';
+        final email = userData['email'] as String? ?? '';
+        final phone = userData['phoneNumber'] as String? ?? '';
+
+        final appSnapshot = await firestore
+            .collection('sellerApplications')
+            .doc(sellerId)
+            .get();
+
+        String storeName = '$displayName\'s Store';
+        String storeDescription = 'Welcome to our storefront!';
+        String businessCategory = 'Other';
+        String gstNumber = '';
+
+        if (appSnapshot.exists) {
+          final appData = appSnapshot.data() ?? {};
+          storeName = appData['storeName'] as String? ?? storeName;
+          storeDescription = appData['storeDescription'] as String? ?? appData['description'] as String? ?? storeDescription;
+          businessCategory = appData['businessCategory'] as String? ?? businessCategory;
+          gstNumber = appData['gstNumber'] as String? ?? gstNumber;
+        }
+
+        final storeSlug = storeName
+            .toLowerCase()
+            .replaceAll(RegExp(r'[^a-z0-9\s-]'), '')
+            .replaceAll(RegExp(r'\s+'), '-');
+
+        final newStoreProfile = {
+          'storeId': sellerId,
+          'sellerId': sellerId,
+          'storeName': storeName,
+          'storeSlug': storeSlug,
+          'storeDescription': storeDescription,
+          'logoUrl': null,
+          'bannerUrl': null,
+          'businessCategory': businessCategory,
+          'rating': 0.0,
+          'totalReviews': 0,
+          'totalProducts': 0,
+          'totalOrders': 0,
+          'isVerified': true,
+          'isActive': true,
+          'phone': phone,
+          'email': email,
+          'gstNumber': gstNumber,
+          'address': '',
+          'status': 'verified',
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+
+        await firestore.collection('stores').doc(sellerId).set(newStoreProfile);
+
+        final recoveredDoc = await firestore.collection('stores').doc(sellerId).get();
+        return Right(StoreProfileDto.fromFirestore(recoveredDoc).toDomain());
       }
 
-      final profile = StoreProfileDto.fromFirestore(
-        snapshot.docs.first,
-      ).toDomain();
-
+      final profile = StoreProfileDto.fromFirestore(doc).toDomain();
       return Right(profile);
     } on FirebaseException catch (e) {
       return Left(Exception('Firestore error: ${e.message}'));
@@ -58,13 +110,12 @@ class SellerRepositoryImpl implements SellerRepository {
         );
       }
 
-      // Add server timestamp to track updates
       final dataWithTimestamp = {
         ...updateDelta,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      await _firestore
+      await firestore
           .collection('stores')
           .doc(storeId)
           .update(dataWithTimestamp);

@@ -48,7 +48,7 @@ final class UserNotificationsProvider
   }
 }
 
-String _$userNotificationsHash() => r'66968146f391d1ee59b8acb4a13a8d153fc22826';
+String _$userNotificationsHash() => r'8df91429450de53b6a65c37121464dd384fbfd57';
 
 @ProviderFor(NotificationController)
 final notificationControllerProvider = NotificationControllerProvider._();
@@ -75,7 +75,7 @@ final class NotificationControllerProvider
 }
 
 String _$notificationControllerHash() =>
-    r'3561f7102c2eff120cc4c075f16089a22dced260';
+    r'f63e2323fa612a4cb76abf48f5adfc1c56e7b206';
 
 abstract class _$NotificationController extends $AsyncNotifier<void> {
   FutureOr<void> build();

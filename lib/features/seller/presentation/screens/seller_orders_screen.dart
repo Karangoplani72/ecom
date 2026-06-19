@@ -3,11 +3,10 @@ import 'package:ecom/core/widgets/app_error_view.dart';
 import 'package:ecom/core/widgets/app_loading_view.dart';
 import 'package:ecom/features/orders/domain/entities/order_status.dart';
 import 'package:ecom/features/orders/presentation/controllers/order_controller.dart';
+import 'package:ecom/features/orders/presentation/widgets/order_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
-import '../widgets/seller_order_card.dart';
 
 class SellerOrdersScreen extends ConsumerStatefulWidget {
   const SellerOrdersScreen({super.key});
@@ -57,6 +56,7 @@ class _SellerOrdersScreenState extends ConsumerState<SellerOrdersScreen> {
     );
 
     if (selectedStatus == null || selectedStatus == currentStatus) return;
+    if (!mounted) return;
 
     await ref
         .read(orderControllerProvider.notifier)
@@ -70,6 +70,7 @@ class _SellerOrdersScreenState extends ConsumerState<SellerOrdersScreen> {
     ref.listen(orderControllerProvider, (previous, next) {
       next.whenOrNull(
         error: (error, _) {
+          if (!mounted) return;
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text(error.toString())));
@@ -108,7 +109,10 @@ class _SellerOrdersScreenState extends ConsumerState<SellerOrdersScreen> {
           Expanded(
             child: ordersAsync.when(
               loading: () => const AppLoadingView(),
-              error: (error, _) => AppErrorView(message: error.toString()),
+              error: (error, _) => AppErrorView(
+                message: error.toString(),
+                onRetry: () => ref.invalidate(sellerOrdersProvider),
+              ),
               data: (orders) {
                 final filteredOrders = _selectedFilter == 'all'
                     ? orders
@@ -127,17 +131,19 @@ class _SellerOrdersScreenState extends ConsumerState<SellerOrdersScreen> {
                 }
 
                 return RefreshIndicator(
-                  onRefresh: () => ref.refresh(sellerOrdersProvider.future),
+                  onRefresh: () async => ref.invalidate(sellerOrdersProvider),
                   child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                     itemCount: filteredOrders.length,
                     itemBuilder: (context, index) {
                       final order = filteredOrders[index];
-                      return SellerOrderCard(
+                      return OrderCard(
                         order: order,
+                        showCustomerInfo: true,
                         onTap: () =>
                             context.push('/seller/orders/${order.orderId}'),
-                        onStatusChangePressed: () => _showStatusPicker(
+                        actionLabel: 'Update Status',
+                        onActionPressed: () => _showStatusPicker(
                           context,
                           order.orderId,
                           order.status,

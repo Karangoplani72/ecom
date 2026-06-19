@@ -1,31 +1,21 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:ecom/core/providers/common_providers.dart';
+import 'package:ecom/features/seller/data/repositories/seller_product_repository_impl.dart';
+import 'package:ecom/features/seller/domain/entities/seller_product.dart';
+import 'package:ecom/features/seller/domain/repositories/seller_product_repository.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../../data/repositories/seller_product_repository_impl.dart';
-import '../../domain/entities/seller_product.dart';
-import '../../domain/repositories/seller_product_repository.dart';
 
 part 'seller_inventory_controller.g.dart';
 
 @riverpod
 SellerProductRepository sellerProductRepository(Ref ref) {
-  return SellerProductRepositoryImpl(firestore: FirebaseFirestore.instance);
-}
-
-@riverpod
-FirebaseFirestore _firebaseFirestoreProvider(Ref ref) {
-  return FirebaseFirestore.instance;
-}
-
-@riverpod
-String? currentSellerId(Ref ref) {
-  return FirebaseAuth.instance.currentUser?.uid;
+  return SellerProductRepositoryImpl(
+    firestore: ref.watch(firebaseFirestoreProvider),
+  );
 }
 
 @riverpod
 Stream<List<SellerProduct>> sellerProducts(Ref ref) {
-  final sellerId = ref.watch(currentSellerIdProvider);
+  final sellerId = ref.watch(currentUserIdProvider);
 
   if (sellerId == null) {
     return Stream.value([]);
@@ -42,7 +32,7 @@ class SellerInventoryController extends _$SellerInventoryController {
   FutureOr<void> build() {}
 
   Future<void> deleteProduct({required String productId}) async {
-    final sellerId = ref.read(currentSellerIdProvider);
+    final sellerId = ref.read(currentUserIdProvider);
 
     if (sellerId == null) {
       state = AsyncValue.error(
@@ -68,7 +58,7 @@ class SellerInventoryController extends _$SellerInventoryController {
     required String productId,
     required int stock,
   }) async {
-    final sellerId = ref.read(currentSellerIdProvider);
+    final sellerId = ref.read(currentUserIdProvider);
 
     if (sellerId == null) {
       state = AsyncValue.error(
@@ -102,7 +92,7 @@ class SellerInventoryController extends _$SellerInventoryController {
     required String productId,
     required String status,
   }) async {
-    final sellerId = ref.read(currentSellerIdProvider);
+    final sellerId = ref.read(currentUserIdProvider);
 
     if (sellerId == null) {
       state = AsyncValue.error(

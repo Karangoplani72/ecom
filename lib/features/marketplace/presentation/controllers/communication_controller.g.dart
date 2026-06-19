@@ -55,7 +55,7 @@ final class CommunicationRepositoryProvider
 }
 
 String _$communicationRepositoryHash() =>
-    r'698fd9079bffc75e0c48cbbbdc40d11b67360304';
+    r'42d9dfc77f6c9a849b56b6d601125ac80ff0a0d4';
 
 @ProviderFor(liveMessageStream)
 final liveMessageStreamProvider = LiveMessageStreamFamily._();

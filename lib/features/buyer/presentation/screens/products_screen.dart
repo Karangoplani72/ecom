@@ -17,6 +17,9 @@ class ProductsScreen extends ConsumerStatefulWidget {
 
 class _ProductsScreenState extends ConsumerState<ProductsScreen> {
   final TextEditingController _searchController = TextEditingController();
+  String _selectedCategory = 'All';
+  RangeValues _priceRange = const RangeValues(0, 100000);
+  String _sortBy = 'default';
 
   final List<String> categories = [
     'All',
@@ -28,12 +31,89 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     'Books',
   ];
 
-  String selectedCategory = 'All';
-
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _showFilterSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Filters',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Price Range',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              RangeSlider(
+                values: _priceRange,
+                min: 0,
+                max: 100000,
+                divisions: 100,
+                labels: RangeLabels(
+                  '₹${_priceRange.start.toInt()}',
+                  '₹${_priceRange.end.toInt()}',
+                ),
+                onChanged: (values) {
+                  setModalState(() => _priceRange = values);
+                  setState(() => _priceRange = values);
+                },
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Sort By',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: [
+                  _sortChip('default', 'Default', setModalState),
+                  _sortChip('price_asc', 'Price: Low to High', setModalState),
+                  _sortChip('price_desc', 'Price: High to Low', setModalState),
+                ],
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Apply Filters'),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sortChip(String value, String label, StateSetter setModalState) {
+    final selected = _sortBy == value;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) {
+        setModalState(() => _sortBy = value);
+        setState(() => _sortBy = value);
+      },
+    );
   }
 
   @override
@@ -50,6 +130,10 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
         centerTitle: true,
         actions: [
           IconButton(
+            icon: const Icon(Icons.tune_outlined),
+            onPressed: _showFilterSheet,
+          ),
+          IconButton(
             icon: const Icon(Icons.shopping_cart_outlined),
             onPressed: () => context.push('/buyer/cart'),
           ),
@@ -59,9 +143,8 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
         maxWidth: 1200,
         child: Column(
           children: [
-            // Search & Filter Header
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              padding: const EdgeInsets.symmetric(vertical: 12),
               child: Column(
                 children: [
                   TextField(
@@ -70,6 +153,15 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                     decoration: InputDecoration(
                       hintText: 'Search for products...',
                       prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {});
+                              },
+                            )
+                          : null,
                       filled: true,
                       fillColor: colorScheme.surfaceContainerHighest.withValues(
                         alpha: 0.3,
@@ -81,7 +173,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                       contentPadding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   SizedBox(
                     height: 40,
                     child: ListView.separated(
@@ -91,12 +183,12 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                           const SizedBox(width: 8),
                       itemBuilder: (context, index) {
                         final category = categories[index];
-                        final selected = category == selectedCategory;
+                        final selected = category == _selectedCategory;
                         return ChoiceChip(
                           label: Text(category),
                           selected: selected,
                           onSelected: (_) =>
-                              setState(() => selectedCategory = category),
+                              setState(() => _selectedCategory = category),
                           selectedColor: colorScheme.primaryContainer,
                           checkmarkColor: colorScheme.primary,
                           shape: RoundedRectangleBorder(
@@ -127,16 +219,26 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                 ),
                 data: (items) {
                   final searchText = _searchController.text.toLowerCase();
-                  final filtered = items.where((item) {
-                    final matchesSearch = item.title.toLowerCase().contains(
-                      searchText,
-                    );
+
+                  var filtered = items.where((item) {
+                    final matchesSearch =
+                        item.title.toLowerCase().contains(searchText) ||
+                        item.description.toLowerCase().contains(searchText);
                     final matchesCategory =
-                        selectedCategory == 'All' ||
+                        _selectedCategory == 'All' ||
                         (item.metadata['category'] as String?) ==
-                            selectedCategory;
-                    return matchesSearch && matchesCategory;
+                            _selectedCategory;
+                    final matchesPrice =
+                        item.basePrice >= _priceRange.start &&
+                        item.basePrice <= _priceRange.end;
+                    return matchesSearch && matchesCategory && matchesPrice;
                   }).toList();
+
+                  if (_sortBy == 'price_asc') {
+                    filtered.sort((a, b) => a.basePrice.compareTo(b.basePrice));
+                  } else if (_sortBy == 'price_desc') {
+                    filtered.sort((a, b) => b.basePrice.compareTo(a.basePrice));
+                  }
 
                   if (filtered.isEmpty) {
                     return AppEmptyView(
@@ -144,9 +246,21 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                           ? 'No Products Found'
                           : 'Inventory Empty',
                       subtitle: searchText.isNotEmpty
-                          ? 'Try searching for something else'
+                          ? 'Try different keywords or filters'
                           : 'Check back later for new arrivals.',
                       icon: Icons.search_off_rounded,
+                      action: searchText.isNotEmpty
+                          ? TextButton(
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {
+                                  _selectedCategory = 'All';
+                                  _priceRange = const RangeValues(0, 100000);
+                                });
+                              },
+                              child: const Text('Clear Filters'),
+                            )
+                          : null,
                     );
                   }
 

@@ -48,7 +48,7 @@ final class CartRepositoryProvider
   }
 }
 
-String _$cartRepositoryHash() => r'8d5b8652a4c9449cd13ae63131c3e96899f65883';
+String _$cartRepositoryHash() => r'1637ea63ab43e7cebae15faa6dd20ea8b137d5b8';
 
 @ProviderFor(cartStream)
 final cartStreamProvider = CartStreamProvider._();
@@ -87,7 +87,7 @@ final class CartStreamProvider
   }
 }
 
-String _$cartStreamHash() => r'e1eb64de91de3e516b2dbcd26561ade86293aa5f';
+String _$cartStreamHash() => r'48c78a7c32b0baaa46e1e16f7712b0cdd339b9b9';
 
 @ProviderFor(CartController)
 final cartControllerProvider = CartControllerProvider._();
@@ -121,7 +121,7 @@ final class CartControllerProvider
   }
 }
 
-String _$cartControllerHash() => r'01c1b1738e8f114dcd2634c76b377c70b99d544a';
+String _$cartControllerHash() => r'591b3be8b47c789bdef8c42d5c8c11d845369b26';
 
 abstract class _$CartController extends $Notifier<List<CartItem>> {
   List<CartItem> build();

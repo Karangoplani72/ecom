@@ -55,7 +55,7 @@ final class LogisticsRepositoryProvider
 }
 
 String _$logisticsRepositoryHash() =>
-    r'40151e6662a2700c00d882637768a200ca0d7d00';
+    r'd43fac0279b4a69453b123afbf759d148b8aa4bd';
 
 @ProviderFor(realTimeDispatchStream)
 final realTimeDispatchStreamProvider = RealTimeDispatchStreamFamily._();

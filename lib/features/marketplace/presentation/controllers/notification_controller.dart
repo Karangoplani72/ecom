@@ -1,20 +1,20 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/features/marketplace/domain/entities/app_notification.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'notification_controller.g.dart';
 
 @riverpod
 Stream<List<AppNotification>> userNotifications(Ref ref) {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) return Stream.value([]);
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) return Stream.value([]);
 
-  return FirebaseFirestore.instance
+  return ref
+      .watch(firebaseFirestoreProvider)
       .collection('users')
-      .doc(user.uid)
+      .doc(userId)
       .collection('notifications')
       .orderBy('createdAt', descending: true)
       .snapshots()
@@ -31,25 +31,27 @@ class NotificationController extends _$NotificationController {
   FutureOr<void> build() {}
 
   Future<void> markAsRead(String notificationId) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    final userId = ref.read(currentUserIdProvider);
+    if (userId == null) return;
 
-    await FirebaseFirestore.instance
+    await ref
+        .read(firebaseFirestoreProvider)
         .collection('users')
-        .doc(user.uid)
+        .doc(userId)
         .collection('notifications')
         .doc(notificationId)
         .update({'isRead': true});
   }
 
   Future<void> markAllAsRead() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    final userId = ref.read(currentUserIdProvider);
+    if (userId == null) return;
 
-    final batch = FirebaseFirestore.instance.batch();
-    final query = await FirebaseFirestore.instance
+    final firestore = ref.read(firebaseFirestoreProvider);
+    final batch = firestore.batch();
+    final query = await firestore
         .collection('users')
-        .doc(user.uid)
+        .doc(userId)
         .collection('notifications')
         .where('isRead', isEqualTo: false)
         .get();

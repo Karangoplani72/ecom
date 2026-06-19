@@ -1,19 +1,33 @@
-// lib/features/seller/presentation/controllers/seller_application_controller.dart
-
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:ecom/core/providers/common_providers.dart';
+import 'package:ecom/features/seller_application/data/dtos/seller_application_dto.dart';
+import 'package:ecom/features/seller_application/data/repositories/seller_application_repository_impl.dart';
+import 'package:ecom/features/seller_application/domain/entities/seller_application.dart';
+import 'package:ecom/features/seller_application/domain/repositories/seller_application_repository.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../../data/repositories/seller_application_repository_impl.dart';
-import '../../domain/entities/seller_application.dart';
-import '../../domain/repositories/seller_application_repository.dart';
 
 part 'seller_application_controller.g.dart';
 
 @riverpod
 SellerApplicationRepository sellerApplicationRepository(Ref ref) {
-  return SellerApplicationRepositoryImpl(firestore: FirebaseFirestore.instance);
+  return SellerApplicationRepositoryImpl(
+    firestore: ref.watch(firebaseFirestoreProvider),
+  );
+}
+
+@riverpod
+Future<SellerApplication?> userSellerApplication(Ref ref) async {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) return null;
+
+  final firestore = ref.watch(firebaseFirestoreProvider);
+  final doc = await firestore
+      .collection(SellerApplicationDto.collectionPath)
+      .doc(userId)
+      .get();
+
+  if (!doc.exists) return null;
+  return SellerApplicationDto.fromFirestore(doc).toDomain();
 }
 
 @riverpod
@@ -29,21 +43,21 @@ class SellerApplicationController extends _$SellerApplicationController {
     String? gstNumber,
     required String description,
   }) async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) {
+    final userId = ref.read(currentUserIdProvider);
+    if (userId == null) {
       return const Left('You must be logged in to apply as a seller.');
     }
 
     state = const AsyncValue.loading();
 
     final application = SellerApplication(
-      sellerId: currentUser.uid,
+      userId: userId,
       fullName: fullName,
       phoneNumber: phoneNumber,
       storeName: storeName,
+      storeDescription: description,
       businessCategory: businessCategory,
       gstNumber: gstNumber?.trim().isEmpty == true ? null : gstNumber?.trim(),
-      description: description,
       status: 'pending',
       submittedAt: DateTime.now(),
     );
@@ -53,7 +67,10 @@ class SellerApplicationController extends _$SellerApplicationController {
 
     result.fold(
       (error) => state = AsyncValue.error(error, StackTrace.current),
-      (_) => state = const AsyncValue.data(null),
+      (_) {
+        ref.invalidate(userSellerApplicationProvider);
+        state = const AsyncValue.data(null);
+      },
     );
 
     return result;

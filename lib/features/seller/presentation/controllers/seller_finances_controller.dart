@@ -1,26 +1,21 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:ecom/core/providers/common_providers.dart';
+import 'package:ecom/features/seller/data/repositories/seller_finance_repository_impl.dart';
+import 'package:ecom/features/seller/domain/entities/merchant_wallet.dart';
+import 'package:ecom/features/seller/domain/repositories/seller_finance_repository.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../../data/repositories/seller_finance_repository_impl.dart';
-import '../../domain/entities/merchant_wallet.dart';
-import '../../domain/repositories/seller_finance_repository.dart';
 
 part 'seller_finances_controller.g.dart';
 
 @riverpod
 SellerFinanceRepository sellerFinanceRepository(Ref ref) {
-  return SellerFinanceRepositoryImpl(firestore: FirebaseFirestore.instance);
-}
-
-@riverpod
-String? currentSellerId(Ref ref) {
-  return FirebaseAuth.instance.currentUser?.uid;
+  return SellerFinanceRepositoryImpl(
+    firestore: ref.watch(firebaseFirestoreProvider),
+  );
 }
 
 @riverpod
 Future<MerchantWallet> merchantWallet(Ref ref) async {
-  final sellerId = ref.watch(currentSellerIdProvider);
+  final sellerId = ref.watch(currentUserIdProvider);
 
   if (sellerId == null || sellerId.isEmpty) {
     throw Exception('Seller not authenticated');
@@ -37,7 +32,7 @@ Future<MerchantWallet> merchantWallet(Ref ref) async {
 class SellerFinancesController extends _$SellerFinancesController {
   @override
   Future<MerchantWallet> build() async {
-    final sellerId = ref.watch(currentSellerIdProvider);
+    final sellerId = ref.watch(currentUserIdProvider);
 
     if (sellerId == null || sellerId.isEmpty) {
       throw Exception('Seller not authenticated');
@@ -53,7 +48,7 @@ class SellerFinancesController extends _$SellerFinancesController {
   Future<void> refresh() async {
     state = const AsyncLoading();
 
-    final sellerId = ref.read(currentSellerIdProvider);
+    final sellerId = ref.read(currentUserIdProvider);
 
     if (sellerId == null || sellerId.isEmpty) {
       state = AsyncError(
@@ -89,7 +84,7 @@ class SellerFinancesController extends _$SellerFinancesController {
       return;
     }
 
-    final sellerId = ref.read(currentSellerIdProvider);
+    final sellerId = ref.read(currentUserIdProvider);
 
     if (sellerId == null || sellerId.isEmpty) {
       state = AsyncError(
@@ -157,7 +152,7 @@ class SellerFinancesController extends _$SellerFinancesController {
       return;
     }
 
-    final sellerId = ref.read(currentSellerIdProvider);
+    final sellerId = ref.read(currentUserIdProvider);
 
     if (sellerId == null || sellerId.isEmpty) {
       state = AsyncError(

@@ -55,7 +55,7 @@ final class AdminUserRepositoryProvider
 }
 
 String _$adminUserRepositoryHash() =>
-    r'5a19ef4a43b1234f587db6de9a19121c7af3f8d9';
+    r'338b10047248bf0e467fbca197a6bcea9c663090';
 
 @ProviderFor(adminUsers)
 final adminUsersProvider = AdminUsersProvider._();

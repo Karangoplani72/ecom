@@ -1,45 +1,23 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:ecom/core/providers/common_providers.dart';
+import 'package:ecom/features/seller/data/repositories/seller_dashboard_repository_impl.dart';
+import 'package:ecom/features/seller/domain/entities/seller_dashboard_data.dart';
+import 'package:ecom/features/seller/domain/repositories/seller_dashboard_repository.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../../data/repositories/seller_dashboard_repository_impl.dart';
-import '../../domain/entities/seller_dashboard_data.dart';
-import '../../domain/repositories/seller_dashboard_repository.dart';
 
 part 'seller_dashboard_controller.g.dart';
 
 @riverpod
 SellerDashboardRepository sellerDashboardRepository(Ref ref) {
-  return SellerDashboardRepositoryImpl(firestore: FirebaseFirestore.instance);
-}
-
-@riverpod
-String? currentSellerId(Ref ref) {
-  return FirebaseAuth.instance.currentUser?.uid;
-}
-
-@riverpod
-Future<Object> sellerDashboard(Ref ref) async {
-  final sellerId = ref.watch(currentSellerIdProvider);
-
-  if (sellerId == null || sellerId.isEmpty) {
-    return Future.error(Exception('Seller not authenticated'));
-  }
-
-  try {
-    return await ref
-        .read(sellerDashboardRepositoryProvider)
-        .getDashboardData(sellerId: sellerId);
-  } catch (e) {
-    return Future.error(Exception('Failed to load dashboard data: $e'));
-  }
+  return SellerDashboardRepositoryImpl(
+    firestore: ref.watch(firebaseFirestoreProvider),
+  );
 }
 
 @riverpod
 class SellerDashboardController extends _$SellerDashboardController {
   @override
   Future<SellerDashboardData> build() async {
-    final sellerId = ref.watch(currentSellerIdProvider);
+    final sellerId = ref.watch(currentUserIdProvider);
 
     if (sellerId == null || sellerId.isEmpty) {
       throw Exception('Seller not authenticated');
@@ -55,7 +33,7 @@ class SellerDashboardController extends _$SellerDashboardController {
   Future<void> refresh() async {
     state = const AsyncValue.loading();
 
-    final sellerId = ref.read(currentSellerIdProvider);
+    final sellerId = ref.read(currentUserIdProvider);
 
     if (sellerId == null || sellerId.isEmpty) {
       state = AsyncValue.error(

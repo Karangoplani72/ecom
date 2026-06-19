@@ -1,35 +1,52 @@
 import 'package:flutter/material.dart';
 
 abstract final class AppColors {
-  // Brand
-  static const primary = Color(0xFF2563EB);
+  // Brand (Enhanced Premium Blue)
+  static const primary = Color(0xFF2563EB); // Royal Blue
   static const primaryDark = Color(0xFF1D4ED8);
+  static const primaryLight = Color(0xFF60A5FA);
   static const secondary = Color(0xFF0EA5E9);
+  
+  // Premium Neutrals
+  static const backgroundLight = Color(0xFFFBFBFC);
+  static const surfaceLight = Colors.white;
+  static const backgroundDark = Color(0xFF0A0A0B); // Deep OLED-friendly black
+  static const surfaceDark = Color(0xFF131316); // Elevated dark surface
 
-  // Success
-  static const success = Color(0xFF16A34A);
-
-  // Warning
+  // Feedback Colors
+  static const success = Color(0xFF10B981);
   static const warning = Color(0xFFF59E0B);
+  static const error = Color(0xFFEF4444);
+  static const info = Color(0xFF3B82F6);
 
-  // Error
-  static const error = Color(0xFFDC2626);
+  // Typography
+  static const textPrimaryLight = Color(0xFF0F172A);
+  static const textSecondaryLight = Color(0xFF64748B);
+  static const textPrimaryDark = Color(0xFFF8FAFC);
+  static const textSecondaryDark = Color(0xFF94A3B8);
 
-  // Light Theme
-  static const lightBackground = Color(0xFFF8FAFC);
-  static const lightSurface = Colors.white;
-  static const lightCard = Colors.white;
+  // Borders & Dividers
+  static const borderLight = Color(0xFFE2E8F0);
+  static const borderDark = Color(0xFF1E293B);
 
-  // Dark Theme
-  static const darkBackground = Color(0xFF0F172A);
-  static const darkSurface = Color(0xFF111827);
-  static const darkCard = Color(0xFF1E293B);
+  // Gradients
+  static const premiumGradient = LinearGradient(
+    colors: [Color(0xFF2563EB), Color(0xFF6366F1)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+  
+  static const premiumDarkGradient = LinearGradient(
+    colors: [Color(0xFF1E1E24), Color(0xFF0A0A0B)],
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+  );
 
-  static const lightTextPrimary = Color(0xFF0F172A);
-  static const lightTextSecondary = Color(0xFF64748B);
-
-  static const darkTextPrimary = Color(0xFFF8FAFC);
-  static const darkTextSecondary = Color(0xFF94A3B8);
-
-  static const border = Color(0xFFE2E8F0);
+  // Legacy Aliases (To fix compilation errors in old screens)
+  static const border = borderLight;
+  static const lightTextSecondary = textSecondaryLight;
+  static const darkCard = surfaceDark;
+  static const lightCard = surfaceLight;
+  static const darkSurface = surfaceDark;
+  static const lightSurface = surfaceLight;
 }

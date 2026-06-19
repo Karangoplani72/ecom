@@ -13,12 +13,18 @@ class UserDto {
   final String displayName;
   final String? photoUrl;
 
+  @JsonKey(defaultValue: null)
+  final String? phoneNumber;
+
   final List<String> roles;
 
   final bool isActive;
 
   @JsonKey(defaultValue: false)
   final bool sellerApproved;
+
+  @JsonKey(defaultValue: 'none')
+  final String sellerApplicationStatus;
 
   @JsonKey(fromJson: _timestampToDateTime, toJson: _dateTimeToTimestamp)
   final DateTime createdAt;
@@ -28,9 +34,11 @@ class UserDto {
     required this.email,
     required this.displayName,
     this.photoUrl,
+    this.phoneNumber,
     required this.roles,
     required this.isActive,
     this.sellerApproved = false,
+    this.sellerApplicationStatus = 'none',
     required this.createdAt,
   });
 
@@ -53,15 +61,22 @@ class UserDto {
   }
 
   AppUser toDomain() {
+    final cleanPhone = phoneNumber == null
+        ? null
+        : phoneNumber!.trim().isEmpty
+        ? null
+        : phoneNumber;
     return AppUser(
       uid: uid,
       email: email,
       displayName: displayName,
       photoUrl: photoUrl,
+      phoneNumber: cleanPhone,
       roles: roles.map((r) => UserRole.values.byName(r)).toList(),
       verificationStatus: VerificationStatus.pending,
       isActive: isActive,
       sellerApproved: sellerApproved,
+      sellerApplicationStatus: sellerApplicationStatus,
       createdAt: createdAt,
     );
   }

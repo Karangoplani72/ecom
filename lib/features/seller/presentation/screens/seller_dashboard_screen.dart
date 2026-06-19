@@ -1,121 +1,26 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ecom/core/constants/app_radius.dart';
 import 'package:ecom/core/theme/app_colors.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:ecom/core/widgets/app_error_view.dart';
+import 'package:ecom/core/widgets/app_loading_view.dart';
+import 'package:ecom/features/orders/domain/entities/order_status.dart';
+import 'package:ecom/features/seller/domain/entities/seller_dashboard_data.dart';
+import 'package:ecom/features/seller/presentation/controllers/seller_dashboard_controller.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-// ─────────────────────────────────────────────────────────────
-// Data model for dashboard snapshot
-// ─────────────────────────────────────────────────────────────
-class _DashboardData {
-  final double totalRevenue;
-  final int totalOrders;
-  final int totalProducts;
-  final int pendingOrders;
-  final List<Map<String, dynamic>> recentOrders;
-  final List<Map<String, dynamic>> lowStockProducts;
-
-  const _DashboardData({
-    required this.totalRevenue,
-    required this.totalOrders,
-    required this.totalProducts,
-    required this.pendingOrders,
-    required this.recentOrders,
-    required this.lowStockProducts,
-  });
-}
+import '../../../../core/providers/common_providers.dart';
 
 // ─────────────────────────────────────────────────────────────
 // Root screen
 // ─────────────────────────────────────────────────────────────
-class SellerDashboardScreen extends StatefulWidget {
+class SellerDashboardScreen extends ConsumerWidget {
   const SellerDashboardScreen({super.key});
 
   @override
-  State<SellerDashboardScreen> createState() => _SellerDashboardScreenState();
-}
-
-class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
-  late Future<_DashboardData> _dataFuture;
-  final String? _sellerId = FirebaseAuth.instance.currentUser?.uid;
-
-  @override
-  void initState() {
-    super.initState();
-    _dataFuture = _loadDashboard();
-  }
-
-  Future<_DashboardData> _loadDashboard() async {
-    if (_sellerId == null) {
-      return const _DashboardData(
-        totalRevenue: 0,
-        totalOrders: 0,
-        totalProducts: 0,
-        pendingOrders: 0,
-        recentOrders: [],
-        lowStockProducts: [],
-      );
-    }
-
-    final firestore = FirebaseFirestore.instance;
-
-    // Parallel fetch for speed
-    final results = await Future.wait([
-      firestore
-          .collection('orders')
-          .where('storeId', isEqualTo: _sellerId)
-          .orderBy('createdAt', descending: true)
-          .limit(50)
-          .get(),
-      firestore
-          .collection('stores')
-          .doc(_sellerId)
-          .collection('products')
-          .get(),
-    ]);
-
-    final ordersSnap = results[0];
-    final productsSnap = results[1];
-
-    double revenue = 0;
-    int pending = 0;
-    final recentOrders = <Map<String, dynamic>>[];
-
-    for (final doc in ordersSnap.docs) {
-      final d = doc.data();
-      revenue += ((d['totalAmount'] as num?) ?? 0).toDouble();
-      if (d['status'] == 'pending') pending++;
-      if (recentOrders.length < 5) {
-        recentOrders.add({...d, 'id': doc.id});
-      }
-    }
-
-    final lowStock = <Map<String, dynamic>>[];
-    for (final doc in productsSnap.docs) {
-      final d = doc.data();
-      final stock =
-          ((d['metadata'] as Map<String, dynamic>?)?['stock'] as num?) ?? 0;
-      if (stock <= 5) {
-        lowStock.add({...d, 'id': doc.id});
-      }
-    }
-
-    return _DashboardData(
-      totalRevenue: revenue,
-      totalOrders: ordersSnap.size,
-      totalProducts: productsSnap.size,
-      pendingOrders: pending,
-      recentOrders: recentOrders,
-      lowStockProducts: lowStock,
-    );
-  }
-
-  void _refresh() => setState(() => _dataFuture = _loadDashboard());
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dashboardAsync = ref.watch(sellerDashboardControllerProvider);
     final isDesktop = MediaQuery.sizeOf(context).width >= 1024;
 
     return Scaffold(
@@ -126,66 +31,45 @@ class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
           if (isDesktop) const _SellerSidebar(),
           Expanded(
             child: SafeArea(
-              child: FutureBuilder<_DashboardData>(
-                future: _dataFuture,
-                builder: (context, snapshot) {
-                  return RefreshIndicator(
-                    onRefresh: () async => _refresh(),
-                    child: CustomScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      slivers: [
-                        SliverToBoxAdapter(
-                          child: _DashboardHeader(
-                            isDesktop: isDesktop,
-                            isLoading:
-                                snapshot.connectionState ==
-                                ConnectionState.waiting,
-                          ),
+              child: dashboardAsync.when(
+                loading: () => const AppLoadingView(),
+                error: (error, _) => AppErrorView(
+                  message: error.toString(),
+                  onRetry: () => ref
+                      .read(sellerDashboardControllerProvider.notifier)
+                      .refresh(),
+                ),
+                data: (data) => RefreshIndicator(
+                  onRefresh: () => ref
+                      .read(sellerDashboardControllerProvider.notifier)
+                      .refresh(),
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: _DashboardHeader(
+                          isDesktop: isDesktop,
+                          isLoading: dashboardAsync.isRefreshing,
                         ),
-                        if (snapshot.hasError)
-                          SliverFillRemaining(
-                            child: _ErrorState(
-                              message: snapshot.error.toString(),
-                              onRetry: _refresh,
-                            ),
-                          )
-                        else ...[
-                          SliverPadding(
-                            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                            sliver: SliverList(
-                              delegate: SliverChildListDelegate([
-                                _MetricsGrid(
-                                  data: snapshot.data,
-                                  isLoading:
-                                      snapshot.connectionState ==
-                                      ConnectionState.waiting,
-                                ),
-                                const SizedBox(height: 24),
-                                _QuickActions(sellerId: _sellerId),
-                                const SizedBox(height: 24),
-                                _RecentOrdersCard(
-                                  orders: snapshot.data?.recentOrders ?? [],
-                                  isLoading:
-                                      snapshot.connectionState ==
-                                      ConnectionState.waiting,
-                                ),
-                                const SizedBox(height: 24),
-                                _LowStockCard(
-                                  products:
-                                      snapshot.data?.lowStockProducts ?? [],
-                                  isLoading:
-                                      snapshot.connectionState ==
-                                      ConnectionState.waiting,
-                                ),
-                                const SizedBox(height: 32),
-                              ]),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  );
-                },
+                      ),
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                        sliver: SliverList(
+                          delegate: SliverChildListDelegate([
+                            _MetricsGrid(data: data),
+                            const SizedBox(height: 24),
+                            const _QuickActions(),
+                            const SizedBox(height: 24),
+                            _RecentOrdersCard(orders: data.recentOrders),
+                            const SizedBox(height: 24),
+                            _LowStockCard(products: data.lowStockItems),
+                            const SizedBox(height: 32),
+                          ]),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -198,15 +82,14 @@ class _SellerDashboardScreenState extends State<SellerDashboardScreen> {
 // ─────────────────────────────────────────────────────────────
 // Header
 // ─────────────────────────────────────────────────────────────
-class _DashboardHeader extends StatelessWidget {
+class _DashboardHeader extends ConsumerWidget {
   final bool isDesktop;
   final bool isLoading;
 
   const _DashboardHeader({required this.isDesktop, required this.isLoading});
 
   @override
-  Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+  Widget build(BuildContext context, WidgetRef ref) {
     final greeting = _greeting();
 
     return Padding(
@@ -238,7 +121,7 @@ class _DashboardHeader extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      user?.displayName?.split(' ').first ?? 'Seller',
+                      'Seller', // Simplified for now
                       style: Theme.of(context).textTheme.headlineMedium
                           ?.copyWith(fontWeight: FontWeight.w700),
                     ),
@@ -252,7 +135,7 @@ class _DashboardHeader extends StatelessWidget {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               const SizedBox(width: 4),
-              _NotificationBell(),
+              const _NotificationBell(),
             ],
           ),
           const SizedBox(height: 24),
@@ -270,6 +153,8 @@ class _DashboardHeader extends StatelessWidget {
 }
 
 class _NotificationBell extends StatelessWidget {
+  const _NotificationBell();
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -288,10 +173,9 @@ class _NotificationBell extends StatelessWidget {
 // Metrics grid
 // ─────────────────────────────────────────────────────────────
 class _MetricsGrid extends StatelessWidget {
-  final _DashboardData? data;
-  final bool isLoading;
+  final SellerDashboardData data;
 
-  const _MetricsGrid({required this.data, required this.isLoading});
+  const _MetricsGrid({required this.data});
 
   @override
   Widget build(BuildContext context) {
@@ -304,37 +188,31 @@ class _MetricsGrid extends StatelessWidget {
     final metrics = [
       _MetricConfig(
         label: 'Total Revenue',
-        value: isLoading
-            ? '—'
-            : currFmt.format(data?.totalRevenue.round() ?? 0),
+        value: currFmt.format(data.totalRevenue.round()),
         icon: Icons.currency_rupee_rounded,
         iconColor: AppColors.success,
         bgColor: AppColors.success.withValues(alpha: 0.1),
-        trend: null,
       ),
       _MetricConfig(
         label: 'Total Orders',
-        value: isLoading ? '—' : '${data?.totalOrders ?? 0}',
+        value: '${data.totalOrders}',
         icon: Icons.shopping_bag_outlined,
         iconColor: AppColors.primary,
         bgColor: AppColors.primary.withValues(alpha: 0.1),
-        trend: null,
       ),
       _MetricConfig(
         label: 'Products Listed',
-        value: isLoading ? '—' : '${data?.totalProducts ?? 0}',
+        value: '${data.totalProducts}',
         icon: Icons.inventory_2_outlined,
         iconColor: AppColors.secondary,
         bgColor: AppColors.secondary.withValues(alpha: 0.1),
-        trend: null,
       ),
       _MetricConfig(
         label: 'Pending Orders',
-        value: isLoading ? '—' : '${data?.pendingOrders ?? 0}',
+        value: '${data.pendingOrders}',
         icon: Icons.pending_actions_outlined,
         iconColor: AppColors.warning,
         bgColor: AppColors.warning.withValues(alpha: 0.1),
-        trend: null,
       ),
     ];
 
@@ -364,7 +242,6 @@ class _MetricConfig {
   final IconData icon;
   final Color iconColor;
   final Color bgColor;
-  final String? trend;
 
   const _MetricConfig({
     required this.label,
@@ -372,7 +249,6 @@ class _MetricConfig {
     required this.icon,
     required this.iconColor,
     required this.bgColor,
-    required this.trend,
   });
 }
 
@@ -443,9 +319,7 @@ class _MetricCard extends StatelessWidget {
 // Quick actions
 // ─────────────────────────────────────────────────────────────
 class _QuickActions extends StatelessWidget {
-  final String? sellerId;
-
-  const _QuickActions({this.sellerId});
+  const _QuickActions();
 
   @override
   Widget build(BuildContext context) {
@@ -455,7 +329,7 @@ class _QuickActions extends StatelessWidget {
       _ActionConfig(
         label: 'Add Product',
         icon: Icons.add_box_outlined,
-        onTap: () => context.go('/seller/inventory/add'),
+        onTap: () => context.push('/seller/inventory/add'),
         isPrimary: true,
       ),
       _ActionConfig(
@@ -553,26 +427,9 @@ class _QuickActionChip extends StatelessWidget {
 // Recent orders card
 // ─────────────────────────────────────────────────────────────
 class _RecentOrdersCard extends StatelessWidget {
-  final List<Map<String, dynamic>> orders;
-  final bool isLoading;
+  final List<DashboardOrderSummary> orders;
 
-  const _RecentOrdersCard({required this.orders, required this.isLoading});
-
-  static const _statusColors = {
-    'pending': AppColors.warning,
-    'processing': AppColors.primary,
-    'shipped': Color(0xFF7C3AED),
-    'delivered': AppColors.success,
-    'cancelled': AppColors.error,
-  };
-
-  static const _statusLabels = {
-    'pending': 'Pending',
-    'processing': 'Processing',
-    'shipped': 'Shipped',
-    'delivered': 'Delivered',
-    'cancelled': 'Cancelled',
-  };
+  const _RecentOrdersCard({required this.orders});
 
   @override
   Widget build(BuildContext context) {
@@ -599,38 +456,28 @@ class _RecentOrdersCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          if (isLoading)
-            const _ShimmerList(count: 3)
-          else if (orders.isEmpty)
-            _EmptyStateRow(
+          if (orders.isEmpty)
+            const _EmptyStateRow(
               icon: Icons.receipt_long_outlined,
               message: 'No orders yet — share your store link to get started.',
             )
           else
             ...orders.map((order) {
-              final status = (order['status'] as String?) ?? 'pending';
-              final statusColor = _statusColors[status] ?? Colors.grey;
-              final ts = order['createdAt'] as Timestamp?;
-              final dateStr = ts != null
-                  ? DateFormat('d MMM, h:mm a').format(ts.toDate())
-                  : '';
-              final items = List<Map<String, dynamic>>.from(
-                ((order['items'] as List?) ?? []).map(
-                  (e) => Map<String, dynamic>.from(e as Map),
-                ),
+              final status = OrderStatus.values.firstWhere(
+                (e) => e.name == order.status,
+                orElse: () => OrderStatus.pending,
               );
-              final summary = items.isEmpty
-                  ? 'No items'
-                  : items.map((i) => i['title'] ?? '').join(', ');
 
               return _OrderRow(
-                orderId: order['id'] as String,
-                buyerName: (order['buyerName'] as String?) ?? 'Customer',
-                summary: summary,
-                amount: (order['totalAmount'] as num?) ?? 0,
-                dateStr: dateStr,
-                statusLabel: _statusLabels[status] ?? status,
-                statusColor: statusColor,
+                orderId: order.orderId,
+                buyerName: 'Customer',
+                // Would need real name from expanded query
+                summary: 'Order #${order.orderId.substring(0, 8)}',
+                amount: order.amount,
+                dateStr: order.createdAt != null
+                    ? DateFormat('d MMM, h:mm a').format(order.createdAt!)
+                    : '',
+                status: status,
                 isDark: isDark,
               );
             }),
@@ -646,8 +493,7 @@ class _OrderRow extends StatelessWidget {
   final String summary;
   final num amount;
   final String dateStr;
-  final String statusLabel;
-  final Color statusColor;
+  final OrderStatus status;
   final bool isDark;
 
   const _OrderRow({
@@ -656,8 +502,7 @@ class _OrderRow extends StatelessWidget {
     required this.summary,
     required this.amount,
     required this.dateStr,
-    required this.statusLabel,
-    required this.statusColor,
+    required this.status,
     required this.isDark,
   });
 
@@ -731,21 +576,7 @@ class _OrderRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  statusLabel,
-                  style: TextStyle(
-                    color: statusColor,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 11,
-                  ),
-                ),
-              ),
+              _StatusBadge(status: status),
             ],
           ),
         ],
@@ -754,14 +585,60 @@ class _OrderRow extends StatelessWidget {
   }
 }
 
+class _StatusBadge extends StatelessWidget {
+  final OrderStatus status;
+
+  const _StatusBadge({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final (color, label) = _getStatusConfig(status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w600,
+          fontSize: 11,
+        ),
+      ),
+    );
+  }
+
+  (Color, String) _getStatusConfig(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.pending:
+        return (AppColors.warning, 'Pending');
+      case OrderStatus.confirmed:
+        return (AppColors.primary, 'Confirmed');
+      case OrderStatus.packed:
+        return (AppColors.secondary, 'Packed');
+      case OrderStatus.shipped:
+        return (const Color(0xFF7C3AED), 'Shipped');
+      case OrderStatus.outForDelivery:
+        return (Colors.teal, 'Out for Delivery');
+      case OrderStatus.delivered:
+        return (AppColors.success, 'Delivered');
+      case OrderStatus.cancelled:
+        return (AppColors.error, 'Cancelled');
+      case OrderStatus.refunded:
+        return (Colors.grey, 'Refunded');
+    }
+  }
+}
+
 // ─────────────────────────────────────────────────────────────
 // Low stock card
 // ─────────────────────────────────────────────────────────────
 class _LowStockCard extends StatelessWidget {
-  final List<Map<String, dynamic>> products;
-  final bool isLoading;
+  final List<DashboardProductSummary> products;
 
-  const _LowStockCard({required this.products, required this.isLoading});
+  const _LowStockCard({required this.products});
 
   @override
   Widget build(BuildContext context) {
@@ -783,7 +660,7 @@ class _LowStockCard extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  if (!isLoading && products.isNotEmpty) ...[
+                  if (products.isNotEmpty) ...[
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -813,26 +690,20 @@ class _LowStockCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          if (isLoading)
-            const _ShimmerList(count: 2)
-          else if (products.isEmpty)
-            _EmptyStateRow(
+          if (products.isEmpty)
+            const _EmptyStateRow(
               icon: Icons.check_circle_outline_rounded,
               message: 'All products are well-stocked.',
               iconColor: AppColors.success,
             )
           else
             ...products.take(5).map((p) {
-              final meta = (p['metadata'] as Map<String, dynamic>?) ?? {};
-              final stock = (meta['stock'] as num?) ?? 0;
-              final imageUrls = (p['imageUrls'] as List?)?.cast<String>() ?? [];
-              final imageUrl = imageUrls.isNotEmpty ? imageUrls.first : null;
-
               return _LowStockRow(
-                title: (p['title'] as String?) ?? 'Untitled',
-                stock: stock.toInt(),
-                imageUrl: imageUrl,
-                productId: p['id'] as String? ?? '',
+                title: p.title,
+                stock: p.stock,
+                imageUrl: null,
+                // Expanded data would provide this
+                productId: p.productId,
                 isDark: isDark,
               );
             }),
@@ -875,9 +746,9 @@ class _LowStockRow extends StatelessWidget {
                     height: 44,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) =>
-                        _PlaceholderImage(),
+                        const _PlaceholderImage(),
                   )
-                : _PlaceholderImage(),
+                : const _PlaceholderImage(),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -927,6 +798,8 @@ class _LowStockRow extends StatelessWidget {
 }
 
 class _PlaceholderImage extends StatelessWidget {
+  const _PlaceholderImage();
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1087,7 +960,7 @@ class _SellerSidebar extends StatelessWidget {
           ),
           const Spacer(),
           const Divider(height: 1),
-          _SidebarLogout(),
+          const _SidebarLogout(),
           const SizedBox(height: 16),
         ],
       ),
@@ -1182,9 +1055,11 @@ class _SidebarItem extends StatelessWidget {
   }
 }
 
-class _SidebarLogout extends StatelessWidget {
+class _SidebarLogout extends ConsumerWidget {
+  const _SidebarLogout();
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
       child: Material(
@@ -1193,7 +1068,7 @@ class _SidebarLogout extends StatelessWidget {
         child: InkWell(
           borderRadius: AppRadius.borderMD,
           onTap: () async {
-            await FirebaseAuth.instance.signOut();
+            await ref.read(firebaseAuthProvider).signOut();
             if (context.mounted) context.go('/');
           },
           child: Padding(
@@ -1206,7 +1081,7 @@ class _SidebarLogout extends StatelessWidget {
                   color: AppColors.error,
                 ),
                 const SizedBox(width: 12),
-                Text(
+                const Text(
                   'Sign out',
                   style: TextStyle(
                     color: AppColors.error,
@@ -1294,137 +1169,6 @@ class _EmptyStateRow extends StatelessWidget {
                 color: AppColors.lightTextSecondary,
               ),
               textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ShimmerList extends StatelessWidget {
-  final int count;
-
-  const _ShimmerList({required this.count});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: List.generate(
-        count,
-        (i) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            children: [
-              _ShimmerBox(width: 44, height: 44, radius: 10),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _ShimmerBox(width: double.infinity, height: 14, radius: 4),
-                    const SizedBox(height: 6),
-                    _ShimmerBox(width: 120, height: 12, radius: 4),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ShimmerBox extends StatefulWidget {
-  final double width;
-  final double height;
-  final double radius;
-
-  const _ShimmerBox({
-    required this.width,
-    required this.height,
-    required this.radius,
-  });
-
-  @override
-  State<_ShimmerBox> createState() => _ShimmerBoxState();
-}
-
-class _ShimmerBoxState extends State<_ShimmerBox>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _anim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      duration: const Duration(milliseconds: 1200),
-      vsync: this,
-    )..repeat(reverse: true);
-    _anim = Tween<double>(begin: 0.4, end: 0.8).animate(_ctrl);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _anim,
-      builder: (context, state) => Container(
-        width: widget.width,
-        height: widget.height,
-        decoration: BoxDecoration(
-          color: AppColors.border.withValues(alpha: _anim.value),
-          borderRadius: BorderRadius.circular(widget.radius),
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-
-  const _ErrorState({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.wifi_off_rounded,
-              size: 48,
-              color: AppColors.lightTextSecondary,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Could not load dashboard',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.lightTextSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Try again'),
             ),
           ],
         ),

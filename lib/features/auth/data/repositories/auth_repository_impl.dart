@@ -136,6 +136,7 @@ class AuthRepositoryImpl implements AuthRepository {
         'roles': ['buyer'],
         'isActive': true,
         'sellerApproved': false,
+        'sellerApplicationStatus': 'none',
         'walletBalance': 0.0,
         'phoneNumber': '',
         'photoUrl': null,
@@ -265,6 +266,7 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   /// Update user profile
+  @override
   Future<Either<String, Unit>> updateUserProfile(
     String userId,
     Map<String, dynamic> updates,
@@ -281,6 +283,18 @@ class AuthRepositoryImpl implements AuthRepository {
       return const Right(unit);
     } catch (e) {
       return Left('Profile update failed: ${e.toString()}');
+    }
+  }
+
+  @override
+  Future<Either<String, Unit>> sendPasswordResetEmail(String email) async {
+    try {
+      await _firebaseAuth.sendPasswordResetEmail(email: email);
+      return const Right(unit);
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      return Left(e.message ?? 'Failed to send password reset email');
+    } catch (e) {
+      return Left('Failed to send password reset email: ${e.toString()}');
     }
   }
 }

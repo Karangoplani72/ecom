@@ -13,6 +13,7 @@ class AdminStoreApprovalsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final applications = ref.watch(pendingSellerApplicationsProvider);
+    final metricsAsync = ref.watch(adminDashboardMetricsProvider);
 
     return AdminScaffold(
       title: 'Store Approvals',
@@ -42,23 +43,39 @@ class AdminStoreApprovalsScreen extends ConsumerWidget {
                     icon: Icons.hourglass_empty_rounded,
                     color: const Color(0xFFF59E0B),
                   ),
-                  const AdminMetricCard(
-                    label: 'Applications',
-                    value: '--',
+                  AdminMetricCard(
+                    label: 'Total Applications',
+                    value: metricsAsync.when(
+                      data: (m) =>
+                          (m.pendingApplications +
+                                  m.approvedSellers +
+                                  m.rejectedSellers)
+                              .toString(),
+                      loading: () => '...',
+                      error: (err, stack) => '--',
+                    ),
                     icon: Icons.storefront_outlined,
-                    color: Color(0xFF2563EB),
+                    color: const Color(0xFF2563EB),
                   ),
-                  const AdminMetricCard(
+                  AdminMetricCard(
                     label: 'Approved',
-                    value: '--',
+                    value: metricsAsync.when(
+                      data: (m) => m.approvedSellers.toString(),
+                      loading: () => '...',
+                      error: (err, stack) => '--',
+                    ),
                     icon: Icons.check_circle_outline,
-                    color: Color(0xFF16A34A),
+                    color: const Color(0xFF16A34A),
                   ),
-                  const AdminMetricCard(
+                  AdminMetricCard(
                     label: 'Rejected',
-                    value: '--',
+                    value: metricsAsync.when(
+                      data: (m) => m.rejectedSellers.toString(),
+                      loading: () => '...',
+                      error: (err, stack) => '--',
+                    ),
                     icon: Icons.cancel_outlined,
-                    color: Color(0xFFDC2626),
+                    color: const Color(0xFFDC2626),
                   ),
                 ],
               ),
@@ -164,7 +181,7 @@ class _ApplicationCard extends ConsumerWidget {
 
           const SizedBox(height: 12),
 
-          Text(application.description),
+          Text(application.storeDescription),
 
           const SizedBox(height: 16),
 
@@ -174,21 +191,28 @@ class _ApplicationCard extends ConsumerWidget {
                 child: OutlinedButton.icon(
                   icon: const Icon(Icons.close_rounded),
                   label: const Text('Reject'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                  ),
                   onPressed: () async {
-                    final currentUser = ref
-                        .read(authStateSignalingProvider)
-                        .value;
+                    final currentUser = ref.read(authStateSignalingProvider).value;
+                    if (currentUser == null || application.applicationId == null) return;
 
-                    if (currentUser == null || application.id == null) {
-                      return;
-                    }
+                    final reason = await _showFeedbackDialog(
+                      context,
+                      'Reject Application',
+                      'Provide rejection reason',
+                    );
+
+                    if (reason == null || reason.isEmpty) return;
 
                     await ref
                         .read(adminControllerProvider.notifier)
                         .rejectSellerApplication(
-                          application.id!,
+                          application.applicationId!,
                           currentUser.uid,
-                          'Rejected by admin',
+                          reason,
                         );
 
                     if (context.mounted) {
@@ -200,7 +224,42 @@ class _ApplicationCard extends ConsumerWidget {
                 ),
               ),
 
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
+
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.edit_note_rounded),
+                  label: const Text('Request Changes'),
+                  onPressed: () async {
+                    final currentUser = ref.read(authStateSignalingProvider).value;
+                    if (currentUser == null || application.applicationId == null) return;
+
+                    final feedback = await _showFeedbackDialog(
+                      context,
+                      'Request Changes',
+                      'What details should the user update?',
+                    );
+
+                    if (feedback == null || feedback.isEmpty) return;
+
+                    await ref
+                        .read(adminControllerProvider.notifier)
+                        .requestChangesOnSellerApplication(
+                          application.applicationId!,
+                          currentUser.uid,
+                          feedback,
+                        );
+
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Changes requested')),
+                      );
+                    }
+                  },
+                ),
+              ),
+
+              const SizedBox(width: 8),
 
               Expanded(
                 child: FilledButton.icon(
@@ -211,14 +270,14 @@ class _ApplicationCard extends ConsumerWidget {
                         .read(authStateSignalingProvider)
                         .value;
 
-                    if (currentUser == null || application.id == null) {
+                    if (currentUser == null || application.applicationId == null) {
                       return;
                     }
 
                     await ref
                         .read(adminControllerProvider.notifier)
                         .approveSellerApplication(
-                          application.id!,
+                          application.applicationId!,
                           currentUser.uid,
                         );
 
@@ -231,6 +290,41 @@ class _ApplicationCard extends ConsumerWidget {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<String?> _showFeedbackDialog(
+    BuildContext context,
+    String title,
+    String label,
+  ) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          decoration: InputDecoration(
+            labelText: label,
+            alignLabelWithHint: true,
+            border: const OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+            child: const Text('Submit'),
           ),
         ],
       ),

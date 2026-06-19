@@ -14,7 +14,7 @@ Future<void> main() async {
   runApp(
     UncontrolledProviderScope(
       container: container,
-      child: const EnterpriseMarketplaceApp(),
+      child: const EcomApp(),
     ),
   );
 }

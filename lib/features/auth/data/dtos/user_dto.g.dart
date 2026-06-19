@@ -11,9 +11,11 @@ UserDto _$UserDtoFromJson(Map<String, dynamic> json) => UserDto(
   email: json['email'] as String,
   displayName: json['displayName'] as String,
   photoUrl: json['photoUrl'] as String?,
+  phoneNumber: json['phoneNumber'] as String?,
   roles: (json['roles'] as List<dynamic>).map((e) => e as String).toList(),
   isActive: json['isActive'] as bool,
   sellerApproved: json['sellerApproved'] as bool? ?? false,
+  sellerApplicationStatus: json['sellerApplicationStatus'] as String? ?? 'none',
   createdAt: UserDto._timestampToDateTime(json['createdAt']),
 );
 
@@ -22,8 +24,10 @@ Map<String, dynamic> _$UserDtoToJson(UserDto instance) => <String, dynamic>{
   'email': instance.email,
   'displayName': instance.displayName,
   'photoUrl': instance.photoUrl,
+  'phoneNumber': instance.phoneNumber,
   'roles': instance.roles,
   'isActive': instance.isActive,
   'sellerApproved': instance.sellerApproved,
+  'sellerApplicationStatus': instance.sellerApplicationStatus,
   'createdAt': UserDto._dateTimeToTimestamp(instance.createdAt),
 };

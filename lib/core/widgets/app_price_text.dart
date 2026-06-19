@@ -1,21 +1,30 @@
 import 'package:flutter/material.dart';
 
 class AppPriceText extends StatelessWidget {
-  final num amount;
+  final double amount;
+  final TextStyle? style;
+  final String currency;
 
   const AppPriceText({
     super.key,
     required this.amount,
+    this.style,
+    this.currency = '₹',
   });
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Text(
-      '₹${amount.toStringAsFixed(0)}',
-      style: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.w700,
-      ),
+      '$currency${amount.toStringAsFixed(2)}',
+      style:
+          style ??
+          theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: colorScheme.primary,
+          ),
     );
   }
 }

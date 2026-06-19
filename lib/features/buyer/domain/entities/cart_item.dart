@@ -1,5 +1,5 @@
 class CartItem {
-  final String id; // Unique cart item ID
+  final String id;
   final String productId;
   final String title;
   final String storeId;
@@ -19,16 +19,37 @@ class CartItem {
     required this.quantity,
   });
 
-  CartItem copyWith({int? quantity}) {
+  CartItem copyWith({
+    String? id,
+    String? productId,
+    String? title,
+    String? storeId,
+    String? storeName,
+    double? unitPrice,
+    String? imageUrl,
+    int? quantity,
+  }) {
     return CartItem(
-      id: id,
-      productId: productId,
-      title: title,
-      storeId: storeId,
-      storeName: storeName,
-      unitPrice: unitPrice,
-      imageUrl: imageUrl,
+      id: id ?? this.id,
+      productId: productId ?? this.productId,
+      title: title ?? this.title,
+      storeId: storeId ?? this.storeId,
+      storeName: storeName ?? this.storeName,
+      unitPrice: unitPrice ?? this.unitPrice,
+      imageUrl: imageUrl ?? this.imageUrl,
       quantity: quantity ?? this.quantity,
     );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'productId': productId,
+      'title': title,
+      'storeId': storeId,
+      'storeName': storeName,
+      'unitPrice': unitPrice,
+      'imageUrl': imageUrl,
+      'quantity': quantity,
+    };
   }
 }

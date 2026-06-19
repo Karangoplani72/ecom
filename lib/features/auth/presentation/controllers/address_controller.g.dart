@@ -54,7 +54,7 @@ final class AddressRepositoryProvider
   }
 }
 
-String _$addressRepositoryHash() => r'ac2a31d8da4bd2543e1b30edb693ad64bc6a67dc';
+String _$addressRepositoryHash() => r'c13f2bdd2183cf0aa52decc83c43d39fa00e33ae';
 
 @ProviderFor(userAddresses)
 final userAddressesProvider = UserAddressesProvider._();
@@ -95,7 +95,7 @@ final class UserAddressesProvider
   }
 }
 
-String _$userAddressesHash() => r'd2905f69d6c21ef8123ec9f36fef9359af8fc473';
+String _$userAddressesHash() => r'1b407e2209ff612efc22df2f938741b8ab87c641';
 
 @ProviderFor(AddressController)
 final addressControllerProvider = AddressControllerProvider._();
@@ -121,7 +121,7 @@ final class AddressControllerProvider
   AddressController create() => AddressController();
 }
 
-String _$addressControllerHash() => r'fbbb9958ee6ddc5e3a5c42764bb561636160325b';
+String _$addressControllerHash() => r'4a3e5984b417c96f2507368545774b939c6dc02b';
 
 abstract class _$AddressController extends $AsyncNotifier<void> {
   FutureOr<void> build();

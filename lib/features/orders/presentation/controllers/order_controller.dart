@@ -1,10 +1,11 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/features/orders/data/repositories/order_repository_impl.dart';
 import 'package:ecom/features/orders/domain/entities/order.dart';
 import 'package:ecom/features/orders/domain/entities/order_status.dart';
 import 'package:ecom/features/orders/domain/repositories/order_repository.dart';
+import 'package:ecom/features/seller/data/repositories/seller_repository_impl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -12,25 +13,43 @@ part 'order_controller.g.dart';
 
 @riverpod
 OrderRepository orderRepository(Ref ref) {
-  return OrderRepositoryImpl(firestore: FirebaseFirestore.instance);
+  return OrderRepositoryImpl(firestore: ref.watch(firebaseFirestoreProvider));
 }
 
 @riverpod
 Stream<List<AppOrder>> buyerOrders(Ref ref) {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) return Stream.value([]);
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) return Stream.value([]);
 
-  return ref.watch(orderRepositoryProvider).watchBuyerOrders(buyerId: user.uid);
+  return ref.watch(orderRepositoryProvider).watchBuyerOrders(buyerId: userId);
 }
 
 @riverpod
-Stream<List<AppOrder>> sellerOrders(Ref ref) {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) return Stream.value([]);
+Stream<List<AppOrder>> sellerOrders(Ref ref) async* {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) {
+    yield [];
+    return;
+  }
 
-  return ref
-      .watch(orderRepositoryProvider)
-      .watchSellerOrders(storeId: user.uid);
+  final sellerRepo = SellerRepositoryImpl(
+    firestore: ref.watch(firebaseFirestoreProvider),
+  );
+
+  final profileResult = await sellerRepo.getStoreProfileBySeller(userId);
+
+  yield* profileResult.fold(
+    (_) => Stream.value(<AppOrder>[]),
+    (profile) => ref
+        .watch(orderRepositoryProvider)
+        .watchSellerOrders(storeId: profile.id),
+  );
+}
+
+@riverpod
+Future<AppOrder?> orderById(Ref ref, String orderId) async {
+  final result = await ref.watch(orderRepositoryProvider).getOrderById(orderId);
+  return result.fold((_) => null, (order) => order);
 }
 
 @riverpod
@@ -51,10 +70,12 @@ class OrderController extends _$OrderController {
 
     result.fold(
       (error) {
+        if (!ref.mounted) return;
         state = AsyncError(error, StackTrace.current);
         onFailure(error);
       },
       (orderIds) {
+        if (!ref.mounted) return;
         state = const AsyncData(null);
         onSuccess();
       },

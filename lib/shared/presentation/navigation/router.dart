@@ -1,14 +1,8 @@
-// lib/shared/presentation/navigation/router.dart
-//
-// Industry-standard GoRouter setup with:
-//  1. Proper history stack (StatefulShellRoute with persistent navigation)
-//  2. Android back button navigates history, never exits mid-app
-//  3. Double-tap back to exit only from home screen
-//  4. Web: URL reflects current page so browser refresh reloads that page
-
 import 'dart:async';
 
 import 'package:ecom/features/admin/presentation/screens/admin_moderation_screen.dart';
+import 'package:ecom/features/admin/presentation/screens/admin_orders_screen.dart';
+import 'package:ecom/features/admin/presentation/screens/admin_products_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_reports_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_sellers_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_settings_screen.dart';
@@ -20,16 +14,21 @@ import 'package:ecom/features/auth/presentation/screens/address_screen.dart';
 import 'package:ecom/features/auth/presentation/screens/landing_screen.dart';
 import 'package:ecom/features/auth/presentation/screens/login_screen.dart';
 import 'package:ecom/features/auth/presentation/screens/signup_screen.dart';
+import 'package:ecom/features/buyer/presentation/screens/about_screen.dart';
+import 'package:ecom/features/buyer/presentation/screens/account_settings_screen.dart';
 import 'package:ecom/features/buyer/presentation/screens/buyer_home_screen.dart';
 import 'package:ecom/features/buyer/presentation/screens/buyer_orders_screen.dart';
 import 'package:ecom/features/buyer/presentation/screens/cart_screen.dart';
 import 'package:ecom/features/buyer/presentation/screens/checkout_screen.dart';
+import 'package:ecom/features/buyer/presentation/screens/help_screen.dart';
 import 'package:ecom/features/buyer/presentation/screens/menu_screen.dart';
+import 'package:ecom/features/buyer/presentation/screens/privacy_screen.dart';
 import 'package:ecom/features/buyer/presentation/screens/product_detail_screen.dart';
 import 'package:ecom/features/buyer/presentation/screens/products_screen.dart';
 import 'package:ecom/features/buyer/presentation/screens/profile_screen.dart';
 import 'package:ecom/features/buyer/presentation/screens/wishlist_screen.dart';
 import 'package:ecom/features/marketplace/presentation/screens/chat_screen.dart';
+import 'package:ecom/features/marketplace/presentation/screens/notification_screen.dart';
 import 'package:ecom/features/orders/presentation/screens/order_detail_screen.dart';
 import 'package:ecom/features/seller/presentation/screens/add_product_screen.dart';
 import 'package:ecom/features/seller/presentation/screens/edit_product_screen.dart';
@@ -53,10 +52,6 @@ final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'rootNav',
 );
 
-// ---------------------------------------------------------------------------
-// Route path constants — one source of truth, no magic strings
-// ---------------------------------------------------------------------------
-
 abstract class AppRoutes {
   // Auth
   static const root = '/';
@@ -70,13 +65,18 @@ abstract class AppRoutes {
   static const buyerProfile = '/buyer/profile';
   static const buyerMenu = '/buyer/menu';
 
-  // Buyer modal / push screens (outside the tab shell so the tab bar hides)
+  // Buyer push screens
   static const buyerWishlist = '/buyer/wishlist';
   static const buyerCart = '/buyer/cart';
   static const buyerCheckout = '/buyer/checkout';
   static const buyerOrders = '/buyer/orders';
   static const buyerOrderDetail = '/buyer/orders/:orderId';
   static const buyerAddresses = '/buyer/addresses';
+  static const buyerNotifications = '/buyer/notifications';
+  static const buyerAccountSettings = '/buyer/account-settings';
+  static const buyerHelp = '/buyer/help';
+  static const buyerPrivacy = '/buyer/privacy';
+  static const buyerAbout = '/buyer/about';
   static const productDetail = '/buyer/home/product/:productId';
   static const chat = '/chat/:chatId';
 
@@ -100,23 +100,15 @@ abstract class AppRoutes {
 
   // Admin
   static const adminPanel = '/admin/control-panel';
-
   static const adminUsers = '/admin/users';
-
   static const adminStoreApprovals = '/admin/store-approvals';
-
   static const adminStores = '/admin/stores';
-
   static const adminSellers = '/admin/sellers';
-
+  static const adminProducts = '/admin/products';
+  static const adminOrders = '/admin/orders';
   static const adminReports = '/admin/reports';
-
   static const adminSettings = '/admin/settings';
 }
-
-// ---------------------------------------------------------------------------
-// Router provider
-// ---------------------------------------------------------------------------
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authNotifier = _AuthRedirectNotifier(ref);
@@ -129,16 +121,10 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (BuildContext context, GoRouterState state) {
       final authState = ref.watch(authStateSignalingProvider);
 
-      if (authState.isLoading) {
-        return null;
-      }
-
-      if (authState.hasError) {
-        return null;
-      }
+      if (authState.isLoading) return null;
+      if (authState.hasError) return null;
 
       final user = authState.value;
-
       final loc = state.matchedLocation;
 
       final isAuthRoute =
@@ -152,7 +138,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           loc == AppRoutes.buyerOrders ||
           loc == AppRoutes.buyerCart ||
           loc == AppRoutes.buyerCheckout ||
-          loc == AppRoutes.buyerWishlist;
+          loc == AppRoutes.buyerWishlist ||
+          loc == AppRoutes.buyerNotifications ||
+          loc == AppRoutes.buyerAddresses;
 
       if (user == null && isProtectedPath) return AppRoutes.login;
 
@@ -160,18 +148,24 @@ final routerProvider = Provider<GoRouter>((ref) {
         return '${AppRoutes.login}?error=account_suspended';
       }
 
-      // /seller/apply is accessible to any authenticated user (buyer applying)
+      if (user != null &&
+          loc == AppRoutes.sellerApply &&
+          user.roles.contains(UserRole.seller)) {
+        return AppRoutes.sellerDashboard;
+      }
+
       if (loc == AppRoutes.sellerApply) return null;
 
       if (user != null &&
           loc.startsWith('/seller') &&
-          !user.roles.any((r) => r.name == 'seller')) {
+          !user.roles.contains(UserRole.seller)) {
         return AppRoutes.buyerHome;
       }
 
       if (user != null &&
           loc.startsWith('/admin') &&
-          !user.roles.any((r) => r.name == 'admin')) {
+          !user.roles.contains(UserRole.admin) &&
+          !user.roles.contains(UserRole.superAdmin)) {
         return AppRoutes.buyerHome;
       }
 
@@ -180,25 +174,21 @@ final routerProvider = Provider<GoRouter>((ref) {
             user.roles.contains(UserRole.admin)) {
           return AppRoutes.adminPanel;
         }
-
         if (user.roles.contains(UserRole.seller)) {
           return AppRoutes.sellerDashboard;
         }
-
         return AppRoutes.buyerHome;
       }
+
       if (loc == AppRoutes.root) {
         if (user == null) return AppRoutes.landing;
-
         if (user.roles.contains(UserRole.superAdmin) ||
             user.roles.contains(UserRole.admin)) {
           return AppRoutes.adminPanel;
         }
-
         if (user.roles.contains(UserRole.seller)) {
           return AppRoutes.sellerDashboard;
         }
-
         return AppRoutes.buyerHome;
       }
 
@@ -206,7 +196,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
 
     routes: [
-      // ── Auth (no shell, no bottom nav) ────────────────────────────────────
+      // ── Auth ─────────────────────────────────────────────────────────────
       GoRoute(
         path: AppRoutes.root,
         builder: (context, state) => const SizedBox.shrink(),
@@ -224,13 +214,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const SignupScreen(),
       ),
 
-      // ── Seller Application (accessible to authenticated buyers) ───────────
+      // ── Seller Application ────────────────────────────────────────────────
       GoRoute(
         path: AppRoutes.sellerApply,
         builder: (context, state) => const SellerApplicationScreen(),
       ),
 
-      // ── Buyer: full-screen push routes (no tab bar) ───────────────────────
+      // ── Buyer push routes ─────────────────────────────────────────────────
       GoRoute(
         path: AppRoutes.buyerWishlist,
         builder: (context, state) => const WishlistScreen(),
@@ -257,6 +247,26 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const AddressScreen(),
       ),
       GoRoute(
+        path: AppRoutes.buyerNotifications,
+        builder: (context, state) => const NotificationScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.buyerAccountSettings,
+        builder: (context, state) => const AccountSettingsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.buyerHelp,
+        builder: (context, state) => const HelpScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.buyerPrivacy,
+        builder: (context, state) => const PrivacyScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.buyerAbout,
+        builder: (context, state) => const AboutScreen(),
+      ),
+      GoRoute(
         path: AppRoutes.productDetail,
         builder: (context, state) =>
             ProductDetailScreen(productId: state.pathParameters['productId']!),
@@ -267,14 +277,9 @@ final routerProvider = Provider<GoRouter>((ref) {
             ChatScreen(chatId: state.pathParameters['chatId']!),
       ),
 
-      // ── Fix 1 & 2: Buyer tab shell with persistent history ────────────────
-      //
-      // StatefulShellRoute keeps each branch's navigator stack alive.
-      // Each branch has its own history, so back within a tab works as
-      // expected, and switching tabs doesn't destroy the other tab's stack.
+      // ── Buyer shell ───────────────────────────────────────────────────────
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
-          // Fix 2 & 3: wrap the shell in the double-back-to-exit widget
           return _BuyerShell(navigationShell: navigationShell);
         },
         branches: [
@@ -313,17 +318,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      // ── Seller: full-screen routes ────────────────────────────────────────
+      // ── Seller push routes ────────────────────────────────────────────────
       GoRoute(
         path: AppRoutes.sellerStoreProfile,
         builder: (context, state) => const SellerStoreProfileScreen(),
       ),
-
       GoRoute(
         path: AppRoutes.sellerCustomers,
         builder: (context, state) => const SellerCustomersScreen(),
       ),
-
       GoRoute(
         path: AppRoutes.sellerFinances,
         builder: (context, state) => const SellerFinancesScreen(),
@@ -337,18 +340,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.sellerSettings,
         builder: (context, state) => const SellerSettingsScreen(),
       ),
-
       GoRoute(
         path: AppRoutes.addProduct,
         builder: (context, state) => const AddProductScreen(),
       ),
-
       GoRoute(
         path: AppRoutes.editProduct,
         builder: (context, state) =>
             EditProductScreen(productId: state.pathParameters['productId']!),
       ),
-      // ── Seller tab shell ──────────────────────────────────────────────────
+
+      // ── Seller shell ──────────────────────────────────────────────────────
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
             _SellerShell(navigationShell: navigationShell),
@@ -361,7 +363,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -370,7 +371,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -379,7 +379,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -396,32 +395,34 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.adminPanel,
         builder: (context, state) => const AdminModerationScreen(),
       ),
-
       GoRoute(
         path: AppRoutes.adminUsers,
         builder: (context, state) => const AdminUsersScreen(),
       ),
-
       GoRoute(
         path: AppRoutes.adminStoreApprovals,
         builder: (context, state) => const AdminStoreApprovalsScreen(),
       ),
-
       GoRoute(
         path: AppRoutes.adminStores,
         builder: (context, state) => const AdminStoresScreen(),
       ),
-
       GoRoute(
         path: AppRoutes.adminSellers,
         builder: (context, state) => const AdminSellersScreen(),
       ),
-
+      GoRoute(
+        path: AppRoutes.adminProducts,
+        builder: (context, state) => const AdminProductsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminOrders,
+        builder: (context, state) => const AdminOrdersScreen(),
+      ),
       GoRoute(
         path: AppRoutes.adminReports,
         builder: (context, state) => const AdminReportsScreen(),
       ),
-
       GoRoute(
         path: AppRoutes.adminSettings,
         builder: (context, state) => const AdminSettingsScreen(),
@@ -429,10 +430,6 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
-
-// ---------------------------------------------------------------------------
-// Fix 2 & 3: Buyer shell scaffold with bottom nav + double-back-to-exit
-// ---------------------------------------------------------------------------
 
 class _BuyerShell extends StatefulWidget {
   const _BuyerShell({required this.navigationShell});
@@ -445,27 +442,22 @@ class _BuyerShell extends StatefulWidget {
 
 class _BuyerShellState extends State<_BuyerShell> {
   DateTime? _lastBackPress;
-
-  // The "home" branch index — back on home tab triggers double-back exit.
   static const _homeIndex = 0;
 
   Future<bool> _onWillPop() async {
     final shell = widget.navigationShell;
 
-    // If we're NOT on the home tab, go back to the home tab.
     if (shell.currentIndex != _homeIndex) {
       shell.goBranch(_homeIndex);
       return false;
     }
 
     final navigator = rootNavigatorKey.currentState;
-
     if (navigator != null && navigator.canPop()) {
       navigator.pop();
       return false;
     }
 
-    // Fix 3: On the root home screen — require a second back within 2 s to exit.
     final now = DateTime.now();
     if (_lastBackPress == null ||
         now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
@@ -480,7 +472,6 @@ class _BuyerShellState extends State<_BuyerShell> {
       return false;
     }
 
-    // Second back press within 2 s → exit app.
     await SystemNavigator.pop();
     return true;
   }
@@ -488,7 +479,6 @@ class _BuyerShellState extends State<_BuyerShell> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      // canPop: false means we intercept every back gesture/button.
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _onWillPop();
@@ -500,8 +490,6 @@ class _BuyerShellState extends State<_BuyerShell> {
           onDestinationSelected: (index) {
             widget.navigationShell.goBranch(
               index,
-              // Fix 2: tapping the current tab goes to its root
-              // (standard iOS/Android behaviour).
               initialLocation: index == widget.navigationShell.currentIndex,
             );
           },
@@ -528,10 +516,6 @@ class _BuyerShellState extends State<_BuyerShell> {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// Seller shell scaffold with bottom nav
-// ---------------------------------------------------------------------------
 
 class _SellerShell extends StatelessWidget {
   const _SellerShell({required this.navigationShell});
@@ -576,11 +560,6 @@ class _SellerShell extends StatelessWidget {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// Auth redirect notifier — tells GoRouter to re-evaluate redirect when
-// the auth state changes (fixes redirect not firing on login/logout)
-// ---------------------------------------------------------------------------
 
 class _AuthRedirectNotifier extends ChangeNotifier {
   _AuthRedirectNotifier(Ref ref) {

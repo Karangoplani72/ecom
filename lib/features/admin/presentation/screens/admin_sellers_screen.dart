@@ -1,234 +1,326 @@
-// lib/features/admin/presentation/screens/admin_sellers_screen.dart
-//
-// Seller Management (route: /admin/sellers)
-// Roster of verified sellers (the people, not the stores) with performance
-// stats and account-status controls. PLACEHOLDER: sample data only —
-// replace with a use case that joins AdminUser (role == seller) with their
-// store/sales aggregates.
-
+import 'package:ecom/core/constants/app_radius.dart';
+import 'package:ecom/core/theme/app_colors.dart';
+import 'package:ecom/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:ecom/features/admin/presentation/widgets/admin_common.dart';
 import 'package:ecom/features/admin/presentation/widgets/admin_shell.dart';
+import 'package:ecom/features/seller/domain/entities/store_profile.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
-class _SellerRow {
-  final String name;
-  final String email;
-  final String storeName;
-  final double totalRevenue;
-  final int ordersFulfilled;
-  final double rating;
-  final bool isActive;
-
-  const _SellerRow({
-    required this.name,
-    required this.email,
-    required this.storeName,
-    required this.totalRevenue,
-    required this.ordersFulfilled,
-    required this.rating,
-    required this.isActive,
-  });
-}
-
-const List<_SellerRow> _sampleSellers = [
-  _SellerRow(
-    name: 'Kavya Reddy',
-    email: 'kavya.reddy@luxemarket.com',
-    storeName: 'LuxeMarket Flagship',
-    totalRevenue: 482300,
-    ordersFulfilled: 1284,
-    rating: 4.8,
-    isActive: true,
-  ),
-  _SellerRow(
-    name: 'Vikram Desai',
-    email: 'vikram.d@studiokalakar.com',
-    storeName: 'Studio Kalakar',
-    totalRevenue: 96400,
-    ordersFulfilled: 312,
-    rating: 4.6,
-    isActive: true,
-  ),
-  _SellerRow(
-    name: 'Neha Kapoor',
-    email: 'neha.kapoor@pawsome.shop',
-    storeName: 'Pawsome Pet Supplies',
-    totalRevenue: 142800,
-    ordersFulfilled: 540,
-    rating: 4.9,
-    isActive: true,
-  ),
-  _SellerRow(
-    name: 'Arjun Nair',
-    email: 'arjun.nair@quickcart.in',
-    storeName: 'QuickCart Essentials',
-    totalRevenue: 51200,
-    ordersFulfilled: 198,
-    rating: 3.1,
-    isActive: false,
-  ),
-];
-
-class AdminSellersScreen extends StatefulWidget {
+class AdminSellersScreen extends ConsumerStatefulWidget {
   const AdminSellersScreen({super.key});
 
   @override
-  State<AdminSellersScreen> createState() => _AdminSellersScreenState();
+  ConsumerState<AdminSellersScreen> createState() => _AdminSellersScreenState();
 }
 
-class _AdminSellersScreenState extends State<AdminSellersScreen> {
+class _AdminSellersScreenState extends ConsumerState<AdminSellersScreen> {
   String _search = '';
-  bool _activeOnly = false;
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _sampleSellers.where((s) {
-      final matchesSearch =
-          _search.isEmpty ||
-          s.name.toLowerCase().contains(_search) ||
-          s.storeName.toLowerCase().contains(_search);
-      final matchesFilter = !_activeOnly || s.isActive;
-      return matchesSearch && matchesFilter;
-    }).toList();
+    final storesAsync = ref.watch(adminAllStoresProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AdminScaffold(
       title: 'Sellers',
       subtitle: 'View verified sellers and their performance',
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+      body: Column(
         children: [
-          const AdminSampleDataNotice(),
-          const SizedBox(height: 20),
-          const AdminMetricGrid(
-            metrics: [
-              AdminMetricCard(
-                label: 'Total Sellers',
-                value: '298',
-                icon: Icons.badge_outlined,
-                color: Color(0xFF2563EB),
+          Container(
+            color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Search sellers...',
+                prefixIcon: const Icon(Icons.search_rounded),
+                border: OutlineInputBorder(borderRadius: AppRadius.borderLG),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
-              AdminMetricCard(
-                label: 'New This Month',
-                value: '9',
-                icon: Icons.person_add_outlined,
-                color: Color(0xFF0EA5E9),
-              ),
-              AdminMetricCard(
-                label: 'Avg. Rating',
-                value: '4.5',
-                icon: Icons.star_outline_rounded,
-                color: Color(0xFFF59E0B),
-              ),
-              AdminMetricCard(
-                label: 'Suspended',
-                value: '6',
-                icon: Icons.person_off_outlined,
-                color: Color(0xFFDC2626),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            decoration: const InputDecoration(
-              hintText: 'Search by seller or store name...',
-              prefixIcon: Icon(Icons.search),
-              border: OutlineInputBorder(),
+              onChanged: (v) => setState(() => _search = v),
             ),
-            onChanged: (v) => setState(() => _search = v.trim().toLowerCase()),
           ),
-          const SizedBox(height: 10),
-          FilterChip(
-            label: const Text('Active only'),
-            selected: _activeOnly,
-            onSelected: (v) => setState(() => _activeOnly = v),
-            visualDensity: VisualDensity.compact,
-          ),
-          const SizedBox(height: 14),
-          if (filtered.isEmpty)
-            const AdminEmptyRow(
-              icon: Icons.search_off_rounded,
-              message: 'No sellers match your search or filter.',
-            )
-          else
-            ...filtered.map(
-              (s) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _SellerCard(seller: s),
+          Expanded(
+            child: storesAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, stack) => Center(
+                child: AdminEmptyRow(
+                  icon: Icons.cloud_off_rounded,
+                  message: e.toString(),
+                ),
               ),
+              data: (stores) {
+                final sellers = stores
+                    .where((s) => s.isVerified)
+                    .where((s) =>
+                        _search.isEmpty ||
+                        s.storeName
+                            .toLowerCase()
+                            .contains(_search.toLowerCase()))
+                    .toList();
+
+                if (sellers.isEmpty) {
+                  return const AdminEmptyRow(
+                    icon: Icons.badge_outlined,
+                    message: 'No verified sellers found.',
+                  );
+                }
+
+                return ListView.separated(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                  itemCount: sellers.length,
+                  separatorBuilder: (ctx, idx) => const SizedBox(height: 12),
+                  itemBuilder: (ctx, i) => _SellerCard(store: sellers[i]),
+                );
+              },
             ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _SellerCard extends StatelessWidget {
-  final _SellerRow seller;
-
-  const _SellerCard({required this.seller});
+class _SellerCard extends ConsumerWidget {
+  final StoreProfile store;
+  const _SellerCard({required this.store});
 
   @override
-  Widget build(BuildContext context) {
-    final statusColor = seller.isActive
-        ? const Color(0xFF16A34A)
-        : const Color(0xFFDC2626);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dateFmt = DateFormat('d MMM yyyy');
 
     return AdminSectionCard(
-      child: Row(
+      padding: const EdgeInsets.all(16),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: const Color(0xFF2563EB).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(22),
-            ),
-            child: Center(
-              child: Text(
-                seller.name.isNotEmpty ? seller.name[0] : '?',
-                style: const TextStyle(
-                  color: Color(0xFF2563EB),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  seller.name,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 2),
-                Text(seller.email, style: Theme.of(context).textTheme.bodySmall),
-                const SizedBox(height: 4),
-                Text(
-                  '${seller.storeName} · ${seller.ordersFulfilled} orders · ₹${seller.totalRevenue.toStringAsFixed(0)} · ★ ${seller.rating}',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          Row(
             children: [
-              AdminStatusPill(
-                label: seller.isActive ? 'Active' : 'Suspended',
-                color: statusColor,
+              _avatar(),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            store.storeName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                        if (store.isVerified)
+                          const AdminStatusPill(
+                            label: 'Verified',
+                            color: AppColors.success,
+                            icon: Icons.verified_rounded,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    if (store.category != null)
+                      Text(
+                        store.category!,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark
+                              ? Colors.white54
+                              : AppColors.lightTextSecondary,
+                        ),
+                      ),
+                    Text(
+                      'Joined ${dateFmt.format(store.createdAt)}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark
+                            ? Colors.white38
+                            : AppColors.lightTextSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () =>
-                    showPlaceholderActionSnack(context, 'View seller profile'),
-                child: const Text('View profile'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _StatCard(
+                label: 'Products',
+                value: store.totalProducts.toString(),
+                icon: Icons.inventory_2_outlined,
+                color: const Color(0xFF2563EB),
+              ),
+              const SizedBox(width: 10),
+              _StatCard(
+                label: 'Orders',
+                value: store.totalOrders.toString(),
+                icon: Icons.receipt_long_outlined,
+                color: const Color(0xFF16A34A),
+              ),
+              const SizedBox(width: 10),
+              _StatCard(
+                label: 'Rating',
+                value: store.rating.toStringAsFixed(1),
+                icon: Icons.star_rounded,
+                color: const Color(0xFFF59E0B),
+              ),
+              const SizedBox(width: 10),
+              _StatCard(
+                label: 'Reviews',
+                value: store.totalReviews.toString(),
+                icon: Icons.reviews_outlined,
+                color: const Color(0xFF7C3AED),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: Icon(
+                    store.isActive
+                        ? Icons.pause_circle_outline
+                        : Icons.play_circle_outline,
+                    size: 16,
+                  ),
+                  label: Text(store.isActive ? 'Suspend' : 'Activate'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: store.isActive
+                        ? AppColors.error
+                        : AppColors.success,
+                    side: BorderSide(
+                      color: store.isActive
+                          ? AppColors.error
+                          : AppColors.success,
+                    ),
+                  ),
+                  onPressed: () async {
+                    final result = store.isActive
+                        ? await ref
+                            .read(adminControllerProvider.notifier)
+                            .suspendStore(store.id)
+                        : await ref
+                            .read(adminControllerProvider.notifier)
+                            .activateStore(store.id);
+
+                    result.fold(
+                      (err) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(err)),
+                          );
+                        }
+                      },
+                      (_) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                store.isActive
+                                    ? '${store.storeName} suspended'
+                                    : '${store.storeName} activated',
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                    );
+                  },
+                ),
               ),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _avatar() {
+    if (store.logoUrl != null && store.logoUrl!.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.network(
+          store.logoUrl!,
+          width: 48,
+          height: 48,
+          fit: BoxFit.cover,
+          errorBuilder: (ctx, err, stack) => _fallbackAvatar(),
+        ),
+      );
+    }
+    return _fallbackAvatar();
+  }
+
+  Widget _fallbackAvatar() {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Icon(Icons.storefront_outlined, color: AppColors.primary),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  const _StatCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                color: color.withValues(alpha: 0.8),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,28 +1,23 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:ecom/core/providers/common_providers.dart';
+import 'package:ecom/features/seller/data/repositories/seller_analytics_repository_impl.dart';
+import 'package:ecom/features/seller/domain/entities/seller_analytics.dart';
+import 'package:ecom/features/seller/domain/repositories/seller_analytics_repository.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../../data/repositories/seller_analytics_repository_impl.dart';
-import '../../domain/entities/seller_analytics.dart';
-import '../../domain/repositories/seller_analytics_repository.dart';
 
 part 'seller_analytics_controller.g.dart';
 
 @riverpod
 SellerAnalyticsRepository sellerAnalyticsRepository(Ref ref) {
-  return SellerAnalyticsRepositoryImpl(firestore: FirebaseFirestore.instance);
-}
-
-@riverpod
-String? currentSellerId(Ref ref) {
-  return FirebaseAuth.instance.currentUser?.uid;
+  return SellerAnalyticsRepositoryImpl(
+    firestore: ref.watch(firebaseFirestoreProvider),
+  );
 }
 
 @riverpod
 Future<SellerAnalytics> sellerAnalytics(Ref ref) async {
-  final sellerId = ref.watch(currentSellerIdProvider);
+  final sellerId = ref.watch(currentUserIdProvider);
 
   if (sellerId == null || sellerId.isEmpty) {
     throw Exception('Seller not authenticated');
@@ -39,7 +34,7 @@ Future<SellerAnalytics> sellerAnalytics(Ref ref) async {
 class SellerAnalyticsController extends _$SellerAnalyticsController {
   @override
   Future<SellerAnalytics> build() async {
-    final sellerId = ref.watch(currentSellerIdProvider);
+    final sellerId = ref.watch(currentUserIdProvider);
 
     if (sellerId == null || sellerId.isEmpty) {
       throw Exception('Seller not authenticated');
@@ -55,7 +50,7 @@ class SellerAnalyticsController extends _$SellerAnalyticsController {
   Future<void> refresh() async {
     state = const AsyncLoading();
 
-    final sellerId = ref.read(currentSellerIdProvider);
+    final sellerId = ref.read(currentUserIdProvider);
 
     if (sellerId == null || sellerId.isEmpty) {
       state = AsyncError(

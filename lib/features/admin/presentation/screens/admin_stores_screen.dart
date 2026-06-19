@@ -1,305 +1,411 @@
-// lib/features/admin/presentation/screens/admin_stores_screen.dart
-//
-// Store Directory (route: /admin/stores)
-// Platform-wide directory of every store regardless of verification status,
-// with search + status filtering. PLACEHOLDER: sample data only — replace
-// with a paginated query against the stores collection (likely via a
-// `AdminStoreRepository.watchAllStores()` style use case).
-
+import 'package:ecom/core/constants/app_radius.dart';
+import 'package:ecom/core/theme/app_colors.dart';
+import 'package:ecom/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:ecom/features/admin/presentation/widgets/admin_common.dart';
 import 'package:ecom/features/admin/presentation/widgets/admin_shell.dart';
+import 'package:ecom/features/seller/domain/entities/store_profile.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
-enum _StoreStatus { verified, pending, suspended }
-
-class _StoreRow {
-  final String name;
-  final String category;
-  final _StoreStatus status;
-  final double rating;
-  final int products;
-  final double totalSales;
-  final String joined;
-
-  const _StoreRow({
-    required this.name,
-    required this.category,
-    required this.status,
-    required this.rating,
-    required this.products,
-    required this.totalSales,
-    required this.joined,
-  });
-}
-
-const List<_StoreRow> _sampleStores = [
-  _StoreRow(
-    name: 'LuxeMarket Flagship',
-    category: 'Fashion',
-    status: _StoreStatus.verified,
-    rating: 4.8,
-    products: 214,
-    totalSales: 482300,
-    joined: 'Jan 2024',
-  ),
-  _StoreRow(
-    name: 'Northline Electronics',
-    category: 'Electronics',
-    status: _StoreStatus.pending,
-    rating: 0,
-    products: 0,
-    totalSales: 0,
-    joined: 'Jun 2026',
-  ),
-  _StoreRow(
-    name: 'Aurora Home Decor',
-    category: 'Home & Living',
-    status: _StoreStatus.pending,
-    rating: 0,
-    products: 0,
-    totalSales: 0,
-    joined: 'Jun 2026',
-  ),
-  _StoreRow(
-    name: 'Studio Kalakar',
-    category: 'Art & Crafts',
-    status: _StoreStatus.verified,
-    rating: 4.6,
-    products: 58,
-    totalSales: 96400,
-    joined: 'Sep 2025',
-  ),
-  _StoreRow(
-    name: 'QuickCart Essentials',
-    category: 'Grocery',
-    status: _StoreStatus.suspended,
-    rating: 3.1,
-    products: 132,
-    totalSales: 51200,
-    joined: 'Mar 2025',
-  ),
-  _StoreRow(
-    name: 'Pawsome Pet Supplies',
-    category: 'Pet Care',
-    status: _StoreStatus.verified,
-    rating: 4.9,
-    products: 76,
-    totalSales: 142800,
-    joined: 'Nov 2024',
-  ),
-];
-
-class AdminStoresScreen extends StatefulWidget {
+class AdminStoresScreen extends ConsumerStatefulWidget {
   const AdminStoresScreen({super.key});
 
   @override
-  State<AdminStoresScreen> createState() => _AdminStoresScreenState();
+  ConsumerState<AdminStoresScreen> createState() => _AdminStoresScreenState();
 }
 
-class _AdminStoresScreenState extends State<AdminStoresScreen> {
+class _AdminStoresScreenState extends ConsumerState<AdminStoresScreen> {
   String _search = '';
-  _StoreStatus? _filter;
+  String _statusFilter = 'all';
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _sampleStores.where((s) {
-      final matchesSearch =
-          _search.isEmpty ||
-          s.name.toLowerCase().contains(_search) ||
-          s.category.toLowerCase().contains(_search);
-      final matchesFilter = _filter == null || s.status == _filter;
-      return matchesSearch && matchesFilter;
-    }).toList();
+    final storesAsync = ref.watch(adminAllStoresProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AdminScaffold(
       title: 'Stores',
-      subtitle: 'Browse and manage every store on the platform',
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+      subtitle: 'Browse and manage all marketplace stores',
+      body: Column(
         children: [
-          const AdminSampleDataNotice(),
-          const SizedBox(height: 20),
-          const AdminMetricGrid(
-            metrics: [
-              AdminMetricCard(
-                label: 'Total Stores',
-                value: '356',
-                icon: Icons.storefront_outlined,
-                color: Color(0xFF2563EB),
+          _buildFilters(isDark),
+          Expanded(
+            child: storesAsync.when(
+              loading: () =>
+                  const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(
+                child: AdminEmptyRow(
+                  icon: Icons.cloud_off_rounded,
+                  message: e.toString(),
+                ),
               ),
-              AdminMetricCard(
-                label: 'Verified',
-                value: '341',
-                icon: Icons.verified_outlined,
-                color: Color(0xFF16A34A),
-              ),
-              AdminMetricCard(
-                label: 'Suspended',
-                value: '4',
-                icon: Icons.block_outlined,
-                color: Color(0xFFDC2626),
-              ),
-              AdminMetricCard(
-                label: 'New This Month',
-                value: '11',
-                icon: Icons.trending_up_rounded,
-                color: Color(0xFF0EA5E9),
-              ),
-            ],
+              data: (stores) {
+                final filtered = stores.where((s) {
+                  final matchesSearch = _search.isEmpty ||
+                      s.storeName
+                          .toLowerCase()
+                          .contains(_search.toLowerCase()) ||
+                      (s.email ?? '')
+                          .toLowerCase()
+                          .contains(_search.toLowerCase());
+
+                  final matchesStatus = _statusFilter == 'all' ||
+                      (_statusFilter == 'active' && s.isActive) ||
+                      (_statusFilter == 'suspended' && !s.isActive) ||
+                      (_statusFilter == 'verified' && s.isVerified);
+
+                  return matchesSearch && matchesStatus;
+                }).toList();
+
+                if (filtered.isEmpty) {
+                  return const AdminEmptyRow(
+                    icon: Icons.storefront_outlined,
+                    message: 'No stores match your filters.',
+                  );
+                }
+
+                return ListView.separated(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                  itemCount: filtered.length,
+                  separatorBuilder: (ctx, idx) => const SizedBox(height: 8),
+                  itemBuilder: (ctx, i) => _StoreTile(store: filtered[i]),
+                );
+              },
+            ),
           ),
-          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilters(bool isDark) {
+    return Container(
+      color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+      child: Column(
+        children: [
           TextField(
-            decoration: const InputDecoration(
-              hintText: 'Search by store name or category...',
-              prefixIcon: Icon(Icons.search),
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              hintText: 'Search stores...',
+              prefixIcon: const Icon(Icons.search_rounded),
+              border: OutlineInputBorder(borderRadius: AppRadius.borderLG),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
-            onChanged: (v) => setState(() => _search = v.trim().toLowerCase()),
+            onChanged: (v) => setState(() => _search = v),
           ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            children: [
-              _FilterChip(
-                label: 'All',
-                selected: _filter == null,
-                onTap: () => setState(() => _filter = null),
-              ),
-              _FilterChip(
-                label: 'Verified',
-                selected: _filter == _StoreStatus.verified,
-                onTap: () => setState(() => _filter = _StoreStatus.verified),
-              ),
-              _FilterChip(
-                label: 'Pending',
-                selected: _filter == _StoreStatus.pending,
-                onTap: () => setState(() => _filter = _StoreStatus.pending),
-              ),
-              _FilterChip(
-                label: 'Suspended',
-                selected: _filter == _StoreStatus.suspended,
-                onTap: () => setState(() => _filter = _StoreStatus.suspended),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (filtered.isEmpty)
-            const AdminEmptyRow(
-              icon: Icons.search_off_rounded,
-              message: 'No stores match your search or filter.',
-            )
-          else
-            ...filtered.map(
-              (s) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _StoreCard(store: s),
-              ),
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final f in [
+                  ('all', 'All'),
+                  ('active', 'Active'),
+                  ('suspended', 'Suspended'),
+                  ('verified', 'Verified'),
+                ])
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      label: Text(f.$2),
+                      selected: _statusFilter == f.$1,
+                      onSelected: (_) =>
+                          setState(() => _statusFilter = f.$1),
+                    ),
+                  ),
+              ],
             ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _FilterChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
+class _StoreTile extends ConsumerWidget {
+  final StoreProfile store;
+  const _StoreTile({required this.store});
 
-  const _FilterChip({
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dateFmt = DateFormat('d MMM yyyy');
+
+    Color statusColor;
+    String statusLabel;
+    if (store.isSuspended) {
+      statusColor = AppColors.error;
+      statusLabel = 'Suspended';
+    } else if (store.isVerified) {
+      statusColor = AppColors.success;
+      statusLabel = 'Verified';
+    } else {
+      statusColor = const Color(0xFFF59E0B);
+      statusLabel = 'Unverified';
+    }
+
+    return AdminSectionCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _StoreAvatar(store: store),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            store.storeName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                        AdminStatusPill(
+                          label: statusLabel,
+                          color: statusColor,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    if (store.category != null)
+                      Text(
+                        store.category!,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark
+                              ? Colors.white54
+                              : AppColors.lightTextSecondary,
+                        ),
+                      ),
+                    Text(
+                      'Since ${dateFmt.format(store.createdAt)}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark
+                            ? Colors.white38
+                            : AppColors.lightTextSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _Stat(
+                label: 'Products',
+                value: store.totalProducts.toString(),
+                icon: Icons.inventory_2_outlined,
+              ),
+              const SizedBox(width: 16),
+              _Stat(
+                label: 'Orders',
+                value: store.totalOrders.toString(),
+                icon: Icons.receipt_outlined,
+              ),
+              const SizedBox(width: 16),
+              _Stat(
+                label: 'Rating',
+                value: store.rating.toStringAsFixed(1),
+                icon: Icons.star_outline_rounded,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: Icon(
+                    store.isActive
+                        ? Icons.pause_circle_outline
+                        : Icons.play_circle_outline,
+                    size: 16,
+                  ),
+                  label: Text(store.isActive ? 'Suspend' : 'Activate'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: store.isActive
+                        ? AppColors.error
+                        : AppColors.success,
+                    side: BorderSide(
+                      color: store.isActive
+                          ? AppColors.error
+                          : AppColors.success,
+                    ),
+                  ),
+                  onPressed: () async {
+                    final result = store.isActive
+                        ? await ref
+                            .read(adminControllerProvider.notifier)
+                            .suspendStore(store.id)
+                        : await ref
+                            .read(adminControllerProvider.notifier)
+                            .activateStore(store.id);
+
+                    result.fold(
+                      (error) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(error)),
+                          );
+                        }
+                      },
+                      (_) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                store.isActive
+                                    ? '${store.storeName} suspended'
+                                    : '${store.storeName} activated',
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.delete_outline_rounded,
+                    size: 16, color: Colors.red),
+                label: const Text('Delete',
+                    style: TextStyle(color: Colors.red)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.red),
+                ),
+                onPressed: () async {
+                  final ok = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Delete Store'),
+                      content: Text(
+                          'This will permanently delete "${store.storeName}" and hide all its products. This cannot be undone.'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('Cancel'),
+                        ),
+                        FilledButton(
+                          style: FilledButton.styleFrom(
+                              backgroundColor: Colors.red),
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text('Delete'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (ok != true || !context.mounted) return;
+                  final result = await ref
+                      .read(adminControllerProvider.notifier)
+                      .deleteStore(store.id);
+                  result.fold(
+                    (err) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(err)),
+                        );
+                      }
+                    },
+                    (_) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Store deleted')),
+                        );
+                      }
+                    },
+                  );
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StoreAvatar extends StatelessWidget {
+  final StoreProfile store;
+  const _StoreAvatar({required this.store});
+
+  @override
+  Widget build(BuildContext context) {
+    if (store.logoUrl != null && store.logoUrl!.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.network(
+          store.logoUrl!,
+          width: 48,
+          height: 48,
+          fit: BoxFit.cover,
+          errorBuilder: (ctx, err, stack) => _fallback(),
+        ),
+      );
+    }
+    return _fallback();
+  }
+
+  Widget _fallback() {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Icon(
+        Icons.storefront_outlined,
+        color: AppColors.primary,
+      ),
+    );
+  }
+}
+
+class _Stat extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+
+  const _Stat({
     required this.label,
-    required this.selected,
-    required this.onTap,
+    required this.value,
+    required this.icon,
   });
 
   @override
   Widget build(BuildContext context) {
-    return FilterChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => onTap(),
-      visualDensity: VisualDensity.compact,
-    );
-  }
-}
-
-class _StoreCard extends StatelessWidget {
-  final _StoreRow store;
-
-  const _StoreCard({required this.store});
-
-  static const _statusColor = {
-    _StoreStatus.verified: Color(0xFF16A34A),
-    _StoreStatus.pending: Color(0xFFF59E0B),
-    _StoreStatus.suspended: Color(0xFFDC2626),
-  };
-
-  static const _statusLabel = {
-    _StoreStatus.verified: 'Verified',
-    _StoreStatus.pending: 'Pending',
-    _StoreStatus.suspended: 'Suspended',
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _statusColor[store.status]!;
-
-    return AdminSectionCard(
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(Icons.storefront_outlined, color: color),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Row(
+      children: [
+        Icon(icon, size: 14,
+            color: isDark ? Colors.white54 : AppColors.lightTextSecondary),
+        const SizedBox(width: 4),
+        Text(
+          '$value $label',
+          style: TextStyle(
+            fontSize: 12,
+            color: isDark ? Colors.white70 : AppColors.lightTextSecondary,
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  store.name,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${store.category} • Joined ${store.joined}',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                if (store.status == _StoreStatus.verified) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    '${store.products} products • ₹${store.totalSales.toStringAsFixed(0)} sales • ★ ${store.rating}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ],
-            ),
-          ),
-          AdminStatusPill(label: _statusLabel[store.status]!, color: color),
-          const SizedBox(width: 8),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert_rounded),
-            onSelected: (action) =>
-                showPlaceholderActionSnack(context, action),
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'View store', child: Text('View store')),
-              PopupMenuItem(
-                value: 'Suspend store',
-                child: Text('Suspend store'),
-              ),
-              PopupMenuItem(
-                value: 'View transactions',
-                child: Text('View transactions'),
-              ),
-            ],
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

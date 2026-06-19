@@ -1,9 +1,13 @@
+import 'dart:ui';
 import 'package:ecom/core/widgets/app_empty_view.dart';
 import 'package:ecom/core/widgets/app_error_view.dart';
 import 'package:ecom/core/widgets/app_loading_view.dart';
 import 'package:ecom/core/widgets/app_price_text.dart';
+import 'package:ecom/core/widgets/app_primary_button.dart';
 import 'package:ecom/core/widgets/responsive_layout.dart';
 import 'package:ecom/features/buyer/presentation/controllers/cart_controller.dart';
+import 'package:ecom/core/theme/app_colors.dart';
+import 'package:ecom/core/theme/app_shadows.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -15,30 +19,55 @@ class CartScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final cartAsync = ref.watch(cartStreamProvider);
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: colorScheme.surface,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(
           'My Cart',
-          style: theme.textTheme.titleLarge?.copyWith(
+          style: TextStyle(
+            fontSize: 24,
             fontWeight: FontWeight.bold,
+            color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
           ),
         ),
         centerTitle: true,
-        backgroundColor: colorScheme.surface,
+        backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
+        actions: [
+          cartAsync.when(
+            data: (items) => items.isNotEmpty
+                ? TextButton(
+                    onPressed: () => _showClearCartDialog(context, ref),
+                    child: const Text(
+                      'Clear',
+                      style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+            loading: () => const SizedBox.shrink(),
+            error: (_, _) => const SizedBox.shrink(),
+          ),
+        ],
       ),
       body: cartAsync.when(
         loading: () => const AppLoadingView(),
-        error: (error, _) => AppErrorView(message: error.toString()),
+        error: (error, _) => AppErrorView(
+          message: error.toString(),
+          onRetry: () => ref.invalidate(cartStreamProvider),
+        ),
         data: (cartItems) {
           if (cartItems.isEmpty) {
-            return const AppEmptyView(
+            return AppEmptyView(
               title: 'Your cart is empty',
               subtitle: 'Browse our collection and find something you love!',
               icon: Icons.shopping_basket_outlined,
+              action: AppPrimaryButton(
+                onPressed: () => context.go('/buyer/products'),
+                text: 'Browse Products',
+                icon: Icons.search,
+              ),
             );
           }
 
@@ -49,63 +78,112 @@ class CartScreen extends ConsumerWidget {
 
           return ResponsiveLayout(
             maxWidth: 800,
-            child: Column(
+            child: Stack(
               children: [
-                Expanded(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    itemCount: cartItems.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: 16),
-                    itemBuilder: (context, index) {
-                      final item = cartItems[index];
-                      return Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: colorScheme.surface,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: colorScheme.outlineVariant.withValues(
-                              alpha: 0.5,
-                            ),
+                ListView.separated(
+                  padding: const EdgeInsets.only(
+                    left: 24,
+                    right: 24,
+                    top: 16,
+                    bottom: 140, // Space for bottom bar
+                  ),
+                  itemCount: cartItems.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 16),
+                  itemBuilder: (context, index) {
+                    final item = cartItems[index];
+                    return Dismissible(
+                      key: Key(item.id),
+                      direction: DismissDirection.endToStart,
+                      onDismissed: (_) {
+                        ref
+                            .read(cartControllerProvider.notifier)
+                            .removeItem(item.id);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('${item.title} removed from cart'),
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
+                        );
+                      },
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 24),
+                        decoration: BoxDecoration(
+                          color: AppColors.error,
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.surfaceDark : Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                          ),
+                          boxShadow: isDark ? AppShadows.darkSm : AppShadows.lightSm,
                         ),
                         child: Row(
                           children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: Image.network(
-                                item.imageUrl,
-                                width: 90,
-                                height: 90,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    Container(
-                                      width: 90,
-                                      height: 90,
-                                      color:
-                                          colorScheme.surfaceContainerHighest,
-                                      child: const Icon(Icons.image_outlined),
-                                    ),
+                            GestureDetector(
+                              onTap: () => context.push(
+                                '/buyer/home/product/${item.productId}',
+                              ),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(16),
+                                  boxShadow: isDark ? AppShadows.darkSm : AppShadows.lightSm,
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Image.network(
+                                    item.imageUrl,
+                                    width: 100,
+                                    height: 100,
+                                    fit: BoxFit.cover,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            Container(
+                                              width: 100,
+                                              height: 100,
+                                              color: isDark ? AppColors.surfaceDark : Colors.grey.shade100,
+                                              child: Icon(
+                                                Icons.image_outlined,
+                                                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                                              ),
+                                            ),
+                                  ),
+                                ),
                               ),
                             ),
-                            const SizedBox(width: 16),
+                            const SizedBox(width: 20),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     item.title,
-                                    style: theme.textTheme.titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.bold),
-                                    maxLines: 1,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                                    ),
+                                    maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
                                     item.storeName,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: colorScheme.onSurfaceVariant,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
                                     ),
                                   ),
                                   const SizedBox(height: 12),
@@ -115,18 +193,22 @@ class CartScreen extends ConsumerWidget {
                                     children: [
                                       AppPriceText(amount: item.unitPrice),
                                       Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                                         decoration: BoxDecoration(
-                                          color: colorScheme
-                                              .surfaceContainerHighest
-                                              .withValues(alpha: 0.5),
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
+                                          color: isDark ? AppColors.surfaceDark : Colors.grey.shade100,
+                                          border: Border.all(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+                                          borderRadius: BorderRadius.circular(12),
                                         ),
                                         child: Row(
+                                          mainAxisSize: MainAxisSize.min,
                                           children: [
                                             _QtyBtn(
-                                              icon: Icons.remove,
+                                              icon: item.quantity > 1
+                                                  ? Icons.remove
+                                                  : Icons.delete_outline,
+                                              color: item.quantity > 1
+                                                  ? (isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)
+                                                  : AppColors.error,
                                               onTap: () {
                                                 if (item.quantity > 1) {
                                                   ref
@@ -136,7 +218,7 @@ class CartScreen extends ConsumerWidget {
                                                       )
                                                       .updateQuantity(
                                                         item.id,
-                                                        item.quantity - 1,
+                                                        -1,
                                                       );
                                                 } else {
                                                   ref
@@ -155,26 +237,22 @@ class CartScreen extends ConsumerWidget {
                                                   ),
                                               child: Text(
                                                 '${item.quantity}',
-                                                style: theme
-                                                    .textTheme
-                                                    .titleMedium
-                                                    ?.copyWith(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16,
+                                                  color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                                                ),
                                               ),
                                             ),
                                             _QtyBtn(
                                               icon: Icons.add,
+                                              color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
                                               onTap: () => ref
                                                   .read(
                                                     cartControllerProvider
                                                         .notifier,
                                                   )
-                                                  .updateQuantity(
-                                                    item.id,
-                                                    item.quantity + 1,
-                                                  ),
+                                                  .updateQuantity(item.id, 1),
                                             ),
                                           ],
                                         ),
@@ -186,61 +264,76 @@ class CartScreen extends ConsumerWidget {
                             ),
                           ],
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  },
                 ),
 
-                // Order Summary
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 24),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surface,
-                    border: Border(
-                      top: BorderSide(
-                        color: colorScheme.outlineVariant.withValues(
-                          alpha: 0.5,
-                        ),
-                      ),
-                    ),
-                  ),
-                  child: SafeArea(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Total Amount',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                            AppPriceText(amount: subtotal),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 60,
-                          child: FilledButton(
-                            onPressed: () => context.push('/buyer/checkout'),
-                            style: FilledButton.styleFrom(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(18),
-                              ),
-                            ),
-                            child: const Text(
-                              'Checkout Now',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
+                // Order Summary - Sticky Bottom Bar
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: ClipRRect(
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.surfaceDark.withValues(alpha: 0.8) : Colors.white.withValues(alpha: 0.8),
+                          border: Border(
+                            top: BorderSide(
+                              color: isDark ? AppColors.borderDark : AppColors.borderLight,
                             ),
                           ),
                         ),
-                      ],
+                        child: SafeArea(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${cartItems.length} item(s)',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Total',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Text(
+                                    '₹${subtotal.toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w800,
+                                      color: isDark ? AppColors.primaryLight : AppColors.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+                              AppPrimaryButton(
+                                text: 'Proceed to Checkout',
+                                onPressed: () => context.push('/buyer/checkout'),
+                                icon: Icons.arrow_forward,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -251,12 +344,48 @@ class CartScreen extends ConsumerWidget {
       ),
     );
   }
+
+  void _showClearCartDialog(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text('Clear Cart', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text(
+          'Are you sure you want to remove all items from your cart?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: TextStyle(color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight)),
+          ),
+          FilledButton(
+            onPressed: () {
+              ref.read(cartControllerProvider.notifier).clearCart();
+              Navigator.pop(context);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.error,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Clear', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _QtyBtn extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
-  const _QtyBtn({required this.icon, required this.onTap});
+  final Color? color;
+
+  const _QtyBtn({required this.icon, required this.onTap, this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -265,7 +394,7 @@ class _QtyBtn extends StatelessWidget {
       borderRadius: BorderRadius.circular(8),
       child: Padding(
         padding: const EdgeInsets.all(8),
-        child: Icon(icon, size: 18),
+        child: Icon(icon, size: 20, color: color),
       ),
     );
   }

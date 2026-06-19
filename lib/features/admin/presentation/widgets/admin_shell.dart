@@ -149,12 +149,10 @@ class AdminSidebar extends StatelessWidget {
       width: 256,
       height: double.infinity,
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        color: Theme.of(context).colorScheme.surface,
         border: Border(
           right: BorderSide(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.08)
-                : AppColors.border,
+            color: Theme.of(context).dividerColor,
           ),
         ),
       ),
@@ -246,6 +244,20 @@ class AdminSidebar extends StatelessWidget {
                         route: '/admin/sellers',
                         isActive: currentPath.startsWith('/admin/sellers'),
                       ),
+                      _SidebarItem(
+                        icon: Icons.inventory_2_outlined,
+                        activeIcon: Icons.inventory_2_rounded,
+                        label: 'Products',
+                        route: '/admin/products',
+                        isActive: currentPath.startsWith('/admin/products'),
+                      ),
+                      _SidebarItem(
+                        icon: Icons.receipt_long_outlined,
+                        activeIcon: Icons.receipt_long_rounded,
+                        label: 'Orders',
+                        route: '/admin/orders',
+                        isActive: currentPath.startsWith('/admin/orders'),
+                      ),
                     ],
                   ),
                   _SidebarSection(
@@ -309,6 +321,7 @@ class _SidebarSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -317,7 +330,7 @@ class _SidebarSection extends StatelessWidget {
           child: Text(
             label.toUpperCase(),
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.lightTextSecondary,
+              color: isDark ? Colors.white38 : AppColors.lightTextSecondary,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.8,
               fontSize: 10,
@@ -347,11 +360,15 @@ class _SidebarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final inactiveColor =
+        isDark ? Colors.white60 : AppColors.lightTextSecondary;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       child: Material(
         color: isActive
-            ? AppColors.primary.withValues(alpha: 0.1)
+            ? AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.1)
             : Colors.transparent,
         borderRadius: AppRadius.borderMD,
         child: InkWell(
@@ -369,21 +386,16 @@ class _SidebarItem extends StatelessWidget {
                 Icon(
                   isActive ? activeIcon : icon,
                   size: 20,
-                  color: isActive
-                      ? AppColors.primary
-                      : AppColors.lightTextSecondary,
+                  color: isActive ? AppColors.primary : inactiveColor,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     label,
                     style: TextStyle(
-                      color: isActive
-                          ? AppColors.primary
-                          : AppColors.lightTextSecondary,
-                      fontWeight: isActive
-                          ? FontWeight.w600
-                          : FontWeight.normal,
+                      color: isActive ? AppColors.primary : inactiveColor,
+                      fontWeight:
+                          isActive ? FontWeight.w600 : FontWeight.normal,
                       fontSize: 14,
                     ),
                   ),

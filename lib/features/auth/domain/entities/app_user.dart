@@ -9,12 +9,16 @@ class AppUser {
   final String email;
   final String displayName;
   final String? photoUrl;
+  final String? phoneNumber;
   final List<UserRole> roles;
   final VerificationStatus verificationStatus;
   final bool isActive;
 
   /// Becomes true after admin approves seller application
   final bool sellerApproved;
+
+  /// Status of the seller application (none | pending | approved | rejected | changes_requested)
+  final String sellerApplicationStatus;
 
   final DateTime createdAt;
 
@@ -23,10 +27,12 @@ class AppUser {
     required this.email,
     required this.displayName,
     this.photoUrl,
+    this.phoneNumber,
     required this.roles,
     required this.verificationStatus,
     required this.isActive,
     this.sellerApproved = false,
+    this.sellerApplicationStatus = 'none',
     required this.createdAt,
   });
 
@@ -38,11 +44,44 @@ class AppUser {
   bool get isSellerApproved =>
       sellerApproved || roles.contains(UserRole.seller);
 
+  bool get isGuest => roles.isEmpty || roles.contains(UserRole.guest);
+
+  bool get hasPhoneNumber =>
+      phoneNumber != null && phoneNumber!.trim().isNotEmpty;
+
   Either<String, bool> validateVerificationStatus() {
     if (!isActive) {
       return const Left("User account is suspended or unverified.");
     }
-
     return const Right(true);
+  }
+
+  AppUser copyWith({
+    String? uid,
+    String? email,
+    String? displayName,
+    String? photoUrl,
+    String? phoneNumber,
+    List<UserRole>? roles,
+    VerificationStatus? verificationStatus,
+    bool? isActive,
+    bool? sellerApproved,
+    String? sellerApplicationStatus,
+    DateTime? createdAt,
+  }) {
+    return AppUser(
+      uid: uid ?? this.uid,
+      email: email ?? this.email,
+      displayName: displayName ?? this.displayName,
+      photoUrl: photoUrl ?? this.photoUrl,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
+      roles: roles ?? this.roles,
+      verificationStatus: verificationStatus ?? this.verificationStatus,
+      isActive: isActive ?? this.isActive,
+      sellerApproved: sellerApproved ?? this.sellerApproved,
+      sellerApplicationStatus:
+          sellerApplicationStatus ?? this.sellerApplicationStatus,
+      createdAt: createdAt ?? this.createdAt,
+    );
   }
 }

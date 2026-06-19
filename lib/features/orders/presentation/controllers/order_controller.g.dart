@@ -49,7 +49,7 @@ final class OrderRepositoryProvider
   }
 }
 
-String _$orderRepositoryHash() => r'5028a55b764795f192591dc1a51fad11e4430313';
+String _$orderRepositoryHash() => r'c39db9b25d0c34524fdb1f748ce6854d54a796d0';
 
 @ProviderFor(buyerOrders)
 final buyerOrdersProvider = BuyerOrdersProvider._();
@@ -88,7 +88,7 @@ final class BuyerOrdersProvider
   }
 }
 
-String _$buyerOrdersHash() => r'a2c78fcdaf6800983c2af4ce3444ab878b35e744';
+String _$buyerOrdersHash() => r'459b14f31281ced2b0a4dd5a9e38d8418f64e200';
 
 @ProviderFor(sellerOrders)
 final sellerOrdersProvider = SellerOrdersProvider._();
@@ -127,7 +127,81 @@ final class SellerOrdersProvider
   }
 }
 
-String _$sellerOrdersHash() => r'ce7266dc2869862202094e1ae2dbba9e087c8fc2';
+String _$sellerOrdersHash() => r'4e857b2b2ce509babd90436b5918de990d95c1bc';
+
+@ProviderFor(orderById)
+final orderByIdProvider = OrderByIdFamily._();
+
+final class OrderByIdProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<AppOrder?>,
+          AppOrder?,
+          FutureOr<AppOrder?>
+        >
+    with $FutureModifier<AppOrder?>, $FutureProvider<AppOrder?> {
+  OrderByIdProvider._({
+    required OrderByIdFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'orderByIdProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$orderByIdHash();
+
+  @override
+  String toString() {
+    return r'orderByIdProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<AppOrder?> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<AppOrder?> create(Ref ref) {
+    final argument = this.argument as String;
+    return orderById(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is OrderByIdProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$orderByIdHash() => r'95b6abc7730219038af7d0dfd10fdb0ce75a20e8';
+
+final class OrderByIdFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<AppOrder?>, String> {
+  OrderByIdFamily._()
+    : super(
+        retry: null,
+        name: r'orderByIdProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  OrderByIdProvider call(String orderId) =>
+      OrderByIdProvider._(argument: orderId, from: this);
+
+  @override
+  String toString() => r'orderByIdProvider';
+}
 
 @ProviderFor(OrderController)
 final orderControllerProvider = OrderControllerProvider._();
@@ -153,7 +227,7 @@ final class OrderControllerProvider
   OrderController create() => OrderController();
 }
 
-String _$orderControllerHash() => r'ff1a58c359f4c3fcc18597c0b6d77538bf9db9a4';
+String _$orderControllerHash() => r'999ce5bc98ccd8b248b2d2b8ebd7aeba6aca3f5f';
 
 abstract class _$OrderController extends $AsyncNotifier<void> {
   FutureOr<void> build();

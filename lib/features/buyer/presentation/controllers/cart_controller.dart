@@ -1,29 +1,28 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/features/buyer/data/repositories/cart_repository_impl.dart';
 import 'package:ecom/features/buyer/domain/entities/cart_item.dart';
 import 'package:ecom/features/buyer/domain/repositories/cart_repository.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'cart_controller.g.dart';
 
 @riverpod
 CartRepository cartRepository(Ref ref) {
-  return CartRepositoryImpl(firestore: FirebaseFirestore.instance);
+  return CartRepositoryImpl(firestore: ref.watch(firebaseFirestoreProvider));
 }
 
 @riverpod
 Stream<List<CartItem>> cartStream(Ref ref) {
-  final currentUser = FirebaseAuth.instance.currentUser;
+  final userId = ref.watch(currentUserIdProvider);
 
-  if (currentUser == null) {
+  if (userId == null) {
     return Stream.value(<CartItem>[]);
   }
 
   final repo = ref.watch(cartRepositoryProvider);
 
   return repo
-      .watchCart(userId: currentUser.uid)
+      .watchCart(userId: userId)
       .map((either) => either.fold((_) => <CartItem>[], (items) => items));
 }
 
@@ -40,13 +39,13 @@ class CartController extends _$CartController {
   // ==================================================
 
   Future<void> addItem(CartItem item) async {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final userId = ref.read(currentUserIdProvider);
 
-    if (currentUser == null) return;
+    if (userId == null) return;
 
     final repo = ref.read(cartRepositoryProvider);
 
-    final result = await repo.addCartItem(userId: currentUser.uid, item: item);
+    final result = await repo.addCartItem(userId: userId, item: item);
 
     // FIX: propagate Firestore write errors instead of silently swallowing them.
     // ProductDetailScreen already wraps addItem() in try/catch and shows an error
@@ -59,9 +58,9 @@ class CartController extends _$CartController {
   // ==================================================
 
   Future<void> updateQuantity(String itemId, int delta) async {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final userId = ref.read(currentUserIdProvider);
 
-    if (currentUser == null) return;
+    if (userId == null) return;
 
     CartItem? item;
 
@@ -84,7 +83,7 @@ class CartController extends _$CartController {
     final repo = ref.read(cartRepositoryProvider);
 
     await repo.updateCartItemQuantity(
-      userId: currentUser.uid,
+      userId: userId,
       itemId: itemId,
       quantity: newQuantity,
     );
@@ -97,14 +96,14 @@ class CartController extends _$CartController {
   Future<void> setQuantity(String itemId, int quantity) async {
     if (quantity < 1) return;
 
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final userId = ref.read(currentUserIdProvider);
 
-    if (currentUser == null) return;
+    if (userId == null) return;
 
     final repo = ref.read(cartRepositoryProvider);
 
     await repo.updateCartItemQuantity(
-      userId: currentUser.uid,
+      userId: userId,
       itemId: itemId,
       quantity: quantity,
     );
@@ -115,13 +114,13 @@ class CartController extends _$CartController {
   // ==================================================
 
   Future<void> removeItem(String itemId) async {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final userId = ref.read(currentUserIdProvider);
 
-    if (currentUser == null) return;
+    if (userId == null) return;
 
     final repo = ref.read(cartRepositoryProvider);
 
-    await repo.removeCartItem(userId: currentUser.uid, itemId: itemId);
+    await repo.removeCartItem(userId: userId, itemId: itemId);
   }
 
   // ==================================================
@@ -129,13 +128,13 @@ class CartController extends _$CartController {
   // ==================================================
 
   Future<void> clearCart() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
+    final userId = ref.read(currentUserIdProvider);
 
-    if (currentUser == null) return;
+    if (userId == null) return;
 
     final repo = ref.read(cartRepositoryProvider);
 
-    await repo.clearCart(userId: currentUser.uid);
+    await repo.clearCart(userId: userId);
   }
 
   // ==================================================

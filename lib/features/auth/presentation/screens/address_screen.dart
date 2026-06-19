@@ -177,83 +177,94 @@ class AddressScreen extends ConsumerWidget {
               itemCount: addresses.length,
               itemBuilder: (context, index) {
                 final address = addresses[index];
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: address.isDefault
-                          ? colorScheme.primary
-                          : colorScheme.outlineVariant,
-                      width: address.isDefault ? 2 : 1,
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Material(
+                    color: Colors.transparent,
+                    clipBehavior: Clip.antiAlias,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      side: BorderSide(
+                        color: address.isDefault
+                            ? colorScheme.primary
+                            : colorScheme.outlineVariant,
+                        width: address.isDefault ? 2 : 1,
+                      ),
                     ),
-                  ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.all(16),
-                    title: Row(
-                      children: [
-                        Text(
-                          address.fullName,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        if (address.isDefault) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: colorScheme.primaryContainer,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              'Default',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: colorScheme.primary,
+                    child: Ink(
+                      color: colorScheme.surface,
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.all(16),
+                        title: Row(
+                          children: [
+                            Text(
+                              address.fullName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 4),
-                        Text(address.fullAddress),
-                        Text('Phone: ${address.phone}'),
-                      ],
-                    ),
-                    trailing: PopupMenuButton(
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: Text('Delete'),
+                            if (address.isDefault) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.primaryContainer,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  'Default',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: colorScheme.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                        if (!address.isDefault)
-                          const PopupMenuItem(
-                            value: 'default',
-                            child: Text('Set as Default'),
-                          ),
-                      ],
-                      onSelected: (val) {
-                        if (val == 'edit') {
-                          _showAddressForm(context, ref, address: address);
-                        }
-                        if (val == 'delete') {
-                          ref
-                              .read(addressControllerProvider.notifier)
-                              .deleteAddress(address.id);
-                        }
-                        if (val == 'default') {
-                          ref
-                              .read(addressControllerProvider.notifier)
-                              .setDefault(address.id);
-                        }
-                      },
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 4),
+                            Text(address.fullAddress),
+                            Text('Phone: ${address.phone}'),
+                          ],
+                        ),
+                        trailing: PopupMenuButton(
+                          itemBuilder: (context) => [
+                            const PopupMenuItem(
+                              value: 'edit',
+                              child: Text('Edit'),
+                            ),
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Delete'),
+                            ),
+                            if (!address.isDefault) ...[
+                              const PopupMenuItem(
+                                value: 'default',
+                                child: Text('Set as Default'),
+                              ),
+                            ],
+                          ],
+                          onSelected: (val) {
+                            if (val == 'edit') {
+                              _showAddressForm(context, ref, address: address);
+                            } else if (val == 'delete') {
+                              ref
+                                  .read(addressControllerProvider.notifier)
+                                  .deleteAddress(address.id);
+                            } else if (val == 'default') {
+                              ref
+                                  .read(addressControllerProvider.notifier)
+                                  .setDefault(address.id);
+                            }
+                          },
+                        ),
+                      ),
                     ),
                   ),
                 );

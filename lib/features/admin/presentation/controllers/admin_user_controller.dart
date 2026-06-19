@@ -1,17 +1,16 @@
-import 'dart:async';
-
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:ecom/core/providers/common_providers.dart';
+import 'package:ecom/features/admin/data/repositories/admin_user_repository_impl.dart';
+import 'package:ecom/features/admin/domain/entities/admin_user.dart';
+import 'package:ecom/features/admin/domain/repositories/admin_user_repository.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../../data/repositories/admin_user_repository_impl.dart';
-import '../../domain/entities/admin_user.dart';
-import '../../domain/repositories/admin_user_repository.dart';
 
 part 'admin_user_controller.g.dart';
 
 @riverpod
 AdminUserRepository adminUserRepository(Ref ref) {
-  return AdminUserRepositoryImpl(firestore: FirebaseFirestore.instance);
+  return AdminUserRepositoryImpl(
+    firestore: ref.watch(firebaseFirestoreProvider),
+  );
 }
 
 @riverpod

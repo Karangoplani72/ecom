@@ -25,6 +25,7 @@ class StoreProfile {
   final String id;
   final String sellerId;
   final String storeName;
+  final String storeSlug;
   final String description;
   final String? logoUrl;
   final String? bannerUrl;
@@ -33,6 +34,12 @@ class StoreProfile {
   final String? address;
   final String? gstNumber;
   final String? category;
+  final double rating;
+  final int totalReviews;
+  final int totalProducts;
+  final int totalOrders;
+  final bool isVerified;
+  final bool isActive;
   final VerificationStatus status;
   final DateTime createdAt;
   final DateTime? updatedAt;
@@ -41,6 +48,7 @@ class StoreProfile {
     required this.id,
     required this.sellerId,
     required this.storeName,
+    required this.storeSlug,
     required this.description,
     this.logoUrl,
     this.bannerUrl,
@@ -49,13 +57,16 @@ class StoreProfile {
     this.address,
     this.gstNumber,
     this.category,
+    required this.rating,
+    required this.totalReviews,
+    required this.totalProducts,
+    required this.totalOrders,
+    required this.isVerified,
+    required this.isActive,
     required this.status,
     required this.createdAt,
     this.updatedAt,
   });
-
-  /// Check if store is verified and active
-  bool get isVerified => status == VerificationStatus.verified;
 
   /// Check if store is pending approval
   bool get isPending =>
@@ -94,6 +105,7 @@ class StoreProfile {
           id == other.id &&
           sellerId == other.sellerId &&
           storeName == other.storeName &&
+          storeSlug == other.storeSlug &&
           description == other.description &&
           logoUrl == other.logoUrl &&
           bannerUrl == other.bannerUrl &&
@@ -102,6 +114,12 @@ class StoreProfile {
           address == other.address &&
           gstNumber == other.gstNumber &&
           category == other.category &&
+          rating == other.rating &&
+          totalReviews == other.totalReviews &&
+          totalProducts == other.totalProducts &&
+          totalOrders == other.totalOrders &&
+          isVerified == other.isVerified &&
+          isActive == other.isActive &&
           status == other.status &&
           createdAt == other.createdAt &&
           updatedAt == other.updatedAt;
@@ -111,6 +129,7 @@ class StoreProfile {
       id.hashCode ^
       sellerId.hashCode ^
       storeName.hashCode ^
+      storeSlug.hashCode ^
       description.hashCode ^
       logoUrl.hashCode ^
       bannerUrl.hashCode ^
@@ -119,6 +138,12 @@ class StoreProfile {
       address.hashCode ^
       gstNumber.hashCode ^
       category.hashCode ^
+      rating.hashCode ^
+      totalReviews.hashCode ^
+      totalProducts.hashCode ^
+      totalOrders.hashCode ^
+      isVerified.hashCode ^
+      isActive.hashCode ^
       status.hashCode ^
       createdAt.hashCode ^
       updatedAt.hashCode;
@@ -127,6 +152,7 @@ class StoreProfile {
     String? id,
     String? sellerId,
     String? storeName,
+    String? storeSlug,
     String? description,
     String? logoUrl,
     String? bannerUrl,
@@ -135,6 +161,12 @@ class StoreProfile {
     String? address,
     String? gstNumber,
     String? category,
+    double? rating,
+    int? totalReviews,
+    int? totalProducts,
+    int? totalOrders,
+    bool? isVerified,
+    bool? isActive,
     VerificationStatus? status,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -143,6 +175,7 @@ class StoreProfile {
       id: id ?? this.id,
       sellerId: sellerId ?? this.sellerId,
       storeName: storeName ?? this.storeName,
+      storeSlug: storeSlug ?? this.storeSlug,
       description: description ?? this.description,
       logoUrl: logoUrl ?? this.logoUrl,
       bannerUrl: bannerUrl ?? this.bannerUrl,
@@ -151,6 +184,12 @@ class StoreProfile {
       address: address ?? this.address,
       gstNumber: gstNumber ?? this.gstNumber,
       category: category ?? this.category,
+      rating: rating ?? this.rating,
+      totalReviews: totalReviews ?? this.totalReviews,
+      totalProducts: totalProducts ?? this.totalProducts,
+      totalOrders: totalOrders ?? this.totalOrders,
+      isVerified: isVerified ?? this.isVerified,
+      isActive: isActive ?? this.isActive,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

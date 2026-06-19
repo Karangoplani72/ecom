@@ -3,16 +3,18 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../domain/entities/seller_application.dart';
 
 class SellerApplicationDto {
-  static const String collectionPath = 'storeApplications';
+  static const String collectionPath = 'sellerApplications';
 
-  final String? id;
-  final String sellerId;
+  final String? applicationId;
+  final String userId;
   final String fullName;
   final String phoneNumber;
   final String storeName;
+  final String storeDescription;
   final String businessCategory;
   final String? gstNumber;
-  final String description;
+  final String? logoUrl;
+  final List<String>? documents;
   final String status;
   final DateTime submittedAt;
 
@@ -21,14 +23,16 @@ class SellerApplicationDto {
   final String? rejectionReason;
 
   const SellerApplicationDto({
-    this.id,
-    required this.sellerId,
+    this.applicationId,
+    required this.userId,
     required this.fullName,
     required this.phoneNumber,
     required this.storeName,
+    required this.storeDescription,
     required this.businessCategory,
     this.gstNumber,
-    required this.description,
+    this.logoUrl,
+    this.documents,
     required this.status,
     required this.submittedAt,
     this.reviewedAt,
@@ -42,14 +46,18 @@ class SellerApplicationDto {
     final data = doc.data() ?? {};
 
     return SellerApplicationDto(
-      id: doc.id,
-      sellerId: data['sellerId'] as String? ?? '',
+      applicationId: doc.id,
+      userId: data['userId'] as String? ?? data['sellerId'] as String? ?? '',
       fullName: data['fullName'] as String? ?? '',
       phoneNumber: data['phoneNumber'] as String? ?? '',
       storeName: data['storeName'] as String? ?? '',
+      storeDescription: data['storeDescription'] as String? ?? data['description'] as String? ?? '',
       businessCategory: data['businessCategory'] as String? ?? '',
       gstNumber: data['gstNumber'] as String?,
-      description: data['description'] as String? ?? '',
+      logoUrl: data['logoUrl'] as String?,
+      documents: data['documents'] != null
+          ? List<String>.from(data['documents'] as List)
+          : null,
       status: data['status'] as String? ?? 'pending',
       submittedAt:
           (data['submittedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -61,13 +69,16 @@ class SellerApplicationDto {
 
   Map<String, dynamic> toFirestore() {
     return {
-      'sellerId': sellerId,
+      'applicationId': applicationId ?? userId,
+      'userId': userId,
       'fullName': fullName,
       'phoneNumber': phoneNumber,
       'storeName': storeName,
+      'storeDescription': storeDescription,
       'businessCategory': businessCategory,
       if (gstNumber != null && gstNumber!.isNotEmpty) 'gstNumber': gstNumber,
-      'description': description,
+      if (logoUrl != null && logoUrl!.isNotEmpty) 'logoUrl': logoUrl,
+      if (documents != null) 'documents': documents,
       'status': status,
       'submittedAt': Timestamp.fromDate(submittedAt),
       if (reviewedAt != null) 'reviewedAt': Timestamp.fromDate(reviewedAt!),
@@ -78,14 +89,16 @@ class SellerApplicationDto {
 
   factory SellerApplicationDto.fromDomain(SellerApplication application) {
     return SellerApplicationDto(
-      id: application.id,
-      sellerId: application.sellerId,
+      applicationId: application.applicationId,
+      userId: application.userId,
       fullName: application.fullName,
       phoneNumber: application.phoneNumber,
       storeName: application.storeName,
+      storeDescription: application.storeDescription,
       businessCategory: application.businessCategory,
       gstNumber: application.gstNumber,
-      description: application.description,
+      logoUrl: application.logoUrl,
+      documents: application.documents,
       status: application.status,
       submittedAt: application.submittedAt,
       reviewedAt: application.reviewedAt,
@@ -96,14 +109,16 @@ class SellerApplicationDto {
 
   SellerApplication toDomain() {
     return SellerApplication(
-      id: id,
-      sellerId: sellerId,
+      applicationId: applicationId,
+      userId: userId,
       fullName: fullName,
       phoneNumber: phoneNumber,
       storeName: storeName,
+      storeDescription: storeDescription,
       businessCategory: businessCategory,
       gstNumber: gstNumber,
-      description: description,
+      logoUrl: logoUrl,
+      documents: documents,
       status: status,
       submittedAt: submittedAt,
       reviewedAt: reviewedAt,

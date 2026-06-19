@@ -48,7 +48,7 @@ final class AuthRepositoryProvider
   }
 }
 
-String _$authRepositoryHash() => r'e335c376eb06c67934804f7fd33ad6cd7d7f183d';
+String _$authRepositoryHash() => r'6917f7befaa6f36499c6ec493d5c158835d6f138';
 
 @ProviderFor(authStateSignaling)
 final authStateSignalingProvider = AuthStateSignalingProvider._();
@@ -85,6 +85,79 @@ final class AuthStateSignalingProvider
 String _$authStateSignalingHash() =>
     r'c7561db6ea52550692deaff3fe9476f084b28ee6';
 
+/// Real-time Firestore listener on the signed-in user's own document.
+/// Unlike [authStateSignalingProvider], which only fires on Firebase Auth
+/// sign-in/sign-out events, this stays live across profile edits made
+/// from any device or the admin panel.
+///
+/// This watches [firebaseAuthStateProvider] — the raw Firebase Auth
+/// stream — rather than [currentUserIdProvider], so it rebuilds
+/// immediately whenever auth state changes and so it can tell "auth is
+/// still resolving" apart from "user is signed out": while auth state is
+/// loading, this provider yields nothing and stays loading too, instead
+/// of momentarily reporting `null` (which screens would otherwise read as
+/// a definitive guest state).
+
+@ProviderFor(currentUserProfile)
+final currentUserProfileProvider = CurrentUserProfileProvider._();
+
+/// Real-time Firestore listener on the signed-in user's own document.
+/// Unlike [authStateSignalingProvider], which only fires on Firebase Auth
+/// sign-in/sign-out events, this stays live across profile edits made
+/// from any device or the admin panel.
+///
+/// This watches [firebaseAuthStateProvider] — the raw Firebase Auth
+/// stream — rather than [currentUserIdProvider], so it rebuilds
+/// immediately whenever auth state changes and so it can tell "auth is
+/// still resolving" apart from "user is signed out": while auth state is
+/// loading, this provider yields nothing and stays loading too, instead
+/// of momentarily reporting `null` (which screens would otherwise read as
+/// a definitive guest state).
+
+final class CurrentUserProfileProvider
+    extends
+        $FunctionalProvider<AsyncValue<AppUser?>, AppUser?, Stream<AppUser?>>
+    with $FutureModifier<AppUser?>, $StreamProvider<AppUser?> {
+  /// Real-time Firestore listener on the signed-in user's own document.
+  /// Unlike [authStateSignalingProvider], which only fires on Firebase Auth
+  /// sign-in/sign-out events, this stays live across profile edits made
+  /// from any device or the admin panel.
+  ///
+  /// This watches [firebaseAuthStateProvider] — the raw Firebase Auth
+  /// stream — rather than [currentUserIdProvider], so it rebuilds
+  /// immediately whenever auth state changes and so it can tell "auth is
+  /// still resolving" apart from "user is signed out": while auth state is
+  /// loading, this provider yields nothing and stays loading too, instead
+  /// of momentarily reporting `null` (which screens would otherwise read as
+  /// a definitive guest state).
+  CurrentUserProfileProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'currentUserProfileProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$currentUserProfileHash();
+
+  @$internal
+  @override
+  $StreamProviderElement<AppUser?> $createElement($ProviderPointer pointer) =>
+      $StreamProviderElement(pointer);
+
+  @override
+  Stream<AppUser?> create(Ref ref) {
+    return currentUserProfile(ref);
+  }
+}
+
+String _$currentUserProfileHash() =>
+    r'66ae0e5e75ea58fab91759ec807e0975be906d79';
+
 @ProviderFor(AuthController)
 final authControllerProvider = AuthControllerProvider._();
 
@@ -109,7 +182,7 @@ final class AuthControllerProvider
   AuthController create() => AuthController();
 }
 
-String _$authControllerHash() => r'4012e47aff7ab556fef4c19f0366e5a91c3e9ce0';
+String _$authControllerHash() => r'ae05278b7783dbd5209af6abc31c3921259cd74e';
 
 abstract class _$AuthController extends $AsyncNotifier<AppUser?> {
   FutureOr<AppUser?> build();

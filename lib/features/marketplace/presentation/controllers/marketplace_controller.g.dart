@@ -55,7 +55,7 @@ final class MarketplaceRepositoryProvider
 }
 
 String _$marketplaceRepositoryHash() =>
-    r'a4222bc3bd1560ccf636069c2e10d42af2586702';
+    r'd1f5bcdea07f753c9571a37076c5926a27f15200';
 
 @ProviderFor(MarketplaceController)
 final marketplaceControllerProvider = MarketplaceControllerProvider._();
