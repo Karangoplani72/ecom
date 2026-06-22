@@ -1,24 +1,27 @@
-import 'package:ecom/core/widgets/app_primary_button.dart';
-import 'package:ecom/core/widgets/app_text_field.dart';
 import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:ecom/core/widgets/inputs/premium_form_field.dart';
+import 'package:ecom/core/widgets/buttons/gradient_action_button.dart';
+import 'package:ecom/features/auth/presentation/widgets/auth_3d_widgets.dart';
+
 class SignupScreen extends ConsumerStatefulWidget {
   const SignupScreen({super.key});
+
   @override
   ConsumerState<SignupScreen> createState() => _SignupScreenState();
 }
 
 class _SignupScreenState extends ConsumerState<SignupScreen> {
+  final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-  bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
+
+  bool _agreedToTerms = false;
 
   @override
   void dispose() {
@@ -30,25 +33,14 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   }
 
   Future<void> _signup() async {
-    FocusScope.of(context).unfocus();
-    final name = _nameController.text.trim();
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
-    final confirmPassword = _confirmPasswordController.text;
+    if (!_formKey.currentState!.validate()) return;
 
-    if (name.isEmpty) {
-      _showError('Please enter your full name');
+    if (!_agreedToTerms) {
+      _showError('Please agree to the Terms & Conditions');
       return;
     }
-    if (!_emailRegex.hasMatch(email)) {
-      _showError('Please enter a valid email address');
-      return;
-    }
-    if (password.length < 6) {
-      _showError('Password must be at least 6 characters');
-      return;
-    }
-    if (password != confirmPassword) {
+
+    if (_passwordController.text != _confirmPasswordController.text) {
       _showError('Passwords do not match');
       return;
     }
@@ -56,25 +48,16 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     await ref
         .read(authControllerProvider.notifier)
         .registerWithCredentials(
-          fullName: name,
-          email: email,
-          password: password,
+          fullName: _nameController.text.trim(),
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
           onFailure: (message) {
             if (!mounted) return;
             _showError(message);
           },
           onSuccess: () {
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Account created successfully'),
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            );
-            context.go('/buyer/home');
+            context.go('/');
           },
         );
   }
@@ -83,8 +66,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         backgroundColor: Theme.of(context).colorScheme.error,
       ),
     );
@@ -94,150 +75,163 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: colorScheme.surface,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+    return Auth3DLayout(
+      isDark: isDark,
+      showBackButton: true,
+      title: 'Create Account',
+      subtitle: 'Join us and start shopping',
+      centerObject: const Painted3DUserAvatar(size: 130),
+      floatingObjects: [
+        // Shield - right side
+        FloatingObject3D(
+          child: const Painted3DShield(size: 45),
+          dx: 90,
+          dy: -30,
+          delay: 0.2,
+          depth: 1.0,
         ),
-      ),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 450),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Hero(
-                    tag: 'app_logo',
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: colorScheme.primary.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.person_add_alt_1_outlined,
-                        size: 64,
-                        color: colorScheme.primary,
-                      ),
+        // Gift box - left
+        FloatingObject3D(
+          child: const Painted3DGiftBox(size: 50, color: Color(0xFF6C63FF)),
+          dx: -110,
+          dy: 10,
+          delay: 0.5,
+          depth: 0.8,
+        ),
+        // Heart - top right
+        FloatingObject3D(
+          child: const Painted3DHeart(size: 25),
+          dx: 100,
+          dy: -100,
+          delay: 0.7,
+          depth: 1.3,
+        ),
+        // Small sphere - bottom right
+        FloatingObject3D(
+          child: const PaintedSphere(size: 18, baseColor: Color(0xFFEC4899)),
+          dx: 80,
+          dy: 70,
+          delay: 0.4,
+          depth: 0.9,
+        ),
+        // Small sphere - top left
+        FloatingObject3D(
+          child: const PaintedSphere(size: 14, baseColor: Color(0xFF8B5CF6)),
+          dx: -80,
+          dy: -70,
+          delay: 0.9,
+          depth: 1.1,
+        ),
+      ],
+      formContent: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            PremiumFormField(
+              controller: _nameController,
+              hint: 'Full Name',
+              prefixIcon: Icons.person_outline_rounded,
+              isDark: isDark,
+            ),
+            const SizedBox(height: 14),
+            PremiumFormField(
+              controller: _emailController,
+              hint: 'Email Address',
+              prefixIcon: Icons.email_outlined,
+              keyboardType: TextInputType.emailAddress,
+              isDark: isDark,
+            ),
+            const SizedBox(height: 14),
+            PremiumFormField(
+              controller: _passwordController,
+              hint: 'Password',
+              prefixIcon: Icons.lock_outline_rounded,
+              isPassword: true,
+              isDark: isDark,
+            ),
+            const SizedBox(height: 14),
+            PremiumFormField(
+              controller: _confirmPasswordController,
+              hint: 'Confirm Password',
+              prefixIcon: Icons.lock_outline_rounded,
+              isPassword: true,
+              isDark: isDark,
+            ),
+            const SizedBox(height: 20),
+            // Terms & Conditions
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                SizedBox(
+                  height: 22,
+                  width: 22,
+                  child: Checkbox(
+                    value: _agreedToTerms,
+                    onChanged: (v) => setState(() => _agreedToTerms = v ?? false),
+                    activeColor: const Color(0xFF6C63FF),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+                    side: BorderSide(
+                      color: isDark ? Colors.white30 : Colors.black26,
+                      width: 1.5,
                     ),
                   ),
-                  const SizedBox(height: 32),
-                  Text(
-                    'Join Us Today!',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.headlineLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Create an account to start your premium shopping journey.',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-
-                  AppTextField(
-                    controller: _nameController,
-                    label: 'Full Name',
-                    hint: 'John Doe',
-                    prefixIcon: Icons.person_outline,
-                  ),
-                  const SizedBox(height: 20),
-
-                  AppTextField(
-                    controller: _emailController,
-                    label: 'Email Address',
-                    hint: 'name@example.com',
-                    prefixIcon: Icons.email_outlined,
-                    keyboardType: TextInputType.emailAddress,
-                  ),
-                  const SizedBox(height: 20),
-
-                  AppTextField(
-                    controller: _passwordController,
-                    label: 'Password',
-                    hint: 'Minimum 6 characters',
-                    prefixIcon: Icons.lock_outline,
-                    obscureText: _obscurePassword,
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        size: 20,
+                ),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: RichText(
+                    text: TextSpan(
+                      text: 'I agree to the ',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: isDark ? Colors.white60 : Colors.black54,
                       ),
-                      onPressed: () =>
-                          setState(() => _obscurePassword = !_obscurePassword),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  AppTextField(
-                    controller: _confirmPasswordController,
-                    label: 'Confirm Password',
-                    hint: 'Re-enter your password',
-                    prefixIcon: Icons.lock_reset_outlined,
-                    obscureText: _obscureConfirmPassword,
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureConfirmPassword
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        size: 20,
-                      ),
-                      onPressed: () => setState(
-                        () =>
-                            _obscureConfirmPassword = !_obscureConfirmPassword,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-
-                  AppPrimaryButton(
-                    text: 'Create Account',
-                    isLoading: authState.isLoading,
-                    onPressed: _signup,
-                  ),
-                  const SizedBox(height: 32),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Already have an account?',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () => context.pop(),
-                        style: TextButton.styleFrom(
-                          foregroundColor: colorScheme.primary,
-                          textStyle: const TextStyle(
-                            fontWeight: FontWeight.bold,
+                      children: [
+                        TextSpan(
+                          text: 'Terms & Conditions',
+                          style: TextStyle(
+                            color: const Color(0xFF8B5CF6),
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        child: const Text('Sign In'),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ),
+            const SizedBox(height: 28),
+            GradientActionButton(
+              text: 'Create Account',
+              isLoading: authState.isLoading,
+              onPressed: _signup,
+            ),
+            const SizedBox(height: 28),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  "Already have an account? ",
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: isDark ? Colors.white60 : Colors.black54,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: () => context.pop(),
+                  child: Text(
+                    'Login',
+                    style: TextStyle(
+                      color: const Color(0xFF8B5CF6),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

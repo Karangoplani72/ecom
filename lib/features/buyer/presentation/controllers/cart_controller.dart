@@ -2,6 +2,7 @@ import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/features/buyer/data/repositories/cart_repository_impl.dart';
 import 'package:ecom/features/buyer/domain/entities/cart_item.dart';
 import 'package:ecom/features/buyer/domain/repositories/cart_repository.dart';
+import 'package:ecom/features/buyer/presentation/controllers/guest_cart_controller.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'cart_controller.g.dart';
@@ -30,6 +31,10 @@ Stream<List<CartItem>> cartStream(Ref ref) {
 class CartController extends _$CartController {
   @override
   List<CartItem> build() {
+    final userId = ref.watch(currentUserIdProvider);
+    if (userId == null) {
+      return ref.watch(guestCartControllerProvider);
+    }
     final cartAsync = ref.watch(cartStreamProvider);
     return cartAsync.value ?? <CartItem>[];
   }
@@ -41,7 +46,10 @@ class CartController extends _$CartController {
   Future<void> addItem(CartItem item) async {
     final userId = ref.read(currentUserIdProvider);
 
-    if (userId == null) return;
+    if (userId == null) {
+      ref.read(guestCartControllerProvider.notifier).addItem(item);
+      return;
+    }
 
     final repo = ref.read(cartRepositoryProvider);
 
@@ -60,7 +68,11 @@ class CartController extends _$CartController {
   Future<void> updateQuantity(String itemId, int delta) async {
     final userId = ref.read(currentUserIdProvider);
 
-    if (userId == null) return;
+    if (userId == null) {
+      final item = state.firstWhere((e) => e.id == itemId);
+      ref.read(guestCartControllerProvider.notifier).updateQuantity(itemId, item.quantity + delta);
+      return;
+    }
 
     CartItem? item;
 
@@ -98,7 +110,10 @@ class CartController extends _$CartController {
 
     final userId = ref.read(currentUserIdProvider);
 
-    if (userId == null) return;
+    if (userId == null) {
+      ref.read(guestCartControllerProvider.notifier).updateQuantity(itemId, quantity);
+      return;
+    }
 
     final repo = ref.read(cartRepositoryProvider);
 
@@ -116,7 +131,10 @@ class CartController extends _$CartController {
   Future<void> removeItem(String itemId) async {
     final userId = ref.read(currentUserIdProvider);
 
-    if (userId == null) return;
+    if (userId == null) {
+      ref.read(guestCartControllerProvider.notifier).removeItem(itemId);
+      return;
+    }
 
     final repo = ref.read(cartRepositoryProvider);
 
@@ -130,7 +148,10 @@ class CartController extends _$CartController {
   Future<void> clearCart() async {
     final userId = ref.read(currentUserIdProvider);
 
-    if (userId == null) return;
+    if (userId == null) {
+      ref.read(guestCartControllerProvider.notifier).clearCart();
+      return;
+    }
 
     final repo = ref.read(cartRepositoryProvider);
 

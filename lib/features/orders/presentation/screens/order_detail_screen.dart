@@ -3,6 +3,8 @@ import 'package:ecom/core/widgets/app_error_view.dart';
 import 'package:ecom/core/widgets/app_loading_view.dart';
 import 'package:ecom/core/widgets/app_price_text.dart';
 import 'package:ecom/core/widgets/responsive_layout.dart';
+import 'package:ecom/core/widgets/scaffolds/premium_25d_scaffold.dart';
+import 'package:ecom/core/widgets/cards/glass_card.dart';
 import 'package:ecom/features/orders/domain/entities/order.dart';
 import 'package:ecom/features/orders/domain/entities/order_status.dart';
 import 'package:ecom/features/orders/presentation/controllers/order_controller.dart';
@@ -23,13 +25,19 @@ class OrderDetailScreen extends ConsumerWidget {
     final orderAsync = ref.watch(orderByIdProvider(orderId));
     final currentUserId = ref.watch(currentUserIdProvider);
 
-    return Scaffold(
-      backgroundColor: colorScheme.surface,
+    return Premium25DScaffold(
+      isDark: theme.brightness == Brightness.dark,
+      particles: [
+        FloatingParticle(imagePath: 'assets/images/25d_sphere.svg', width: 40, height: 40, dx: -100, dy: 100, delay: 0.1, depth: 1.2),
+        FloatingParticle(imagePath: 'assets/images/25d_cube.svg', width: 30, height: 30, dx: 300, dy: 300, delay: 0.4, depth: 0.8),
+      ],
       appBar: AppBar(
         title: Text(
           'Order #${orderId.length >= 8 ? orderId.substring(0, 8).toUpperCase() : orderId.toUpperCase()}',
         ),
         centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
       ),
       body: orderAsync.when(
         loading: () => const AppLoadingView(),
@@ -86,12 +94,9 @@ class OrderDetailScreen extends ConsumerWidget {
     ThemeData theme,
     ColorScheme colorScheme,
   ) {
-    return Container(
+    return GlassCard(
+      isDark: theme.brightness == Brightness.dark,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: colorScheme.primaryContainer.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(24),
-      ),
       child: Column(
         children: [
           Row(
@@ -166,14 +171,9 @@ class OrderDetailScreen extends ConsumerWidget {
 
     final currentIndex = statuses.indexOf(order.status);
 
-    return Container(
+    return GlassCard(
+      isDark: theme.brightness == Brightness.dark,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
-        borderRadius: BorderRadius.circular(24),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -338,14 +338,9 @@ class OrderDetailScreen extends ConsumerWidget {
     ThemeData theme,
     ColorScheme colorScheme,
   ) {
-    return Container(
+    return GlassCard(
+      isDark: theme.brightness == Brightness.dark,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
-        borderRadius: BorderRadius.circular(24),
-      ),
       child: Column(
         children: [
           _priceRow('Subtotal', order.subtotal, theme),
@@ -392,13 +387,9 @@ class OrderDetailScreen extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 12),
-        Container(
-          width: double.infinity,
+        GlassCard(
+          isDark: theme.brightness == Brightness.dark,
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(16),
-          ),
           child: Row(
             children: [
               Icon(Icons.location_on_outlined, color: colorScheme.primary),
@@ -432,12 +423,9 @@ class OrderDetailScreen extends ConsumerWidget {
     ThemeData theme,
     ColorScheme colorScheme,
   ) {
-    return Container(
+    return GlassCard(
+      isDark: theme.brightness == Brightness.dark,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(16),
-      ),
       child: Row(
         children: [
           const Icon(Icons.payment_outlined),

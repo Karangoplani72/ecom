@@ -96,7 +96,7 @@ final class WishlistStreamProvider
   }
 }
 
-String _$wishlistStreamHash() => r'53ab63ac8c1121ebae60273362b64db674e88d10';
+String _$wishlistStreamHash() => r'8d616225603e0b2d3f93f3a10ce619c708a6b3c8';
 
 @ProviderFor(WishlistController)
 final wishlistControllerProvider = WishlistControllerProvider._();
@@ -123,7 +123,7 @@ final class WishlistControllerProvider
 }
 
 String _$wishlistControllerHash() =>
-    r'ea8757f3163deaf196a25bb584239fea97b87683';
+    r'22ea8f2b31b69a436f29afceb74a2feaed0bfb95';
 
 abstract class _$WishlistController extends $AsyncNotifier<void> {
   FutureOr<void> build();

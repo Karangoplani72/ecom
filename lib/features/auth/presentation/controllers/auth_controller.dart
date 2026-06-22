@@ -5,6 +5,10 @@ import 'package:ecom/features/auth/data/dtos/user_dto.dart';
 import 'package:ecom/features/auth/data/repositories/auth_repository_impl.dart';
 import 'package:ecom/features/auth/domain/entities/app_user.dart';
 import 'package:ecom/features/auth/domain/repositories/auth_repository.dart';
+import 'package:ecom/features/buyer/presentation/controllers/cart_controller.dart';
+import 'package:ecom/features/buyer/presentation/controllers/guest_cart_controller.dart';
+import 'package:ecom/features/buyer/presentation/controllers/wishlist_controller.dart';
+import 'package:ecom/features/buyer/presentation/controllers/guest_wishlist_controller.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'auth_controller.g.dart';
@@ -76,6 +80,28 @@ class AuthController extends _$AuthController {
     return null;
   }
 
+  Future<void> _mergeGuestCart(String userId) async {
+    final guestCartItems = ref.read(guestCartControllerProvider);
+    if (guestCartItems.isNotEmpty) {
+      final cartRepo = ref.read(cartRepositoryProvider);
+      for (final item in guestCartItems) {
+        await cartRepo.addCartItem(userId: userId, item: item);
+      }
+      ref.read(guestCartControllerProvider.notifier).clearCart();
+    }
+  }
+
+  Future<void> _mergeGuestWishlist(String userId) async {
+    final guestWishlistItems = ref.read(guestWishlistControllerProvider);
+    if (guestWishlistItems.isNotEmpty) {
+      final wishlistRepo = ref.read(wishlistRepositoryProvider);
+      for (final item in guestWishlistItems) {
+        await wishlistRepo.addToWishlist(userId: userId, item: item);
+      }
+      ref.read(guestWishlistControllerProvider.notifier).clearWishlist();
+    }
+  }
+
   Future<void> loginWithCredentials(String email,
       String password, {
         required void Function(String) onFailure,
@@ -96,6 +122,9 @@ class AuthController extends _$AuthController {
           (user) async {
         if (!ref.mounted) return;
         state = AsyncValue.data(user);
+
+        await _mergeGuestCart(user.uid);
+        await _mergeGuestWishlist(user.uid);
 
         // Give GoRouter time to receive the auth stream update
         await Future.delayed(const Duration(milliseconds: 300));
@@ -133,8 +162,12 @@ class AuthController extends _$AuthController {
         state = AsyncError(failure, StackTrace.current);
         onFailure(failure);
       },
-          (user) {
+          (user) async {
         state = AsyncData(user);
+        
+        await _mergeGuestCart(user.uid);
+        await _mergeGuestWishlist(user.uid);
+        
         onSuccess();
       },
     );

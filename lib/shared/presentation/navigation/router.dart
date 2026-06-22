@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import 'package:ecom/core/providers/common_providers.dart';
+import 'package:ecom/core/theme/app_colors.dart';
+import 'package:ecom/features/admin/presentation/screens/admin_category_requests_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_moderation_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_orders_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_products_screen.dart';
@@ -10,6 +13,9 @@ import 'package:ecom/features/admin/presentation/screens/admin_store_approvals_s
 import 'package:ecom/features/admin/presentation/screens/admin_stores_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_users_screen.dart';
 import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:ecom/features/admin/domain/entities/platform_config.dart';
+import 'package:ecom/features/admin/presentation/controllers/admin_controller.dart';
+import 'package:ecom/shared/presentation/widgets/maintenance_screen.dart';
 import 'package:ecom/features/auth/presentation/screens/address_screen.dart';
 import 'package:ecom/features/auth/presentation/screens/landing_screen.dart';
 import 'package:ecom/features/auth/presentation/screens/login_screen.dart';
@@ -21,7 +27,6 @@ import 'package:ecom/features/buyer/presentation/screens/buyer_orders_screen.dar
 import 'package:ecom/features/buyer/presentation/screens/cart_screen.dart';
 import 'package:ecom/features/buyer/presentation/screens/checkout_screen.dart';
 import 'package:ecom/features/buyer/presentation/screens/help_screen.dart';
-import 'package:ecom/features/buyer/presentation/screens/menu_screen.dart';
 import 'package:ecom/features/buyer/presentation/screens/privacy_screen.dart';
 import 'package:ecom/features/buyer/presentation/screens/product_detail_screen.dart';
 import 'package:ecom/features/buyer/presentation/screens/products_screen.dart';
@@ -38,6 +43,7 @@ import 'package:ecom/features/seller/presentation/screens/seller_inventory_scree
 import 'package:ecom/features/seller/presentation/screens/seller_orders_screen.dart';
 import 'package:ecom/features/seller/presentation/screens/seller_settings_screen.dart';
 import 'package:ecom/features/seller/presentation/screens/seller_store_profile_screen.dart';
+import 'package:ecom/features/seller/presentation/widgets/seller_navigation.dart';
 import 'package:ecom/features/seller_application/presentation/screens/seller_application_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -108,6 +114,21 @@ abstract class AppRoutes {
   static const adminOrders = '/admin/orders';
   static const adminReports = '/admin/reports';
   static const adminSettings = '/admin/settings';
+  static const adminCategoryRequests = '/admin/category-requests';
+}
+
+/// Returns the canonical landing route for a signed-in user, based on role.
+/// Admin/superAdmin > seller > buyer, mirroring the priority used
+/// throughout the redirect logic below.
+String _homeFor(AppUser user) {
+  if (user.roles.contains(UserRole.superAdmin) ||
+      user.roles.contains(UserRole.admin)) {
+    return AppRoutes.adminPanel;
+  }
+  if (user.roles.contains(UserRole.seller)) {
+    return AppRoutes.sellerDashboard;
+  }
+  return AppRoutes.buyerHome;
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -119,12 +140,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: authNotifier,
 
     redirect: (BuildContext context, GoRouterState state) {
-      final authState = ref.watch(authStateSignalingProvider);
-
-      if (authState.isLoading) return null;
-      if (authState.hasError) return null;
-
-      final user = authState.value;
+      final authState = ref.watch(currentUserProfileProvider);
       final loc = state.matchedLocation;
 
       final isAuthRoute =
@@ -132,74 +148,120 @@ final routerProvider = Provider<GoRouter>((ref) {
           loc == AppRoutes.login ||
           loc == AppRoutes.signup;
 
+      // ── 1. Auth state still resolving ─────────────────────────────────
+      // Firebase Auth + the Firestore role lookup can take a beat to
+      // resolve (especially on a cold web load / typed-in deep link).
+      // NEVER let the originally-requested route render during that
+      // window — that's what causes a protected screen to flash before
+      // snapping to the correct one. Funnel everything through the root
+      // route (a loading screen) instead, remembering where the user was
+      // actually headed so we can send them there once we know who they
+      // are.
+      if (authState.isLoading) {
+        if (loc == AppRoutes.root) return null;
+        final target = Uri.encodeComponent(state.uri.toString());
+        return '${AppRoutes.root}?redirect=$target';
+      }
+
+      // ── 2. Auth stream errored ──────────────────────────────────────────
+      // Treat an error the same as "signed out" rather than rendering
+      // whatever was requested.
+      if (authState.hasError) {
+        return isAuthRoute ? null : AppRoutes.login;
+      }
+
+      final user = authState.value;
+
+      // ── Maintenance Mode Check ──────────────────────────────────────
+      final configAsync = ref.watch(platformConfigProvider);
+      final platformConfig = configAsync.value;
+      if (platformConfig != null && platformConfig.maintenanceModeActive) {
+        final isAdmin = user != null && (
+            user.roles.contains(UserRole.admin) ||
+            user.roles.contains(UserRole.superAdmin)
+        );
+        if (!isAdmin && loc != '/maintenance' && loc != AppRoutes.login) {
+          return '/maintenance';
+        }
+      } else {
+        if (loc == '/maintenance') {
+          return user == null ? AppRoutes.landing : _homeFor(user);
+        }
+      }
+
+      // ── 3. Resolve the pending deep link now that auth is known ────────
+      if (loc == AppRoutes.root) {
+        final redirectTo = state.uri.queryParameters['redirect'];
+        if (redirectTo != null && redirectTo.isNotEmpty) return redirectTo;
+        if (user == null) return AppRoutes.landing;
+        return _homeFor(user);
+      }
+
       final isProtectedPath =
           loc.startsWith('/seller') ||
           loc.startsWith('/admin') ||
           loc == AppRoutes.buyerOrders ||
-          loc == AppRoutes.buyerCart ||
           loc == AppRoutes.buyerCheckout ||
-          loc == AppRoutes.buyerWishlist ||
           loc == AppRoutes.buyerNotifications ||
           loc == AppRoutes.buyerAddresses;
 
-      if (user == null && isProtectedPath) return AppRoutes.login;
+      // ── 4. Signed out ────────────────────────────────────────────────────
+      if (user == null) {
+        if (isProtectedPath) return AppRoutes.login;
+        return null; // public/guest browsing of the buyer storefront
+      }
 
-      if (user != null && !user.isActive) {
+      // ── 5. Suspended account ─────────────────────────────────────────────
+      if (!user.isActive) {
         return '${AppRoutes.login}?error=account_suspended';
       }
 
-      if (user != null &&
-          loc == AppRoutes.sellerApply &&
-          user.roles.contains(UserRole.seller)) {
-        return AppRoutes.sellerDashboard;
+      final isAdmin =
+          user.roles.contains(UserRole.admin) ||
+          user.roles.contains(UserRole.superAdmin);
+      final isSeller = user.roles.contains(UserRole.seller);
+
+      // ── 6. Seller application flow ───────────────────────────────────────
+      if (loc == AppRoutes.sellerApply) {
+        if (isSeller) return AppRoutes.sellerDashboard;
+        if (isAdmin) return AppRoutes.adminPanel;
+        return null; // plain buyers may apply to become a seller
       }
 
-      if (loc == AppRoutes.sellerApply) return null;
+      // ── 7. Shared, role-agnostic feature ─────────────────────────────────
+      // Chat is used by both buyers and sellers to talk to each other, so
+      // it's intentionally exempt from panel isolation.
+      if (loc.startsWith('/chat')) return null;
 
-      if (user != null &&
-          loc.startsWith('/seller') &&
-          !user.roles.contains(UserRole.seller)) {
+      // ── 8. Strict panel isolation ─────────────────────────────────────────
+      // Every role is confined to its own panel — no cross-access, even
+      // for admins/sellers wandering into the buyer storefront.
+      final isAdminPath = loc.startsWith('/admin');
+      final isSellerPath = loc.startsWith('/seller');
+
+      if (isAdmin) {
+        if (!isAdminPath) return AppRoutes.adminPanel;
+      } else if (isSeller) {
+        if (!isSellerPath) return AppRoutes.sellerDashboard;
+      } else if (isAdminPath || isSellerPath) {
         return AppRoutes.buyerHome;
       }
 
-      if (user != null &&
-          loc.startsWith('/admin') &&
-          !user.roles.contains(UserRole.admin) &&
-          !user.roles.contains(UserRole.superAdmin)) {
-        return AppRoutes.buyerHome;
-      }
-
-      if (user != null && isAuthRoute) {
-        if (user.roles.contains(UserRole.superAdmin) ||
-            user.roles.contains(UserRole.admin)) {
-          return AppRoutes.adminPanel;
-        }
-        if (user.roles.contains(UserRole.seller)) {
-          return AppRoutes.sellerDashboard;
-        }
-        return AppRoutes.buyerHome;
-      }
-
-      if (loc == AppRoutes.root) {
-        if (user == null) return AppRoutes.landing;
-        if (user.roles.contains(UserRole.superAdmin) ||
-            user.roles.contains(UserRole.admin)) {
-          return AppRoutes.adminPanel;
-        }
-        if (user.roles.contains(UserRole.seller)) {
-          return AppRoutes.sellerDashboard;
-        }
-        return AppRoutes.buyerHome;
-      }
+      // ── 9. Already-authenticated user hitting an auth screen ─────────────
+      if (isAuthRoute) return _homeFor(user);
 
       return null;
     },
 
     routes: [
+      GoRoute(
+        path: '/maintenance',
+        builder: (context, state) => const MaintenanceScreen(),
+      ),
       // ── Auth ─────────────────────────────────────────────────────────────
       GoRoute(
         path: AppRoutes.root,
-        builder: (context, state) => const SizedBox.shrink(),
+        builder: (context, state) => const _AuthGateScreen(),
       ),
       GoRoute(
         path: AppRoutes.landing,
@@ -304,14 +366,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: AppRoutes.buyerProfile,
                 builder: (context, state) => const ProfileScreen(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: AppRoutes.buyerMenu,
-                builder: (context, state) => const MenuScreen(),
               ),
             ],
           ),
@@ -427,6 +481,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.adminSettings,
         builder: (context, state) => const AdminSettingsScreen(),
       ),
+      GoRoute(
+        path: AppRoutes.adminCategoryRequests,
+        builder: (context, state) => const AdminCategoryRequestsScreen(),
+      ),
     ],
   );
 });
@@ -509,7 +567,6 @@ class _BuyerShellState extends State<_BuyerShell> {
               selectedIcon: Icon(Icons.person),
               label: 'Profile',
             ),
-            NavigationDestination(icon: Icon(Icons.menu), label: 'Menu'),
           ],
         ),
       ),
@@ -524,37 +581,15 @@ class _SellerShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.sizeOf(context).width >= 1024;
+
     return Scaffold(
-      body: navigationShell,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: navigationShell.currentIndex,
-        onDestinationSelected: (index) {
-          navigationShell.goBranch(
-            index,
-            initialLocation: index == navigationShell.currentIndex,
-          );
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.inventory_2_outlined),
-            selectedIcon: Icon(Icons.inventory_2),
-            label: 'Inventory',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.receipt_long_outlined),
-            selectedIcon: Icon(Icons.receipt_long),
-            label: 'Orders',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.bar_chart_outlined),
-            selectedIcon: Icon(Icons.bar_chart),
-            label: 'Analytics',
-          ),
+      key: sellerShellScaffoldKey,
+      drawer: isDesktop ? null : const SellerDrawer(),
+      body: Row(
+        children: [
+          if (isDesktop) const SellerSidebar(),
+          Expanded(child: ClipRect(child: navigationShell)),
         ],
       ),
     );
@@ -563,11 +598,129 @@ class _SellerShell extends StatelessWidget {
 
 class _AuthRedirectNotifier extends ChangeNotifier {
   _AuthRedirectNotifier(Ref ref) {
-    ref.listen<AsyncValue<AppUser?>>(authStateSignalingProvider, (
+    ref.listen<AsyncValue<AppUser?>>(currentUserProfileProvider, (
       previous,
       next,
     ) {
       notifyListeners();
     });
+    ref.listen<AsyncValue<PlatformConfig>>(platformConfigProvider, (
+      previous,
+      next,
+    ) {
+      notifyListeners();
+    });
+  }
+}
+
+/// Shown at the root route ('/') while Firebase Auth and the Firestore
+/// role document are still resolving, and very briefly while the
+/// redirect logic figures out where an already-known user belongs. No
+/// protected screen ever renders during this window — see the
+/// `redirect` callback above.
+///
+/// On a real device with no network of its own (e.g. it was only online
+/// because it was tethered to a dev machine during `flutter run`, and
+/// got disconnected), [currentUserProfileProvider] can sit in
+/// `AsyncLoading` indefinitely — Firebase Auth's local session restore
+/// is fast, but the chained Firestore `.snapshots()` listener for the
+/// user's role document has no cached copy to fall back to and no
+/// network to fetch one from. Rather than spinning forever, this screen
+/// surfaces a retry affordance after a short grace period.
+class _AuthGateScreen extends ConsumerStatefulWidget {
+  const _AuthGateScreen();
+
+  @override
+  ConsumerState<_AuthGateScreen> createState() => _AuthGateScreenState();
+}
+
+class _AuthGateScreenState extends ConsumerState<_AuthGateScreen> {
+  static const _slowThreshold = Duration(seconds: 7);
+  Timer? _slowTimer;
+  bool _isSlow = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _armSlowTimer();
+  }
+
+  void _armSlowTimer() {
+    _slowTimer?.cancel();
+    _slowTimer = Timer(_slowThreshold, () {
+      if (mounted) setState(() => _isSlow = true);
+    });
+  }
+
+  void _retry() {
+    setState(() => _isSlow = false);
+    // Force both the auth-state stream and the chained Firestore listener
+    // to re-subscribe from scratch instead of sitting on a dead stream.
+    ref.invalidate(firebaseAuthStateProvider);
+    ref.invalidate(currentUserProfileProvider);
+    _armSlowTimer();
+  }
+
+  @override
+  void dispose() {
+    _slowTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.darkBgPrimary,
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'ecom',
+              style: TextStyle(
+                color: AppColors.darkAccentViolet,
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppColors.darkAccentViolet,
+                ),
+              ),
+            ),
+            if (_isSlow) ...[
+              const SizedBox(height: 28),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 32),
+                child: Text(
+                  "This is taking longer than usual.\nCheck your internet connection.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.darkTextSecond,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton(
+                onPressed: _retry,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.darkAccentViolet,
+                  side: const BorderSide(color: AppColors.darkAccentViolet),
+                ),
+                child: const Text('Retry'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }

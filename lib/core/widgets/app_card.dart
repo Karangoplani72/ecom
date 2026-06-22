@@ -1,5 +1,7 @@
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
+
 import '../theme/app_shadows.dart';
 
 class AppCard extends StatefulWidget {
@@ -34,9 +36,10 @@ class _AppCardState extends State<AppCard> with SingleTickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 150),
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.98).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.98,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -50,6 +53,7 @@ class _AppCardState extends State<AppCard> with SingleTickerProviderStateMixin {
     _controller.reverse();
     widget.onTap?.call();
   }
+
   void _onTapCancel() => _controller.reverse();
 
   @override
@@ -70,12 +74,12 @@ class _AppCardState extends State<AppCard> with SingleTickerProviderStateMixin {
           filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
           child: Container(
             decoration: BoxDecoration(
-              color: isDark 
-                  ? Colors.white.withValues(alpha: 0.05) 
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.05)
                   : Colors.white.withValues(alpha: 0.4),
               border: Border.all(
-                color: isDark 
-                    ? Colors.white.withValues(alpha: 0.1) 
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.1)
                     : Colors.white.withValues(alpha: 0.5),
                 width: 1,
               ),
@@ -92,12 +96,14 @@ class _AppCardState extends State<AppCard> with SingleTickerProviderStateMixin {
           color: theme.cardTheme.color,
           borderRadius: borderRadius,
           border: Border.all(
-            color: isDark ? Colors.white.withValues(alpha: 0.05) : theme.dividerColor,
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.05)
+                : theme.dividerColor,
           ),
           boxShadow: widget.isElevated
               ? (_isHovered
-                  ? (isDark ? AppShadows.darkLg : AppShadows.lightLg)
-                  : (isDark ? AppShadows.darkMd : AppShadows.lightMd))
+                    ? (isDark ? AppShadows.darkLg : AppShadows.lightLg)
+                    : (isDark ? AppShadows.darkMd : AppShadows.lightMd))
               : [],
         ),
         child: content,
@@ -105,20 +111,20 @@ class _AppCardState extends State<AppCard> with SingleTickerProviderStateMixin {
     }
 
     if (widget.onTap != null) {
-      return MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        child: GestureDetector(
-          onTapDown: _onTapDown,
-          onTapUp: _onTapUp,
-          onTapCancel: _onTapCancel,
-          child: AnimatedBuilder(
-            animation: _scaleAnimation,
-            builder: (context, child) => Transform.scale(
-              scale: _scaleAnimation.value,
-              child: child,
+      return RepaintBoundary(
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _isHovered = true),
+          onExit: (_) => setState(() => _isHovered = false),
+          child: GestureDetector(
+            onTapDown: _onTapDown,
+            onTapUp: _onTapUp,
+            onTapCancel: _onTapCancel,
+            child: AnimatedBuilder(
+              animation: _scaleAnimation,
+              builder: (context, child) =>
+                  Transform.scale(scale: _scaleAnimation.value, child: child),
+              child: content,
             ),
-            child: content,
           ),
         ),
       );

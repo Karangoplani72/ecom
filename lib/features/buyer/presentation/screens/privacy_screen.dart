@@ -1,5 +1,6 @@
 import 'package:ecom/core/constants/app_info.dart';
 import 'package:flutter/material.dart';
+import 'package:ecom/core/widgets/scaffolds/premium_25d_scaffold.dart';
 
 class PrivacyScreen extends StatelessWidget {
   const PrivacyScreen({super.key});
@@ -9,8 +10,9 @@ class PrivacyScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Privacy Policy'), centerTitle: true),
+    return Premium25DScaffold(
+      isDark: theme.brightness == Brightness.dark,
+      appBar: AppBar(title: const Text('Privacy Policy'), centerTitle: true, backgroundColor: Colors.transparent, elevation: 0),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
         children: [

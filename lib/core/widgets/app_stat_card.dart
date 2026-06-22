@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'cards/glass_card.dart';
 
 class AppStatCard extends StatelessWidget {
   final String title;
@@ -23,8 +24,9 @@ class AppStatCard extends StatelessWidget {
 
     return Opacity(
       opacity: locked ? 0.45 : 1.0,
-      child: Card(
-        clipBehavior: Clip.antiAlias,
+      child: GlassCard(
+        isDark: theme.brightness == Brightness.dark,
+        padding: EdgeInsets.zero,
         child: InkWell(
           onTap: onTap,
           child: Padding(

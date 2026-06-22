@@ -6,6 +6,7 @@ import 'package:ecom/core/widgets/app_text_field.dart';
 import 'package:ecom/features/seller/presentation/controllers/seller_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 class SellerSettingsScreen extends ConsumerStatefulWidget {
   const SellerSettingsScreen({super.key});
@@ -38,7 +39,14 @@ class _SellerSettingsScreenState extends ConsumerState<SellerSettingsScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Store Settings'), centerTitle: true),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/seller/dashboard'),
+        ),
+        title: const Text('Store Settings'),
+        centerTitle: true,
+      ),
       body: storeState.when(
         loading: () => const AppLoadingView(),
         error: (err, _) => AppErrorView(

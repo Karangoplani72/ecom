@@ -79,7 +79,14 @@ class _SellerOrdersScreenState extends ConsumerState<SellerOrdersScreen> {
     });
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Store Orders'), centerTitle: true),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/seller/dashboard'),
+        ),
+        title: const Text('Store Orders'),
+        centerTitle: true,
+      ),
       body: Column(
         children: [
           SingleChildScrollView(

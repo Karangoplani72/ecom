@@ -6,6 +6,7 @@ import 'package:ecom/features/seller/domain/entities/store_profile.dart';
 import 'package:ecom/features/seller/presentation/controllers/seller_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 class SellerStoreProfileScreen extends ConsumerStatefulWidget {
   const SellerStoreProfileScreen({super.key});
@@ -103,7 +104,14 @@ class _SellerStoreProfileScreenState
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Store Profile & Branding'), centerTitle: true),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/seller/dashboard'),
+        ),
+        title: const Text('Store Profile & Branding'),
+        centerTitle: true,
+      ),
       body: storeState.when(
         loading: () => const AppLoadingView(),
         error: (err, _) => AppErrorView(

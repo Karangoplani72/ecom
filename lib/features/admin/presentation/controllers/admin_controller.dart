@@ -3,9 +3,11 @@ import 'package:ecom/features/admin/data/repositories/admin_repository_impl.dart
 import 'package:ecom/features/admin/domain/entities/admin_dashboard_metrics.dart';
 import 'package:ecom/features/admin/domain/entities/admin_user.dart';
 import 'package:ecom/features/admin/domain/entities/dispute_ticket.dart';
+import 'package:ecom/features/admin/domain/entities/platform_config.dart';
 import 'package:ecom/features/admin/domain/repositories/admin_repository.dart';
 import 'package:ecom/features/seller/domain/entities/store_profile.dart';
 import 'package:ecom/features/seller_application/domain/entities/seller_application.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -143,3 +145,36 @@ class AdminController extends _$AdminController {
     return ref.read(adminRepositoryProvider).setUserActiveStatus(uid, isActive);
   }
 }
+
+final platformConfigProvider = StreamProvider<PlatformConfig>((ref) {
+  final firestore = ref.watch(firebaseFirestoreProvider);
+  return firestore
+      .collection('platform_settings')
+      .doc('global_config')
+      .snapshots()
+      .map((doc) {
+    if (!doc.exists) {
+      return const PlatformConfig(
+        defaultCommissionRate: 0.085,
+        categoryCommissionOverrides: {},
+        maintenanceModeActive: false,
+        globalRateLimitPerMinute: 600,
+        razorpayKey: 'rzp_test_placeholder_key',
+      );
+    }
+    final data = doc.data()!;
+    return PlatformConfig(
+      defaultCommissionRate:
+          (data['defaultCommissionRate'] as num?)?.toDouble() ?? 0.085,
+      categoryCommissionOverrides: Map<String, double>.from(
+        (data['categoryOverrides'] as Map<String, dynamic>?)?.map(
+              (k, v) => MapEntry(k, (v as num).toDouble()),
+            ) ??
+            {},
+      ),
+      maintenanceModeActive: data['maintenanceModeActive'] as bool? ?? false,
+      globalRateLimitPerMinute: data['globalRateLimitPerMinute'] as int? ?? 600,
+      razorpayKey: 'managed_via_functions',
+    );
+  });
+});

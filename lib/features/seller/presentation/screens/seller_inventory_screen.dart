@@ -19,6 +19,10 @@ class SellerInventoryScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: colorScheme.surface,
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/seller/dashboard'),
+        ),
         title: const Text('Inventory Management'),
         actions: [
           IconButton(icon: const Icon(Icons.filter_list), onPressed: () {}),

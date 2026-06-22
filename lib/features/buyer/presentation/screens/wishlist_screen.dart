@@ -3,7 +3,9 @@ import 'package:ecom/core/widgets/app_error_view.dart';
 import 'package:ecom/core/widgets/app_loading_view.dart';
 import 'package:ecom/core/widgets/app_product_card.dart';
 import 'package:ecom/core/widgets/responsive_layout.dart';
+import 'package:ecom/core/widgets/scaffolds/premium_25d_scaffold.dart';
 import 'package:ecom/features/buyer/presentation/controllers/wishlist_controller.dart';
+import 'package:ecom/features/buyer/presentation/widgets/buyer_side_drawer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -16,13 +18,19 @@ class WishlistScreen extends ConsumerWidget {
     final wishlistAsync = ref.watch(wishlistStreamProvider);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final width = MediaQuery.of(context).size.width;
 
-    return Scaffold(
-      backgroundColor: colorScheme.surface,
+    return Premium25DScaffold(
+      isDark: theme.brightness == Brightness.dark,
+      drawer: const BuyerSideDrawer(),
+      particles: [
+        FloatingParticle(imagePath: 'assets/images/25d_heart.svg', width: 40, height: 40, dx: -100, dy: 100, delay: 0.1, depth: 1.2),
+        FloatingParticle(imagePath: 'assets/images/25d_star.svg', width: 30, height: 30, dx: 300, dy: 300, delay: 0.4, depth: 0.8),
+      ],
       appBar: AppBar(
         title: const Text('My Wishlist'),
         centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.shopping_cart_outlined),
@@ -54,17 +62,11 @@ class WishlistScreen extends ConsumerWidget {
             maxWidth: 1200,
             child: GridView.builder(
               padding: const EdgeInsets.symmetric(vertical: 20),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: width > 1200
-                    ? 5
-                    : width > 900
-                    ? 4
-                    : width > 600
-                    ? 3
-                    : 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: 0.72,
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 140,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 0.68,
               ),
               itemCount: items.length,
               itemBuilder: (context, index) {

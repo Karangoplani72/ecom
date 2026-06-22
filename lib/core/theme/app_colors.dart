@@ -1,33 +1,47 @@
 import 'package:flutter/material.dart';
 
 abstract final class AppColors {
-  // Brand (Enhanced Premium Blue)
-  static const primary = Color(0xFF2563EB); // Royal Blue
-  static const primaryDark = Color(0xFF1D4ED8);
-  static const primaryLight = Color(0xFF60A5FA);
-  static const secondary = Color(0xFF0EA5E9);
-  
-  // Premium Neutrals
-  static const backgroundLight = Color(0xFFFBFBFC);
-  static const surfaceLight = Colors.white;
-  static const backgroundDark = Color(0xFF0A0A0B); // Deep OLED-friendly black
-  static const surfaceDark = Color(0xFF131316); // Elevated dark surface
+  // Common
+  static const primary = Color(0xFF7C3AED);
+  static const primaryDark = Color(0xFFA855F7);
+  static const error = Color(0xFFEF4444);
+  static const secondary = Color(0xFF0EA5E9); // Legacy alias for admin/seller
 
+  // User-specified Light
+  static const lightBgPrimary = Color(0xFFF4F3FF);
+  static const lightBgSurface = Color(0xFFFFFFFF);
+  static const lightAccentPurple = Color(0xFF7C3AED);
+  static const lightAccentViolet = Color(0xFFA855F7);
+  static const lightAccentPink = Color(0xFFEC4899);
+  static const lightTextPrimary = Color(0xFF1A1A2E);
+  static const lightTextSecond = Color(0xFF6B7280);
+
+  // User-specified Dark
+  static const darkBgPrimary = Color(0xFF0D0D1A);
+  static const darkBgSurface = Color(0xFF1A1A2E);
+  static const darkAccentPurple = Color(0xFFA855F7);
+  static const darkAccentViolet = Color(0xFFC084FC);
+  static const darkAccentPink = Color(0xFFF472B6);
+  static const darkTextPrimary = Color(0xFFF5F3FF);
+  static const darkTextSecond = Color(0xFFA1A1AA);
+
+  // Legacy mappings for existing code
+  static const backgroundLight = lightBgPrimary;
+  static const backgroundDark = darkBgPrimary;
+  static const surfaceLight = lightBgSurface;
+  static const surfaceDark = darkBgSurface;
+  static const primaryLight = lightAccentPurple;
+  static const textPrimaryLight = lightTextPrimary;
+  static const textSecondaryLight = lightTextSecond;
+  static const textPrimaryDark = darkTextPrimary;
+  static const textSecondaryDark = darkTextSecond;
+  static const borderLight = Color(0xFFE2E8F0);
+  static const borderDark = Color(0xFF2D3748);
+  
   // Feedback Colors
   static const success = Color(0xFF10B981);
   static const warning = Color(0xFFF59E0B);
-  static const error = Color(0xFFEF4444);
   static const info = Color(0xFF3B82F6);
-
-  // Typography
-  static const textPrimaryLight = Color(0xFF0F172A);
-  static const textSecondaryLight = Color(0xFF64748B);
-  static const textPrimaryDark = Color(0xFFF8FAFC);
-  static const textSecondaryDark = Color(0xFF94A3B8);
-
-  // Borders & Dividers
-  static const borderLight = Color(0xFFE2E8F0);
-  static const borderDark = Color(0xFF1E293B);
 
   // Gradients
   static const premiumGradient = LinearGradient(

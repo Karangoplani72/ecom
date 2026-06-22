@@ -19,13 +19,22 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
   double _commissionRate = 0.085;
   bool _maintenanceMode = false;
   int _rateLimitPerMinute = 600;
+  String _razorpayKey = 'rzp_test_placeholder_key';
+  late TextEditingController _razorpayKeyController;
   bool _loading = true;
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
+    _razorpayKeyController = TextEditingController();
     _loadConfig();
+  }
+
+  @override
+  void dispose() {
+    _razorpayKeyController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadConfig() async {
@@ -39,6 +48,8 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
         _commissionRate = config.defaultCommissionRate;
         _maintenanceMode = config.maintenanceModeActive;
         _rateLimitPerMinute = config.globalRateLimitPerMinute;
+        _razorpayKey = config.razorpayKey;
+        _razorpayKeyController.text = config.razorpayKey;
         _loading = false;
       }),
     );
@@ -54,6 +65,7 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
             categoryCommissionOverrides: const {},
             maintenanceModeActive: _maintenanceMode,
             globalRateLimitPerMinute: _rateLimitPerMinute,
+            razorpayKey: _razorpayKey,
           ),
         );
     if (!mounted) return;
@@ -199,6 +211,34 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                   label: '$_rateLimitPerMinute/min',
                   onChanged: (v) =>
                       setState(() => _rateLimitPerMinute = v.toInt()),
+                ),
+              ],
+            ),
+          ),
+          // ── Razorpay Configuration ──────────────────────────────────────
+          _SectionHeader('Razorpay Configuration'),
+          AdminSectionCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.security, color: AppColors.success),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Managed via Cloud Functions',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Razorpay API keys are securely managed within Firebase Cloud Functions and are not stored in the database.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.lightTextSecondary,
+                      ),
                 ),
               ],
             ),

@@ -1,12 +1,17 @@
 import 'package:ecom/core/widgets/app_error_view.dart';
 import 'package:ecom/core/widgets/app_loading_view.dart';
 import 'package:ecom/core/widgets/app_primary_button.dart';
-import 'package:ecom/core/widgets/app_text_field.dart';
+
+import 'package:ecom/core/widgets/scaffolds/premium_25d_scaffold.dart';
+import 'package:ecom/core/widgets/cards/glass_card.dart';
+import 'package:ecom/core/widgets/inputs/premium_form_field.dart';
 import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:ecom/shared/presentation/navigation/router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import 'package:ecom/features/buyer/presentation/widgets/buyer_side_drawer.dart';
 
 class AccountSettingsScreen extends ConsumerStatefulWidget {
   const AccountSettingsScreen({super.key});
@@ -87,8 +92,10 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
     final colorScheme = theme.colorScheme;
     final profileAsync = ref.watch(currentUserProfileProvider);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Account Settings'), centerTitle: true),
+    return Premium25DScaffold(
+      isDark: theme.brightness == Brightness.dark,
+      drawer: const BuyerSideDrawer(),
+      appBar: AppBar(title: const Text('Account Settings'), centerTitle: true, backgroundColor: Colors.transparent, elevation: 0),
       body: profileAsync.when(
         loading: () => const AppLoadingView(),
         error: (err, _) => AppErrorView(
@@ -119,7 +126,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                AppTextField(
+                PremiumFormField(
                   controller: _nameController,
                   label: 'Full Name',
                   hint: 'Your display name',
@@ -132,7 +139,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
-                AppTextField(
+                PremiumFormField(
                   controller: _phoneController,
                   label: 'Phone Number',
                   hint: 'e.g. +91 98765 43210',
@@ -142,12 +149,11 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                 const SizedBox(height: 16),
                 // Email — read only
                 AbsorbPointer(
-                  child: AppTextField(
+                  child: PremiumFormField(
                     label: 'Email Address',
                     hint: user.email,
                     controller: TextEditingController(text: user.email),
                     prefixIcon: Icons.email_outlined,
-                    enabled: false,
                   ),
                 ),
                 Padding(
@@ -179,7 +185,9 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Card(
+                GlassCard(
+                  isDark: theme.brightness == Brightness.dark,
+                  padding: EdgeInsets.zero,
                   child: ListTile(
                     leading: Container(
                       padding: const EdgeInsets.all(8),
@@ -214,7 +222,9 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Card(
+                GlassCard(
+                  isDark: theme.brightness == Brightness.dark,
+                  padding: EdgeInsets.zero,
                   child: ListTile(
                     leading: Container(
                       padding: const EdgeInsets.all(8),

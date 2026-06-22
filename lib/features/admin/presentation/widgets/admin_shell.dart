@@ -16,6 +16,8 @@ import 'package:ecom/core/theme/app_colors.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:ecom/shared/presentation/widgets/notification_bell.dart';
+
 
 // ─────────────────────────────────────────────────────────────
 // AdminScaffold — page-level wrapper
@@ -127,6 +129,7 @@ class _AdminTopBar extends StatelessWidget {
               ],
             ),
           ),
+          const NotificationBell(),
           if (actions != null) ...[const SizedBox(width: 12), ...actions!],
         ],
       ),
@@ -229,6 +232,13 @@ class AdminSidebar extends StatelessWidget {
                         isActive: currentPath.startsWith(
                           '/admin/store-approvals',
                         ),
+                      ),
+                      _SidebarItem(
+                        icon: Icons.category_outlined,
+                        activeIcon: Icons.category_rounded,
+                        label: 'Category Requests',
+                        route: '/admin/category-requests',
+                        isActive: currentPath.startsWith('/admin/category-requests'),
                       ),
                       _SidebarItem(
                         icon: Icons.storefront_outlined,

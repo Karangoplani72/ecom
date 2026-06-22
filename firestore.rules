@@ -144,11 +144,23 @@ service cloud.firestore {
       allow create: if isLoggedIn()
                     && get(/databases/$(database)/documents/stores/$(request.resource.data.storeId)).data.sellerId == request.auth.uid;
 
-      // Seller updates own catalog entry; also allows the checkout transaction
-      // (OrderRepositoryImpl) to decrement stock — it runs as the buying user,
-      // so we permit any logged-in user to update catalog (stock only) within
-      // a transaction. Stricter stock-only enforcement is handled in app code.
-      allow update: if isLoggedIn();
+      // Seller can update their own catalog entry freely.
+      // Stock deduction (checkout) now runs via the verifyAndFinalizePayment Cloud Function
+      // using the Admin SDK, which bypasses these rules entirely — so client-side
+      // catalog updates are now locked down to sellers only.
+      allow update: if isLoggedIn() && (
+        // Store owner can update anything in their own catalog entry
+        get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.sellerId == request.auth.uid
+        ||
+        // Buyers may only update stock-related fields (belt-and-suspenders guard
+        // in case of legacy client paths) and stock must never go below zero.
+        (
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['metadata.stock', 'status', 'updatedAt'])
+          && request.resource.data['metadata.stock'] >= 0
+        )
+        || hasRole('admin') || hasRole('superAdmin')
+      );
 
       // Only owner can delete (deleteProduct dual-write batch)
       allow delete: if isLoggedIn()
@@ -340,6 +352,25 @@ service cloud.firestore {
       allow read:   if true;
       allow create: if isLoggedIn() && request.resource.data.buyerId == request.auth.uid;
       allow update, delete: if isLoggedIn() && resource.data.buyerId == request.auth.uid;
+    }
+
+    // ========================================================================
+    // 16. CATEGORIES
+    // ========================================================================
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if hasRole('admin') || hasRole('superAdmin');
+    }
+
+    // ========================================================================
+    // 17. CATEGORY REQUESTS
+    // ========================================================================
+    match /category_requests/{requestId} {
+      allow read: if isLoggedIn() && (resource.data.sellerId == request.auth.uid || hasRole('admin') || hasRole('superAdmin'));
+      allow list: if isLoggedIn() && (resource.data.sellerId == request.auth.uid || hasRole('admin') || hasRole('superAdmin'));
+      allow create: if isLoggedIn() && request.resource.data.sellerId == request.auth.uid;
+      allow update: if hasRole('admin') || hasRole('superAdmin');
+      allow delete: if hasRole('superAdmin');
     }
   }
 }

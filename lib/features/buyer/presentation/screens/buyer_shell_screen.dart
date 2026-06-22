@@ -58,6 +58,7 @@ class BuyerShellScreen extends StatelessWidget {
     _calculateIndex(context);
 
     return Scaffold(
+      extendBody: true,
       body: child,
 
       bottomNavigationBar: AppBottomNavBar(

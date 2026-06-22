@@ -2,10 +2,12 @@ import 'package:ecom/core/widgets/app_empty_view.dart';
 import 'package:ecom/core/widgets/app_error_view.dart';
 import 'package:ecom/core/widgets/app_loading_view.dart';
 import 'package:ecom/core/widgets/responsive_layout.dart';
+import 'package:ecom/core/widgets/scaffolds/premium_25d_scaffold.dart';
 import 'package:ecom/features/orders/domain/entities/order.dart';
 import 'package:ecom/features/orders/domain/entities/order_status.dart';
 import 'package:ecom/features/orders/presentation/controllers/order_controller.dart';
 import 'package:ecom/features/orders/presentation/widgets/order_card.dart';
+import 'package:ecom/features/buyer/presentation/widgets/buyer_side_drawer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -17,18 +19,22 @@ class BuyerOrdersScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ordersAsync = ref.watch(buyerOrdersProvider);
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
 
     return DefaultTabController(
       length: 2,
-      child: Scaffold(
-        backgroundColor: colorScheme.surface,
+      child: Premium25DScaffold(
+        isDark: theme.brightness == Brightness.dark,
+        drawer: const BuyerSideDrawer(),
         appBar: AppBar(
           title: const Text('My Orders'),
           centerTitle: true,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
           bottom: TabBar(
-            indicatorColor: colorScheme.primary,
+            indicatorColor: theme.brightness == Brightness.dark ? Colors.white : Colors.black,
             indicatorWeight: 3,
+            labelColor: theme.brightness == Brightness.dark ? Colors.white : Colors.black,
+            unselectedLabelColor: theme.brightness == Brightness.dark ? Colors.white54 : Colors.black54,
             labelStyle: const TextStyle(fontWeight: FontWeight.bold),
             tabs: const [
               Tab(text: 'Active'),

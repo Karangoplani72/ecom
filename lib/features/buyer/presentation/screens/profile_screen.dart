@@ -1,35 +1,135 @@
 import 'package:ecom/core/providers/common_providers.dart';
-import 'package:ecom/core/widgets/app_avatar.dart';
 import 'package:ecom/core/widgets/app_error_view.dart';
 import 'package:ecom/core/widgets/app_loading_view.dart';
 import 'package:ecom/core/widgets/app_primary_button.dart';
 import 'package:ecom/core/widgets/app_stat_card.dart';
+import 'package:ecom/core/widgets/cards/glass_card.dart';
+import 'package:ecom/core/widgets/scaffolds/premium_25d_scaffold.dart';
 import 'package:ecom/features/auth/domain/entities/app_user.dart';
 import 'package:ecom/features/auth/presentation/controllers/address_controller.dart';
 import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:ecom/features/buyer/presentation/controllers/profile_image_controller.dart';
+import 'package:ecom/features/buyer/presentation/controllers/profile_image_state.dart';
 import 'package:ecom/features/buyer/presentation/controllers/wishlist_controller.dart';
+import 'package:ecom/features/buyer/presentation/widgets/profile_avatar.dart';
 import 'package:ecom/features/orders/presentation/controllers/order_controller.dart';
 import 'package:ecom/shared/presentation/navigation/router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
+  static void _showImageSourceActionSheet(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Text(
+                  'Select Profile Photo',
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: Text(
+                  'Choose from Gallery',
+                  style: GoogleFonts.poppins(),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  ref
+                      .read(profileImageControllerProvider.notifier)
+                      .pickAndUploadImage(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt_outlined),
+                title: Text('Take a Photo', style: GoogleFonts.poppins()),
+                onTap: () {
+                  Navigator.pop(context);
+                  ref
+                      .read(profileImageControllerProvider.notifier)
+                      .pickAndUploadImage(ImageSource.camera);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Firebase Auth is the source of truth for *whether* someone is
-    // signed in. We gate Guest vs. Authenticated on this — never on the
-    // Firestore profile stream — so an authenticated user can never see
-    // the Guest UI just because their profile doc is still loading.
     final authState = ref.watch(firebaseAuthStateProvider);
 
-    return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
+    ref.listen<ProfileImageState>(profileImageControllerProvider, (prev, next) {
+      if (next.status == ProfileImageStatus.error &&
+          next.errorMessage != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(next.errorMessage!),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else if (next.status == ProfileImageStatus.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Profile image updated successfully!',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    });
+
+    return Premium25DScaffold(
+      isDark: Theme.of(context).brightness == Brightness.dark,
+      particles: [
+        FloatingParticle(
+          imagePath: 'assets/images/25d_star.svg',
+          width: 40,
+          height: 40,
+          dx: -100,
+          dy: 100,
+          delay: 0.1,
+          depth: 1.2,
+        ),
+        FloatingParticle(
+          imagePath: 'assets/images/25d_sphere.svg',
+          width: 30,
+          height: 30,
+          dx: 300,
+          dy: 300,
+          delay: 0.4,
+          depth: 0.8,
+        ),
+      ],
       appBar: AppBar(
         title: const Text('My Account'),
         centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         actions: [
           if (authState.value != null)
             IconButton(
@@ -52,7 +152,11 @@ class ProfileScreen extends ConsumerWidget {
           // decision, so a slow or momentarily-null profile read can
           // only show loading, never Guest.
           final profileAsync = ref.watch(currentUserProfileProvider);
+          // skipLoadingOnReload: keeps showing the existing UI (with stale
+          // data) while the stream re-fetches after ref.invalidate() — prevents
+          // the white loading flash every time a profile image is uploaded.
           return profileAsync.when(
+            skipLoadingOnReload: true,
             loading: () => const AppLoadingView(),
             error: (error, _) => AppErrorView(
               message: 'Could not load your profile.',
@@ -269,6 +373,7 @@ class _AuthenticatedBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final opt = ref.watch(optimisticProfileProvider);
 
     final ordersCount = ref.watch(buyerOrdersProvider).value?.length ?? 0;
     final wishlistCount = ref.watch(wishlistStreamProvider).value?.length ?? 0;
@@ -291,40 +396,14 @@ class _AuthenticatedBody extends ConsumerWidget {
             Center(
               child: Column(
                 children: [
-                  Stack(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(3),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: colorScheme.primary,
-                            width: 2,
-                          ),
-                        ),
-                        child: AppAvatar(imageUrl: user.photoUrl, radius: 44),
-                      ),
-                      Positioned(
-                        bottom: 2,
-                        right: 2,
-                        child: GestureDetector(
-                          onTap: () =>
-                              context.push(AppRoutes.buyerAccountSettings),
-                          child: Container(
-                            padding: const EdgeInsets.all(5),
-                            decoration: BoxDecoration(
-                              color: colorScheme.primary,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.edit,
-                              size: 14,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                  ProfileAvatar(
+                    imageUrl: opt.imageUrl,
+                    localImageBytes: opt.localBytes,
+                    userName: user.displayName,
+                    radius: 48,
+                    isUploading: opt.isUploading,
+                    onEditTap: () =>
+                        ProfileScreen._showImageSourceActionSheet(context, ref),
                   ),
                   const SizedBox(height: 14),
                   Text(
@@ -428,7 +507,11 @@ class _AuthenticatedBody extends ConsumerWidget {
                     icon: Icons.hourglass_empty_rounded,
                     title: 'Application Under Review',
                     subtitle: 'Admin team is verifying your details',
-                    trailing: const Icon(Icons.access_time_filled_rounded, color: Colors.amber, size: 18),
+                    trailing: const Icon(
+                      Icons.access_time_filled_rounded,
+                      color: Colors.amber,
+                      size: 18,
+                    ),
                     onTap: () => context.push(AppRoutes.sellerApply),
                   )
                 else if (user.sellerApplicationStatus == 'changes_requested')
@@ -436,7 +519,11 @@ class _AuthenticatedBody extends ConsumerWidget {
                     icon: Icons.warning_amber_rounded,
                     title: 'Action Required',
                     subtitle: 'Admin requested changes. Tap to edit.',
-                    trailing: const Icon(Icons.error_rounded, color: Colors.orange, size: 18),
+                    trailing: const Icon(
+                      Icons.error_rounded,
+                      color: Colors.orange,
+                      size: 18,
+                    ),
                     onTap: () => context.push(AppRoutes.sellerApply),
                   )
                 else if (user.sellerApplicationStatus == 'rejected')
@@ -444,7 +531,11 @@ class _AuthenticatedBody extends ConsumerWidget {
                     icon: Icons.cancel_outlined,
                     title: 'Application Rejected',
                     subtitle: 'Tap to see reason or reapply',
-                    trailing: const Icon(Icons.cancel_rounded, color: Colors.red, size: 18),
+                    trailing: const Icon(
+                      Icons.cancel_rounded,
+                      color: Colors.red,
+                      size: 18,
+                    ),
                     onTap: () => context.push(AppRoutes.sellerApply),
                   )
                 else
@@ -514,6 +605,7 @@ class _AuthenticatedBody extends ConsumerWidget {
 
 class _SectionHeader extends StatelessWidget {
   final String title;
+
   const _SectionHeader({required this.title});
 
   @override
@@ -558,41 +650,46 @@ class _ProfileSection extends StatelessWidget {
               ),
             ),
           ),
-          Material(
-            color: colorScheme.surface,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-              side: BorderSide(color: colorScheme.outlineVariant),
-            ),
-            clipBehavior: Clip.antiAlias,
+          GlassCard(
+            isDark: theme.brightness == Brightness.dark,
+            padding: EdgeInsets.zero,
             child: Column(
               children: items.asMap().entries.map((entry) {
                 final isLast = entry.key == items.length - 1;
                 final item = entry.value;
                 return Column(
                   children: [
-                    ListTile(
-                      leading: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerHighest.withValues(
-                            alpha: 0.5,
+                    Material(
+                      color: Colors.transparent,
+                      child: ListTile(
+                        leading: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceContainerHighest
+                                .withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          borderRadius: BorderRadius.circular(12),
+                          child: Icon(
+                            item.icon,
+                            size: 20,
+                            color: colorScheme.onSurface,
+                          ),
                         ),
-                        child: Icon(
-                          item.icon,
-                          size: 20,
-                          color: colorScheme.onSurface,
+                        title: Text(
+                          item.title,
+                          style: theme.textTheme.bodyLarge,
                         ),
-                      ),
-                      title: Text(item.title, style: theme.textTheme.bodyLarge),
-                      subtitle: item.subtitle != null ? Text(item.subtitle!) : null,
-                      trailing: item.trailing ?? const Icon(Icons.chevron_right, size: 18),
-                      onTap: item.onTap,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 4,
+                        subtitle: item.subtitle != null
+                            ? Text(item.subtitle!)
+                            : null,
+                        trailing:
+                            item.trailing ??
+                            const Icon(Icons.chevron_right, size: 18),
+                        onTap: item.onTap,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
                       ),
                     ),
                     if (!isLast)

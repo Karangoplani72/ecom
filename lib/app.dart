@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ecom/core/providers/theme_provider.dart';
 import 'package:ecom/core/theme/app_theme.dart';
 import 'package:ecom/shared/presentation/navigation/router.dart';
+import 'package:ecom/core/providers/connectivity_provider.dart';
+import 'package:ecom/shared/presentation/widgets/offline_overlay.dart';
 
 class EcomApp extends ConsumerWidget {
   const EcomApp({super.key});
@@ -12,6 +14,7 @@ class EcomApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeProvider);
+    final isConnected = ref.watch(isConnectedProvider).value ?? true;
 
     return MaterialApp.router(
       title: 'ecom',
@@ -22,6 +25,12 @@ class EcomApp extends ConsumerWidget {
       themeMode: themeMode,
 
       routerConfig: router,
+      builder: (context, child) {
+        if (!isConnected) {
+          return const OfflineOverlay();
+        }
+        return child ?? const SizedBox.shrink();
+      },
     );
   }
 }

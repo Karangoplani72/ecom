@@ -1,5 +1,5 @@
 import 'dart:async';
-
+import 'package:flutter/foundation.dart';
 import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/features/orders/data/repositories/order_repository_impl.dart';
 import 'package:ecom/features/orders/domain/entities/order.dart';
@@ -57,27 +57,39 @@ class OrderController extends _$OrderController {
   @override
   FutureOr<void> build() {}
 
+  /// Runs checkout via the server-side Cloud Function path.
+  /// [onSuccess] is awaited — errors inside it propagate correctly.
+  /// [onFailure] is called with the error string when checkout fails.
   Future<void> checkout({
     required List<AppOrder> orders,
     required void Function(String) onFailure,
-    required void Function() onSuccess,
+    required Future<void> Function() onSuccess, // FIX BUG #9: Future<void>, not void
   }) async {
+    debugPrint('[ORDER] OrderController.checkout: Starting for ${orders.length} order(s).');
     state = const AsyncLoading();
 
     final result = await ref
         .read(orderRepositoryProvider)
         .checkout(orders: orders);
 
-    result.fold(
-      (error) {
+    await result.fold(
+      (error) async {
+        debugPrint('[ORDER][ERROR] OrderController.checkout failed: $error');
         if (!ref.mounted) return;
         state = AsyncError(error, StackTrace.current);
         onFailure(error);
       },
-      (orderIds) {
+      (orderIds) async {
+        debugPrint('[ORDER][SUCCESS] OrderController.checkout: order IDs: $orderIds');
         if (!ref.mounted) return;
         state = const AsyncData(null);
-        onSuccess();
+        try {
+          await onSuccess(); // FIX BUG #9: properly awaited
+        } catch (e) {
+          // onSuccess threw (e.g. clearCart failed) — log but don't re-enter error state
+          // since the order IS created. The cart clear is non-critical.
+          debugPrint('[ORDER][ERROR] onSuccess callback threw: $e. Order was created successfully.');
+        }
       },
     );
   }

@@ -1,6 +1,8 @@
 import 'package:ecom/core/constants/app_info.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:ecom/core/widgets/scaffolds/premium_25d_scaffold.dart';
+import 'package:ecom/core/widgets/cards/glass_card.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -10,8 +12,9 @@ class AboutScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('About'), centerTitle: true),
+    return Premium25DScaffold(
+      isDark: theme.brightness == Brightness.dark,
+      appBar: AppBar(title: const Text('About'), centerTitle: true, backgroundColor: Colors.transparent, elevation: 0),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 28, 20, 40),
         children: [
@@ -55,29 +58,37 @@ class AboutScreen extends StatelessWidget {
 
           // ── Contact ──
           _SectionLabel(title: 'Contact'),
-          Card(
+          GlassCard(
+            isDark: theme.brightness == Brightness.dark,
+            padding: EdgeInsets.zero,
             child: Column(
               children: [
-                ListTile(
-                  leading: _LeadingIcon(icon: Icons.email_outlined),
-                  title: const Text('Email'),
-                  subtitle: const Text(AppInfo.supportEmail),
-                  trailing: const Icon(Icons.copy, size: 16),
-                  onTap: () => _copyToClipboard(
-                      context, AppInfo.supportEmail, 'Email copied'),
+                Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    leading: _LeadingIcon(icon: Icons.email_outlined),
+                    title: const Text('Email'),
+                    subtitle: const Text(AppInfo.supportEmail),
+                    trailing: const Icon(Icons.copy, size: 16),
+                    onTap: () => _copyToClipboard(
+                        context, AppInfo.supportEmail, 'Email copied'),
+                  ),
                 ),
                 Divider(
                     height: 1,
                     indent: 16,
                     endIndent: 16,
                     color: colorScheme.outlineVariant),
-                ListTile(
-                  leading: _LeadingIcon(icon: Icons.phone_outlined),
-                  title: const Text('Phone'),
-                  subtitle: const Text(AppInfo.supportPhone),
-                  trailing: const Icon(Icons.copy, size: 16),
-                  onTap: () => _copyToClipboard(
-                      context, AppInfo.supportPhone, 'Phone number copied'),
+                Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    leading: _LeadingIcon(icon: Icons.phone_outlined),
+                    title: const Text('Phone'),
+                    subtitle: const Text(AppInfo.supportPhone),
+                    trailing: const Icon(Icons.copy, size: 16),
+                    onTap: () => _copyToClipboard(
+                        context, AppInfo.supportPhone, 'Phone number copied'),
+                  ),
                 ),
               ],
             ),
@@ -87,27 +98,35 @@ class AboutScreen extends StatelessWidget {
 
           // ── Legal ──
           _SectionLabel(title: 'Legal'),
-          Card(
+          GlassCard(
+            isDark: theme.brightness == Brightness.dark,
+            padding: EdgeInsets.zero,
             child: Column(
               children: [
-                ListTile(
-                  leading: _LeadingIcon(icon: Icons.policy_outlined),
-                  title: const Text('Privacy Policy'),
-                  trailing: const Icon(Icons.chevron_right, size: 18),
-                  onTap: () => _copyToClipboard(
-                      context, AppInfo.privacyPolicyUrl, 'Link copied'),
+                Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    leading: _LeadingIcon(icon: Icons.policy_outlined),
+                    title: const Text('Privacy Policy'),
+                    trailing: const Icon(Icons.chevron_right, size: 18),
+                    onTap: () => _copyToClipboard(
+                        context, AppInfo.privacyPolicyUrl, 'Link copied'),
+                  ),
                 ),
                 Divider(
                     height: 1,
                     indent: 16,
                     endIndent: 16,
                     color: colorScheme.outlineVariant),
-                ListTile(
-                  leading: _LeadingIcon(icon: Icons.description_outlined),
-                  title: const Text('Terms & Conditions'),
-                  trailing: const Icon(Icons.chevron_right, size: 18),
-                  onTap: () => _copyToClipboard(
-                      context, AppInfo.termsUrl, 'Link copied'),
+                Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    leading: _LeadingIcon(icon: Icons.description_outlined),
+                    title: const Text('Terms & Conditions'),
+                    trailing: const Icon(Icons.chevron_right, size: 18),
+                    onTap: () => _copyToClipboard(
+                        context, AppInfo.termsUrl, 'Link copied'),
+                  ),
                 ),
               ],
             ),

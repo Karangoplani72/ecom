@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../controllers/seller_analytics_controller.dart';
 
@@ -11,7 +12,13 @@ class SellerAnalyticsScreen extends ConsumerWidget {
     final analyticsAsync = ref.watch(sellerAnalyticsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Analytics')),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/seller/dashboard'),
+        ),
+        title: const Text('Analytics'),
+      ),
       body: analyticsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
 

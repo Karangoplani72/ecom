@@ -123,7 +123,16 @@ class AdminRepositoryImpl implements AdminRepository {
       // Revenue — sum from orders where status == delivered
       double totalRevenue = 0;
       double platformRevenue = 0;
-      const commissionRate = 0.085;
+
+      double commissionRate = 0.085;
+      final configDoc = await _firestore
+          .collection('platform_settings')
+          .doc('global_config')
+          .get();
+      if (configDoc.exists) {
+        final configData = configDoc.data();
+        commissionRate = (configData?['defaultCommissionRate'] as num?)?.toDouble() ?? 0.085;
+      }
 
       final revenueSnapshot = await _firestore
           .collection('orders')
@@ -251,6 +260,7 @@ class AdminRepositoryImpl implements AdminRepository {
             categoryCommissionOverrides: {},
             maintenanceModeActive: false,
             globalRateLimitPerMinute: 600,
+            razorpayKey: 'rzp_test_placeholder_key',
           ),
         );
       }
@@ -269,6 +279,7 @@ class AdminRepositoryImpl implements AdminRepository {
               data['maintenanceModeActive'] as bool? ?? false,
           globalRateLimitPerMinute:
               data['globalRateLimitPerMinute'] as int? ?? 600,
+          razorpayKey: 'managed_via_functions',
         ),
       );
     } catch (e) {

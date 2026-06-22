@@ -2,15 +2,15 @@ name: ecom
 description: A multi-vendor marketplace app
 publish_to: "none"
 
-
 version: 1.0.0+1
 
 environment:
   sdk: ^3.12.1
 
-
 dependencies:
   flutter:
+    sdk: flutter
+  flutter_web_plugins:
     sdk: flutter
 
   cupertino_icons: ^1.0.8
@@ -25,11 +25,19 @@ dependencies:
   firebase_messaging: ^16.3.0
   firebase_storage: ^13.4.2
   image_picker: ^1.1.2
+  flutter_image_compress: ^2.3.0
+  cached_network_image: ^3.4.1
   google_fonts: ^8.1.0
   http: ^1.2.1
   intl: ^0.20.2
   uuid: ^4.5.1
   shared_preferences: ^2.5.5
+  flutter_svg: ^2.3.0
+  speech_to_text: ^7.4.0
+  permission_handler: ^12.0.3
+  connectivity_plus: ^7.1.1
+  razorpay_flutter: ^1.4.5
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:
@@ -41,3 +49,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/images/3d/
+    - assets/images/categories/
+    - assets/lottie/

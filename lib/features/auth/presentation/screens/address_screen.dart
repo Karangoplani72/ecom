@@ -180,7 +180,7 @@ class AddressScreen extends ConsumerWidget {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Material(
-                    color: Colors.transparent,
+                    color: colorScheme.surface,
                     clipBehavior: Clip.antiAlias,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
@@ -191,9 +191,7 @@ class AddressScreen extends ConsumerWidget {
                         width: address.isDefault ? 2 : 1,
                       ),
                     ),
-                    child: Ink(
-                      color: colorScheme.surface,
-                      child: ListTile(
+                    child: ListTile(
                         contentPadding: const EdgeInsets.all(16),
                         title: Row(
                           children: [
@@ -265,7 +263,6 @@ class AddressScreen extends ConsumerWidget {
                           },
                         ),
                       ),
-                    ),
                   ),
                 );
               },

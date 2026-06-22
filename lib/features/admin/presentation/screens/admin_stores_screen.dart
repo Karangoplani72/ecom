@@ -239,6 +239,7 @@ class _StoreTile extends ConsumerWidget {
                   ),
                   label: Text(store.isActive ? 'Suspend' : 'Activate'),
                   style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 36),
                     foregroundColor: store.isActive
                         ? AppColors.error
                         : AppColors.success,
@@ -289,6 +290,7 @@ class _StoreTile extends ConsumerWidget {
                 label: const Text('Delete',
                     style: TextStyle(color: Colors.red)),
                 style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 36),
                   side: const BorderSide(color: Colors.red),
                 ),
                 onPressed: () async {

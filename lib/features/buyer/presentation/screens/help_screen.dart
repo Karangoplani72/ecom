@@ -1,6 +1,8 @@
 import 'package:ecom/core/constants/app_info.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:ecom/core/widgets/scaffolds/premium_25d_scaffold.dart';
+import 'package:ecom/core/widgets/cards/glass_card.dart';
 
 class HelpScreen extends StatelessWidget {
   const HelpScreen({super.key});
@@ -57,18 +59,16 @@ class HelpScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Help Center'), centerTitle: true),
+    return Premium25DScaffold(
+      isDark: theme.brightness == Brightness.dark,
+      appBar: AppBar(title: const Text('Help Center'), centerTitle: true, backgroundColor: Colors.transparent, elevation: 0),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
         children: [
           // ── Hero banner ──
-          Container(
+          GlassCard(
+            isDark: theme.brightness == Brightness.dark,
             padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(20),
-            ),
             child: Row(
               children: [
                 Icon(Icons.support_agent_outlined,
@@ -117,67 +117,75 @@ class HelpScreen extends StatelessWidget {
                   fontWeight: FontWeight.bold, color: colorScheme.primary),
             ),
           ),
-          Card(
+          GlassCard(
+            isDark: theme.brightness == Brightness.dark,
+            padding: EdgeInsets.zero,
             child: Column(
               children: [
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest
-                          .withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(Icons.email_outlined,
-                        size: 20, color: colorScheme.onSurface),
-                  ),
-                  title: const Text('Email Support'),
-                  subtitle: const Text(AppInfo.supportEmail),
-                  trailing: const Icon(Icons.copy, size: 16),
-                  onTap: () {
-                    Clipboard.setData(
-                        const ClipboardData(text: AppInfo.supportEmail));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text('Email address copied'),
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
+                Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest
+                            .withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    );
-                  },
+                      child: Icon(Icons.email_outlined,
+                          size: 20, color: colorScheme.onSurface),
+                    ),
+                    title: const Text('Email Support'),
+                    subtitle: const Text(AppInfo.supportEmail),
+                    trailing: const Icon(Icons.copy, size: 16),
+                    onTap: () {
+                      Clipboard.setData(
+                          const ClipboardData(text: AppInfo.supportEmail));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('Email address copied'),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                      );
+                    },
+                  ),
                 ),
                 Divider(
                     height: 1,
                     indent: 16,
                     endIndent: 16,
                     color: colorScheme.outlineVariant),
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest
-                          .withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(Icons.phone_outlined,
-                        size: 20, color: colorScheme.onSurface),
-                  ),
-                  title: const Text('Phone Support'),
-                  subtitle: const Text(AppInfo.supportPhone),
-                  trailing: const Icon(Icons.copy, size: 16),
-                  onTap: () {
-                    Clipboard.setData(
-                        const ClipboardData(text: AppInfo.supportPhone));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text('Phone number copied'),
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
+                Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest
+                            .withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    );
-                  },
+                      child: Icon(Icons.phone_outlined,
+                          size: 20, color: colorScheme.onSurface),
+                    ),
+                    title: const Text('Phone Support'),
+                    subtitle: const Text(AppInfo.supportPhone),
+                    trailing: const Icon(Icons.copy, size: 16),
+                    onTap: () {
+                      Clipboard.setData(
+                          const ClipboardData(text: AppInfo.supportPhone));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('Phone number copied'),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ],
             ),

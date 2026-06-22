@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../domain/entities/order.dart';
 import '../../domain/entities/order_status.dart';
+import 'package:ecom/core/widgets/cards/glass_card.dart';
 
 
 class OrderCard extends StatelessWidget {
@@ -28,24 +29,12 @@ class OrderCard extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.02),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: GlassCard(
+          isDark: theme.brightness == Brightness.dark,
+          padding: const EdgeInsets.all(16),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -171,6 +160,7 @@ class OrderCard extends StatelessWidget {
               ],
             ),
           ],
+        ),
         ),
       ),
     );

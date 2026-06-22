@@ -4,6 +4,8 @@
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:ecom/core/providers/categories_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ecom/core/widgets/app_primary_button.dart';
 import 'package:ecom/core/widgets/app_text_field.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -20,18 +22,18 @@ class _PickedImage {
   const _PickedImage({required this.file, required this.bytes});
 }
 
-class AddProductScreen extends StatefulWidget {
+class AddProductScreen extends ConsumerStatefulWidget {
   const AddProductScreen({super.key});
 
   @override
-  State<AddProductScreen> createState() => _AddProductScreenState();
+  ConsumerState<AddProductScreen> createState() => _AddProductScreenState();
 }
 
-class _AddProductScreenState extends State<AddProductScreen> {
+class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _categoryController = TextEditingController();
+  String? _selectedCategory;
   final _priceController = TextEditingController();
   final _stockController = TextEditingController();
 
@@ -42,10 +44,110 @@ class _AddProductScreenState extends State<AddProductScreen> {
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
-    _categoryController.dispose();
     _priceController.dispose();
     _stockController.dispose();
     super.dispose();
+  }
+
+  Future<void> _showRequestCategoryDialog() async {
+    final nameController = TextEditingController();
+    final descController = TextEditingController();
+    final requestFormKey = GlobalKey<FormState>();
+    bool isSubmittingRequest = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Request New Category'),
+              content: Form(
+                key: requestFormKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Category Name',
+                        hintText: 'e.g. Home Decor',
+                      ),
+                      validator: (v) =>
+                          (v == null || v.trim().isEmpty) ? 'Name is required' : null,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: descController,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                        hintText: 'Describe the items for this category',
+                      ),
+                      maxLines: 3,
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmittingRequest ? null : () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isSubmittingRequest
+                      ? null
+                      : () async {
+                          if (!requestFormKey.currentState!.validate()) return;
+                          setDialogState(() => isSubmittingRequest = true);
+                          try {
+                            final sellerId = FirebaseAuth.instance.currentUser?.uid;
+                            final sellerEmail = FirebaseAuth.instance.currentUser?.email ?? 'Seller';
+                            if (sellerId == null) return;
+
+                            final firestore = FirebaseFirestore.instance;
+                            final newDoc = firestore.collection('category_requests').doc();
+                            await newDoc.set({
+                              'id': newDoc.id,
+                              'sellerId': sellerId,
+                              'sellerName': sellerEmail,
+                              'name': nameController.text.trim(),
+                              'description': descController.text.trim(),
+                              'status': 'pending',
+                              'createdAt': FieldValue.serverTimestamp(),
+                            });
+
+                            if (ctx.mounted) {
+                              Navigator.of(ctx).pop();
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Category request submitted successfully'),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (ctx.mounted) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                SnackBar(content: Text('Failed to submit request: $e')),
+                              );
+                            }
+                          } finally {
+                            setDialogState(() => isSubmittingRequest = false);
+                          }
+                        },
+                  child: isSubmittingRequest
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Submit'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   bool _isPicking = false;
@@ -125,7 +227,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         'currency': 'INR',
         'imageUrls': imageUrls,
         'metadata': {
-          'category': _categoryController.text.trim(),
+          'category': _selectedCategory,
           'stock': int.parse(_stockController.text.trim()),
         },
         'createdAt': now,
@@ -205,12 +307,35 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   : null,
             ),
             const SizedBox(height: 16),
-            AppTextField(
-              controller: _categoryController,
-              label: 'Category',
-              validator: (v) => (v == null || v.trim().isEmpty)
-                  ? 'Category is required'
-                  : null,
+            ref.watch(activeCategoriesStreamProvider).when(
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (e, _) => Text('Error loading categories: $e'),
+                  data: (categories) {
+                    return DropdownButtonFormField<String>(
+                      initialValue: _selectedCategory,
+                      decoration: const InputDecoration(
+                        labelText: 'Category',
+                      ),
+                      items: categories.map((cat) {
+                        return DropdownMenuItem<String>(
+                          value: cat,
+                          child: Text(cat),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        setState(() => _selectedCategory = val);
+                      },
+                      validator: (v) => v == null ? 'Category is required' : null,
+                    );
+                  },
+                ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Request New Category'),
+                onPressed: _showRequestCategoryDialog,
+              ),
             ),
             const SizedBox(height: 16),
             Row(

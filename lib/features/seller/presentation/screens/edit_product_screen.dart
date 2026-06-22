@@ -4,6 +4,8 @@
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:ecom/core/providers/categories_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ecom/core/widgets/app_error_view.dart';
 import 'package:ecom/core/widgets/app_loading_view.dart';
 import 'package:ecom/core/widgets/app_network_image.dart';
@@ -24,22 +26,22 @@ class _NewImage {
   const _NewImage({required this.file, required this.bytes});
 }
 
-class EditProductScreen extends StatefulWidget {
+class EditProductScreen extends ConsumerStatefulWidget {
   final String productId;
 
   const EditProductScreen({super.key, required this.productId});
 
   @override
-  State<EditProductScreen> createState() => _EditProductScreenState();
+  ConsumerState<EditProductScreen> createState() => _EditProductScreenState();
 }
 
-class _EditProductScreenState extends State<EditProductScreen> {
+class _EditProductScreenState extends ConsumerState<EditProductScreen> {
   static const _statusOptions = ['active', 'paused', 'outOfStock', 'draft'];
 
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _categoryController = TextEditingController();
+  String? _selectedCategory;
   final _priceController = TextEditingController();
   final _stockController = TextEditingController();
 
@@ -61,10 +63,110 @@ class _EditProductScreenState extends State<EditProductScreen> {
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
-    _categoryController.dispose();
     _priceController.dispose();
     _stockController.dispose();
     super.dispose();
+  }
+
+  Future<void> _showRequestCategoryDialog() async {
+    final nameController = TextEditingController();
+    final descController = TextEditingController();
+    final requestFormKey = GlobalKey<FormState>();
+    bool isSubmittingRequest = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Request New Category'),
+              content: Form(
+                key: requestFormKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Category Name',
+                        hintText: 'e.g. Home Decor',
+                      ),
+                      validator: (v) =>
+                          (v == null || v.trim().isEmpty) ? 'Name is required' : null,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: descController,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                        hintText: 'Describe the items for this category',
+                      ),
+                      maxLines: 3,
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmittingRequest ? null : () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isSubmittingRequest
+                      ? null
+                      : () async {
+                          if (!requestFormKey.currentState!.validate()) return;
+                          setDialogState(() => isSubmittingRequest = true);
+                          try {
+                            final sellerId = FirebaseAuth.instance.currentUser?.uid;
+                            final sellerEmail = FirebaseAuth.instance.currentUser?.email ?? 'Seller';
+                            if (sellerId == null) return;
+
+                            final firestore = FirebaseFirestore.instance;
+                            final newDoc = firestore.collection('category_requests').doc();
+                            await newDoc.set({
+                              'id': newDoc.id,
+                              'sellerId': sellerId,
+                              'sellerName': sellerEmail,
+                              'name': nameController.text.trim(),
+                              'description': descController.text.trim(),
+                              'status': 'pending',
+                              'createdAt': FieldValue.serverTimestamp(),
+                            });
+
+                            if (ctx.mounted) {
+                              Navigator.of(ctx).pop();
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Category request submitted successfully'),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (ctx.mounted) {
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                SnackBar(content: Text('Failed to submit request: $e')),
+                              );
+                            }
+                          } finally {
+                            setDialogState(() => isSubmittingRequest = false);
+                          }
+                        },
+                  child: isSubmittingRequest
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Submit'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _loadProduct() async {
@@ -101,7 +203,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
       _storeId = data['storeId'] as String;
       _titleController.text = (data['title'] as String?) ?? '';
       _descriptionController.text = (data['description'] as String?) ?? '';
-      _categoryController.text = (metadata['category'] as String?) ?? '';
+      _selectedCategory = metadata['category'] as String?;
       _priceController.text = ((data['basePrice'] as num?) ?? 0).toString();
       _stockController.text = ((metadata['stock'] as num?) ?? 0).toString();
       _status = (data['status'] as String?) ?? 'active';
@@ -193,7 +295,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
         'basePrice': double.parse(_priceController.text.trim()),
         'imageUrls': allImageUrls,
         'metadata': {
-          'category': _categoryController.text.trim(),
+          'category': _selectedCategory,
           'stock': int.parse(_stockController.text.trim()),
         },
         'updatedAt': FieldValue.serverTimestamp(),
@@ -351,12 +453,42 @@ class _EditProductScreenState extends State<EditProductScreen> {
                   : null,
             ),
             const SizedBox(height: 16),
-            AppTextField(
-              controller: _categoryController,
-              label: 'Category',
-              validator: (v) => (v == null || v.trim().isEmpty)
-                  ? 'Category is required'
-                  : null,
+            ref.watch(activeCategoriesStreamProvider).when(
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (e, _) => Text('Error loading categories: $e'),
+                  data: (categories) {
+                    // Check if current category is in dynamic list. If not (and not null), temporarily add it so it is displayable.
+                    final dropdownItems = List<String>.from(categories);
+                    if (_selectedCategory != null &&
+                        _selectedCategory!.isNotEmpty &&
+                        !dropdownItems.contains(_selectedCategory)) {
+                      dropdownItems.add(_selectedCategory!);
+                    }
+                    return DropdownButtonFormField<String>(
+                      initialValue: _selectedCategory,
+                      decoration: const InputDecoration(
+                        labelText: 'Category',
+                      ),
+                      items: dropdownItems.map((cat) {
+                        return DropdownMenuItem<String>(
+                          value: cat,
+                          child: Text(cat),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        setState(() => _selectedCategory = val);
+                      },
+                      validator: (v) => v == null ? 'Category is required' : null,
+                    );
+                  },
+                ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Request New Category'),
+                onPressed: _showRequestCategoryDialog,
+              ),
             ),
             const SizedBox(height: 16),
             Row(

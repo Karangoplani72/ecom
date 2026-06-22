@@ -15,6 +15,9 @@ class AppOrder {
   final double totalAmount;
   final String paymentMethod;
   final String paymentStatus;
+  // Razorpay payment identifiers — null for non-Razorpay orders
+  final String? paymentId;
+  final String? razorpayOrderId;
   final String deliveryAddress;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -33,13 +36,19 @@ class AppOrder {
     required this.totalAmount,
     required this.paymentMethod,
     required this.paymentStatus,
+    this.paymentId,
+    this.razorpayOrderId,
     required this.deliveryAddress,
     required this.createdAt,
     required this.updatedAt,
   });
 
   bool get canCancel =>
-      status == OrderStatus.pending || status == OrderStatus.confirmed;
+      status == OrderStatus.pending ||
+      status == OrderStatus.confirmed ||
+      status == OrderStatus.packed;
 
   bool get isCompleted => status == OrderStatus.delivered;
+
+  bool get isPaid => paymentStatus == 'completed';
 }

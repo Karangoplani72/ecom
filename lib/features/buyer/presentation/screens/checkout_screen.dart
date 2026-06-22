@@ -1,20 +1,25 @@
 import 'dart:ui';
+
 import 'package:ecom/core/providers/common_providers.dart';
+import 'package:ecom/core/services/razorpay_service.dart';
+import 'package:ecom/core/theme/app_colors.dart';
+import 'package:ecom/core/theme/app_shadows.dart';
 import 'package:ecom/core/widgets/app_empty_view.dart';
 import 'package:ecom/core/widgets/app_price_text.dart';
 import 'package:ecom/core/widgets/app_primary_button.dart';
+import 'package:ecom/core/widgets/cards/glass_card.dart';
 import 'package:ecom/core/widgets/responsive_layout.dart';
+import 'package:ecom/core/widgets/scaffolds/premium_25d_scaffold.dart';
+import 'package:ecom/features/admin/domain/entities/platform_config.dart';
+import 'package:ecom/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:ecom/features/auth/domain/entities/user_address.dart';
 import 'package:ecom/features/auth/presentation/controllers/address_controller.dart';
 import 'package:ecom/features/buyer/domain/entities/cart_item.dart';
 import 'package:ecom/features/buyer/presentation/controllers/cart_controller.dart';
-import 'package:ecom/features/orders/domain/entities/order.dart';
-import 'package:ecom/features/orders/domain/entities/order_item.dart';
-import 'package:ecom/features/orders/domain/entities/order_status.dart';
-import 'package:ecom/features/orders/presentation/controllers/order_controller.dart';
+// order_status and order_controller not needed here:
+// all order writes now go via the verifyAndFinalizePayment Cloud Function.
 import 'package:ecom/shared/presentation/navigation/router.dart';
-import 'package:ecom/core/theme/app_colors.dart';
-import 'package:ecom/core/theme/app_shadows.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -29,7 +34,163 @@ class CheckoutScreen extends ConsumerStatefulWidget {
 class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   UserAddress? _selectedAddress;
   bool _isProcessing = false;
-  String _paymentMethod = 'COD';
+
+  /// Snapshot of cart captured before opening Razorpay — used in
+  /// _finalizePaymentAsync even if the provider rebuilds during the flow.
+  List<CartItem> _capturedCartItems = const [];
+  String? _capturedRazorpayOrderId;
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  // ── Payment finalization (called after successful Razorpay payment) ─────────
+
+  Future<void> _finalizePayment({
+    required String paymentId,
+    required String rzpOrderId,
+    required String signature,
+  }) async {
+    debugPrint(
+      '[PAYMENT] _finalizePayment: paymentId=$paymentId rzpOrderId=$rzpOrderId signaturePresent=${signature.isNotEmpty}',
+    );
+
+    try {
+      final userId = ref.read(currentUserIdProvider);
+      if (userId == null || _selectedAddress == null) {
+        throw Exception('Session expired. Please log in again and retry.');
+      }
+
+      debugPrint('[AUTH] Requesting ID token for server verification...');
+      final idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
+      if (idToken == null) {
+        throw Exception('Unable to authenticate. Please log in again.');
+      }
+
+      debugPrint(
+        '[PAYMENT] Building order payloads for ${_capturedCartItems.length} captured cart items...',
+      );
+      final groupedBySeller = <String, List<CartItem>>{};
+      for (final item in _capturedCartItems) {
+        groupedBySeller.putIfAbsent(item.storeId, () => []).add(item);
+      }
+
+      final platformConfig =
+          ref.read(platformConfigProvider).value ??
+          const PlatformConfig(
+            defaultCommissionRate: 0.085,
+            categoryCommissionOverrides: {},
+            maintenanceModeActive: false,
+            globalRateLimitPerMinute: 600,
+            razorpayKey: 'managed_via_functions',
+          );
+
+      final ordersPayload = <Map<String, dynamic>>[];
+      for (final entry in groupedBySeller.entries) {
+        final items = entry.value;
+        final sub = items.fold<double>(
+          0,
+          (s, i) => s + (i.unitPrice * i.quantity),
+        );
+        final delFee = sub < 1000 ? 99.0 : 0.0;
+        final platFee = sub * platformConfig.defaultCommissionRate;
+
+        String storeName = items.first.storeName;
+        try {
+          storeName = await ref
+              .read(storeNameProvider(entry.key).future)
+              .timeout(const Duration(seconds: 5));
+        } catch (_) {
+          debugPrint(
+            '[CHECKOUT] Warning: store name resolution timed out for ${entry.key}. Using cached name.',
+          );
+        }
+
+        ordersPayload.add({
+          'storeId': entry.key,
+          'storeName': storeName,
+          'items': items
+              .map(
+                (i) => {
+                  'productId': i.productId,
+                  'title': i.title,
+                  'imageUrl': i.imageUrl,
+                  'quantity': i.quantity,
+                  'unitPrice': i.unitPrice,
+                },
+              )
+              .toList(),
+          'subtotal': sub,
+          'deliveryFee': delFee,
+          'platformFee': platFee,
+          'totalAmount': sub + delFee + platFee,
+          'paymentMethod': 'Online (Razorpay)',
+        });
+      }
+
+      debugPrint(
+        '[PAYMENT] Calling verifyAndFinalizePayment CF: paymentId=$paymentId rzpOrderId=$rzpOrderId orders=${ordersPayload.length}',
+      );
+
+      await verifyAndFinalizePayment(
+        razorpayPaymentId: paymentId,
+        razorpayOrderId: rzpOrderId,
+        razorpaySignature: signature,
+        buyerId: userId,
+        buyerName: _selectedAddress!.fullName,
+        deliveryAddress: _selectedAddress!.fullAddress,
+        orders: ordersPayload,
+        idToken: idToken,
+      );
+
+      debugPrint('[SUCCESS] Orders finalized. Clearing cart and navigating...');
+
+      if (!mounted) return;
+      // Cart cleared server-side by CF; also clear client-side for instant UI update
+      await ref.read(cartControllerProvider.notifier).clearCart();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('🎉 Order placed successfully!'),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      context.go('/buyer/orders');
+    } catch (e) {
+      debugPrint('[PAYMENT][ERROR] _finalizePayment failed: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().contains('signature')
+                ? '⚠️ Payment verification failed. Please contact support.'
+                : 'Payment received but order setup failed: ${e.toString().replaceAll('Exception: ', '')}',
+          ),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -54,8 +215,16 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     });
 
     if (cartItems.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Checkout', style: TextStyle(fontWeight: FontWeight.bold))),
+      return Premium25DScaffold(
+        isDark: isDark,
+        appBar: AppBar(
+          title: const Text(
+            'Checkout',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+        ),
         body: AppEmptyView(
           title: 'Cart is empty',
           subtitle: 'Add items to your cart before checking out.',
@@ -79,7 +248,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       0,
       (sum, item) => sum + (item.unitPrice * item.quantity),
     );
-    final platformFee = subtotal * 0.02;
+
+    final configAsync = ref.watch(platformConfigProvider);
+    final platformConfig =
+        configAsync.value ??
+        const PlatformConfig(
+          defaultCommissionRate: 0.085,
+          categoryCommissionOverrides: {},
+          maintenanceModeActive: false,
+          globalRateLimitPerMinute: 600,
+          razorpayKey: 'managed_via_functions',
+        );
+    final commissionRate = platformConfig.defaultCommissionRate;
+    final platformFee = subtotal * commissionRate;
     double deliveryFee = 0;
     groupedItems.forEach((storeId, items) {
       final storeSubtotal = items.fold<double>(
@@ -93,12 +274,41 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     final total = subtotal + platformFee + deliveryFee;
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+    return Premium25DScaffold(
+      isDark: isDark,
+      particles: [
+        FloatingParticle(
+          imagePath: 'assets/images/25d_bag.svg',
+          width: 50,
+          height: 50,
+          dx: -100,
+          dy: 150,
+          delay: 0.2,
+          depth: 1.2,
+        ),
+        FloatingParticle(
+          imagePath: 'assets/images/25d_sphere.svg',
+          width: 30,
+          height: 30,
+          dx: 300,
+          dy: 400,
+          delay: 0.7,
+          depth: 0.6,
+        ),
+      ],
       appBar: AppBar(
-        title: Text('Checkout', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
+        title: Text(
+          'Checkout',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 24,
+            color: isDark
+                ? AppColors.textPrimaryDark
+                : AppColors.textPrimaryLight,
+          ),
+        ),
         centerTitle: true,
-        backgroundColor: theme.scaffoldBackgroundColor,
+        backgroundColor: Colors.transparent,
         elevation: 0,
       ),
       body: _isProcessing
@@ -109,11 +319,23 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   const CircularProgressIndicator(),
                   const SizedBox(height: 24),
                   Text(
-                    'Placing your order...',
+                    'Processing payment...',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
-                      color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                      color: isDark
+                          ? AppColors.textPrimaryDark
+                          : AppColors.textPrimaryLight,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Please do not close this screen',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isDark
+                          ? AppColors.textSecondaryDark
+                          : AppColors.textSecondaryLight,
                     ),
                   ),
                 ],
@@ -132,7 +354,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         const SizedBox(height: 32),
                         _buildOrderSummary(groupedItems, isDark),
                         const SizedBox(height: 32),
-                        _buildPaymentMethodSection(isDark, theme),
+                        _buildPaymentMethodSection(isDark),
                         const SizedBox(height: 32),
                         _buildBillCard(
                           subtotal,
@@ -140,17 +362,20 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           deliveryFee,
                           total,
                           isDark,
+                          commissionRate,
                         ),
-                        const SizedBox(height: 140), // Space for sticky bottom bar
+                        const SizedBox(height: 140),
                       ],
                     ),
                   ),
-                  _buildBottomBar(total, cartItems, isDark, theme),
+                  _buildBottomBar(total, cartItems, isDark),
                 ],
               ),
             ),
     );
   }
+
+  // ── Address Section ────────────────────────────────────────────────────────
 
   Widget _buildAddressSection(
     AsyncValue<List<UserAddress>> addressesAsync,
@@ -168,12 +393,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                color: isDark
+                    ? AppColors.textPrimaryDark
+                    : AppColors.textPrimaryLight,
               ),
             ),
             TextButton(
               onPressed: () => context.push(AppRoutes.buyerAddresses),
-              child: const Text('Manage', style: TextStyle(fontWeight: FontWeight.bold)),
+              child: const Text(
+                'Manage',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         ),
@@ -182,9 +412,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           loading: () => const LinearProgressIndicator(),
           error: (e, _) => Text('Error loading addresses: $e'),
           data: (addresses) {
-            if (addresses.isEmpty) {
-              return _buildAddressPlaceholder(isDark);
-            }
+            if (addresses.isEmpty) return _buildAddressPlaceholder(isDark);
             if (_selectedAddress == null) {
               return _buildAddressPlaceholder(isDark);
             }
@@ -206,7 +434,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       ),
       child: Column(
         children: [
-          const Icon(Icons.location_off_outlined, color: AppColors.error, size: 36),
+          const Icon(
+            Icons.location_off_outlined,
+            color: AppColors.error,
+            size: 36,
+          ),
           const SizedBox(height: 12),
           const Text(
             'No address selected',
@@ -215,7 +447,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           const SizedBox(height: 12),
           TextButton(
             onPressed: () => context.push(AppRoutes.buyerAddresses),
-            child: const Text('Add Shipping Address', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Add Shipping Address',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -223,24 +458,24 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 
   Widget _buildAddressCard(bool isDark) {
-    return Container(
+    return GlassCard(
+      isDark: isDark,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.surfaceDark : Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: isDark ? AppColors.primaryLight : AppColors.primary, width: 2),
-        boxShadow: isDark ? AppShadows.darkSm : AppShadows.lightSm,
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: (isDark ? AppColors.primaryLight : AppColors.primary).withValues(alpha: 0.1),
+              color: (isDark ? AppColors.primaryLight : AppColors.primary)
+                  .withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.location_on_outlined, color: isDark ? AppColors.primaryLight : AppColors.primary, size: 24),
+            child: Icon(
+              Icons.location_on_outlined,
+              color: isDark ? AppColors.primaryLight : AppColors.primary,
+              size: 24,
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -252,7 +487,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                    color: isDark
+                        ? AppColors.textPrimaryDark
+                        : AppColors.textPrimaryLight,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -260,7 +497,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   _selectedAddress?.fullAddress ?? '',
                   style: TextStyle(
                     fontSize: 14,
-                    color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                    color: isDark
+                        ? AppColors.textSecondaryDark
+                        : AppColors.textSecondaryLight,
                     height: 1.4,
                   ),
                 ),
@@ -270,7 +509,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                    color: isDark
+                        ? AppColors.textSecondaryDark
+                        : AppColors.textSecondaryLight,
                   ),
                 ),
               ],
@@ -323,31 +564,58 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                color: isDark
+                    ? AppColors.textPrimaryDark
+                    : AppColors.textPrimaryLight,
               ),
             ),
             const SizedBox(height: 16),
-            ...addresses.map(
-              (a) => Container(
+            ...addresses.map((a) {
+              final isSelected = a.id == _selectedAddress?.id;
+              return Container(
                 margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  border: Border.all(color: a.id == _selectedAddress?.id ? (isDark ? AppColors.primaryLight : AppColors.primary) : (isDark ? AppColors.borderDark : AppColors.borderLight)),
-                  borderRadius: BorderRadius.circular(16),
-                  color: a.id == _selectedAddress?.id ? (isDark ? AppColors.primaryLight : AppColors.primary).withValues(alpha: 0.05) : Colors.transparent,
+                child: Material(
+                  color: isSelected
+                      ? (isDark ? AppColors.primaryLight : AppColors.primary)
+                            .withValues(alpha: 0.05)
+                      : Colors.transparent,
+                  clipBehavior: Clip.antiAlias,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(
+                      color: isSelected
+                          ? (isDark
+                                ? AppColors.primaryLight
+                                : AppColors.primary)
+                          : (isDark
+                                ? AppColors.borderDark
+                                : AppColors.borderLight),
+                    ),
+                  ),
+                  child: ListTile(
+                    title: Text(
+                      a.fullName,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(
+                      a.fullAddress,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: isSelected
+                        ? const Icon(
+                            Icons.check_circle,
+                            color: AppColors.success,
+                          )
+                        : null,
+                    onTap: () {
+                      setState(() => _selectedAddress = a);
+                      Navigator.pop(context);
+                    },
+                  ),
                 ),
-                child: ListTile(
-                  title: Text(a.fullName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text(a.fullAddress, maxLines: 2, overflow: TextOverflow.ellipsis),
-                  trailing: a.id == _selectedAddress?.id
-                      ? const Icon(Icons.check_circle, color: AppColors.success)
-                      : null,
-                  onTap: () {
-                    setState(() => _selectedAddress = a);
-                    Navigator.pop(context);
-                  },
-                ),
-              ),
-            ),
+              );
+            }),
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
@@ -357,10 +625,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   context.push(AppRoutes.buyerAddresses);
                 },
                 icon: const Icon(Icons.add),
-                label: const Text('Add New Address', style: TextStyle(fontWeight: FontWeight.bold)),
+                label: const Text(
+                  'Add New Address',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
               ),
             ),
@@ -369,6 +642,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       ),
     );
   }
+
+  // ── Order Summary ──────────────────────────────────────────────────────────
 
   Widget _buildOrderSummary(
     Map<String, List<CartItem>> groupedItems,
@@ -382,67 +657,81 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+            color: isDark
+                ? AppColors.textPrimaryDark
+                : AppColors.textPrimaryLight,
           ),
         ),
         const SizedBox(height: 16),
         ...groupedItems.entries.map((entry) {
-          final storeName = entry.value.first.storeName;
-          return Container(
-            margin: const EdgeInsets.only(bottom: 20),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.surfaceDark : Colors.white,
-              border: Border.all(
-                color: isDark ? AppColors.borderDark : AppColors.borderLight,
-              ),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: isDark ? AppShadows.darkSm : AppShadows.lightSm,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          final storeId = entry.key;
+          return Consumer(
+            builder: (context, ref, child) {
+              final storeNameAsync = ref.watch(storeNameProvider(storeId));
+              final resolvedStoreName =
+                  storeNameAsync.value ?? entry.value.first.storeName;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 20),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.surfaceDark : Colors.white,
+                  border: Border.all(
+                    color: isDark
+                        ? AppColors.borderDark
+                        : AppColors.borderLight,
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: isDark ? AppShadows.darkSm : AppShadows.lightSm,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: (isDark ? AppColors.primaryLight : AppColors.primary).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.storefront,
-                        size: 20,
-                        color: isDark ? AppColors.primaryLight : AppColors.primary,
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color:
+                                (isDark
+                                        ? AppColors.primaryLight
+                                        : AppColors.primary)
+                                    .withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.storefront,
+                            size: 20,
+                            color: isDark
+                                ? AppColors.primaryLight
+                                : AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          resolvedStoreName,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: isDark
+                                ? AppColors.primaryLight
+                                : AppColors.primary,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    Text(
-                      storeName,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? AppColors.primaryLight : AppColors.primary,
-                      ),
-                    ),
+                    const SizedBox(height: 16),
+                    ...entry.value.map((item) => _buildOrderItem(item, isDark)),
                   ],
                 ),
-                const SizedBox(height: 16),
-                ...entry.value.map(
-                  (item) => _buildOrderItem(item, isDark),
-                ),
-              ],
-            ),
+              );
+            },
           );
         }),
       ],
     );
   }
 
-  Widget _buildOrderItem(
-    CartItem item,
-    bool isDark,
-  ) {
+  Widget _buildOrderItem(CartItem item, bool isDark) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
@@ -464,7 +753,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   width: 60,
                   height: 60,
                   color: isDark ? AppColors.surfaceDark : Colors.grey.shade100,
-                  child: Icon(Icons.image_outlined, size: 24, color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
+                  child: Icon(
+                    Icons.image_outlined,
+                    size: 24,
+                    color: isDark
+                        ? AppColors.textSecondaryDark
+                        : AppColors.textSecondaryLight,
+                  ),
                 ),
               ),
             ),
@@ -479,25 +774,38 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
-                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                    color: isDark
+                        ? AppColors.textPrimaryDark
+                        : AppColors.textPrimaryLight,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
-                    color: isDark ? AppColors.surfaceDark : Colors.grey.shade100,
+                    color: isDark
+                        ? AppColors.surfaceDark
+                        : Colors.grey.shade100,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+                    border: Border.all(
+                      color: isDark
+                          ? AppColors.borderDark
+                          : AppColors.borderLight,
+                    ),
                   ),
                   child: Text(
                     'Qty: ${item.quantity}',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                      color: isDark
+                          ? AppColors.textSecondaryDark
+                          : AppColors.textSecondaryLight,
                     ),
                   ),
                 ),
@@ -510,7 +818,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
-  Widget _buildPaymentMethodSection(bool isDark, ThemeData theme) {
+  // ── Payment Method Section ─────────────────────────────────────────────────
+
+  Widget _buildPaymentMethodSection(bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -519,37 +829,24 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+            color: isDark
+                ? AppColors.textPrimaryDark
+                : AppColors.textPrimaryLight,
           ),
         ),
         const SizedBox(height: 16),
-        RadioGroup<String>(
-          groupValue: _paymentMethod,
-          onChanged: (val) => setState(() => _paymentMethod = val!),
-          child: Column(
-            children: [
-              _PaymentOptionTile(
-                icon: Icons.money,
-                title: 'Cash on Delivery',
-                subtitle: 'Pay when your order arrives',
-                value: 'COD',
-                isSelected: _paymentMethod == 'COD',
-                isDark: isDark,
-              ),
-              _PaymentOptionTile(
-                icon: Icons.account_balance_wallet_outlined,
-                title: 'UPI Payment',
-                subtitle: 'Pay via Google Pay, PhonePe, Paytm',
-                value: 'UPI',
-                isSelected: _paymentMethod == 'UPI',
-                isDark: isDark,
-              ),
-            ],
-          ),
+        _PaymentOptionTile(
+          icon: Icons.credit_card,
+          title: 'Razorpay (Online)',
+          subtitle: 'Pay via Card, UPI, Netbanking, Wallets',
+          isSelected: true,
+          isDark: isDark,
         ),
       ],
     );
   }
+
+  // ── Bill Card ──────────────────────────────────────────────────────────────
 
   Widget _buildBillCard(
     double subtotal,
@@ -557,31 +854,39 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     double deliveryFee,
     double total,
     bool isDark,
+    double commissionRate,
   ) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: isDark ? AppColors.surfaceDark : Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+        border: Border.all(
+          color: isDark ? AppColors.borderDark : AppColors.borderLight,
+        ),
         boxShadow: isDark ? AppShadows.darkSm : AppShadows.lightSm,
       ),
       child: Column(
         children: [
-          _billRow('Subtotal', subtotal, isDark, isBold: false),
+          _billRow('Subtotal', subtotal, isDark),
           const SizedBox(height: 12),
-          _billRow('Platform Fee (2%)', platformFee, isDark, isBold: false),
+          _billRow(
+            'Platform Fee (${(commissionRate * 100).toStringAsFixed(1)}%)',
+            platformFee,
+            isDark,
+          ),
           const SizedBox(height: 12),
           _billRow(
             deliveryFee == 0 ? 'Delivery (Free)' : 'Delivery Fee',
             deliveryFee,
             isDark,
-            isBold: false,
             valueColor: deliveryFee == 0 ? AppColors.success : null,
           ),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 20),
-            child: Divider(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+            child: Divider(
+              color: isDark ? AppColors.borderDark : AppColors.borderLight,
+            ),
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -591,7 +896,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
-                  color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                  color: isDark
+                      ? AppColors.textPrimaryDark
+                      : AppColors.textPrimaryLight,
                 ),
               ),
               Text(
@@ -609,12 +916,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
-  Widget _buildBottomBar(
-    double total,
-    List<CartItem> cartItems,
-    bool isDark,
-    ThemeData theme,
-  ) {
+  // ── Bottom Bar ─────────────────────────────────────────────────────────────
+
+  Widget _buildBottomBar(double total, List<CartItem> cartItems, bool isDark) {
     return Positioned(
       bottom: 0,
       left: 0,
@@ -625,7 +929,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           child: Container(
             padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
             decoration: BoxDecoration(
-              color: isDark ? AppColors.surfaceDark.withValues(alpha: 0.8) : Colors.white.withValues(alpha: 0.8),
+              color: isDark
+                  ? AppColors.surfaceDark.withValues(alpha: 0.8)
+                  : Colors.white.withValues(alpha: 0.8),
               border: Border(
                 top: BorderSide(
                   color: isDark ? AppColors.borderDark : AppColors.borderLight,
@@ -650,109 +956,215 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
+  // ── Place Order ────────────────────────────────────────────────────────────
+
   Future<void> _handlePlaceOrder(List<CartItem> cartItems) async {
     final userId = ref.read(currentUserIdProvider);
-    if (userId == null || _selectedAddress == null) return;
+    debugPrint(
+      '[CHECKOUT] _handlePlaceOrder: userId=$userId'
+      ' cartItems=${cartItems.length}'
+      ' address=${_selectedAddress?.fullName}',
+    );
+
+    if (userId == null || _selectedAddress == null) {
+      debugPrint('[CHECKOUT][ERROR] userId or address is null. Aborting.');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please sign in and select an address to continue.'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (cartItems.isEmpty) {
+      debugPrint('[CHECKOUT][ERROR] Cart is empty. Aborting.');
+      return;
+    }
+
+    // Snapshot cart items BEFORE opening Razorpay.
+    _capturedCartItems = List.unmodifiable(cartItems);
+    _capturedRazorpayOrderId = null;
 
     setState(() => _isProcessing = true);
 
     try {
-      final groupedBySeller = <String, List<CartItem>>{};
-      for (final item in cartItems) {
-        groupedBySeller.putIfAbsent(item.storeId, () => []);
-        groupedBySeller[item.storeId]!.add(item);
+      // ── 1. Compute totals ─────────────────────────────────────────────────
+      final subtotal = _capturedCartItems.fold<double>(
+        0,
+        (s, i) => s + (i.unitPrice * i.quantity),
+      );
+      final platformConfig =
+          ref.read(platformConfigProvider).value ??
+          const PlatformConfig(
+            defaultCommissionRate: 0.085,
+            categoryCommissionOverrides: {},
+            maintenanceModeActive: false,
+            globalRateLimitPerMinute: 600,
+            razorpayKey: 'managed_via_functions',
+          );
+      final platformFee = subtotal * platformConfig.defaultCommissionRate;
+
+      final groupedItems = <String, List<CartItem>>{};
+      for (final item in _capturedCartItems) {
+        groupedItems.putIfAbsent(item.storeId, () => []).add(item);
+      }
+      double deliveryFee = 0;
+      groupedItems.forEach((_, items) {
+        final s = items.fold<double>(
+          0,
+          (sum, i) => sum + (i.unitPrice * i.quantity),
+        );
+        if (s < 1000) deliveryFee += 99.0;
+      });
+      final total = subtotal + platformFee + deliveryFee;
+      final amountInPaise = (total * 100).round();
+
+      debugPrint(
+        '[CHECKOUT] Totals — subtotal=$subtotal'
+        ' platformFee=$platformFee'
+        ' deliveryFee=$deliveryFee'
+        ' total=$total'
+        ' paise=$amountInPaise',
+      );
+
+      // ── 2. Fetch public Razorpay key from Cloud Function ──────────────────
+      debugPrint('[RAZORPAY] Fetching public key from Cloud Function...');
+      final razorpayKey = await ref.read(razorpayKeyProvider.future);
+      debugPrint(
+        '[RAZORPAY] Key received (prefix): ${razorpayKey.substring(0, 12)}...',
+      );
+
+      // ── 3. Get Firebase ID token ──────────────────────────────────────────
+      debugPrint('[AUTH] Fetching Firebase ID token...');
+      final idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
+      if (idToken == null) {
+        throw Exception('Authentication expired. Please sign in again.');
       }
 
-      final ordersToCreate = <AppOrder>[];
-      final now = DateTime.now();
+      // ── 4. Create server-side Razorpay order ─────────────────────────────
+      debugPrint(
+        '[RAZORPAY] Creating server-side order: amount=$amountInPaise paise...',
+      );
+      final rzpOrderData = await createRazorpayOrder(
+        amountInPaise: amountInPaise,
+        idToken: idToken,
+        receipt:
+            'rcpt_${userId.substring(0, 8)}_${DateTime.now().millisecondsSinceEpoch}',
+      );
 
-      for (final entry in groupedBySeller.entries) {
-        final items = entry.value;
-        final sub = items.fold<double>(
-          0,
-          (sum, item) => sum + (item.unitPrice * item.quantity),
+      _capturedRazorpayOrderId = rzpOrderData['id'] as String?;
+      if (_capturedRazorpayOrderId == null ||
+          _capturedRazorpayOrderId!.isEmpty) {
+        throw Exception('Failed to create payment order. Please try again.');
+      }
+      debugPrint('[RAZORPAY] Server order created: $_capturedRazorpayOrderId');
+
+      // ── 5. Build options and launch Razorpay (platform-aware) ────────────
+      final options = <String, dynamic>{
+        'key': razorpayKey,
+        'amount': amountInPaise,
+        'order_id': _capturedRazorpayOrderId!,
+        'name': 'E-Commerce App',
+        'description': 'Order for ${_capturedCartItems.length} item(s)',
+        'timeout': 300,
+        'prefill': {
+          'contact': _selectedAddress!.phone,
+          'email':
+              FirebaseAuth.instance.currentUser?.email ?? 'customer@ecom.app',
+          'name': _selectedAddress!.fullName,
+        },
+        'notes': {
+          'buyer_id': userId,
+          'item_count': _capturedCartItems.length.toString(),
+        },
+      };
+
+      debugPrint(
+        '[RAZORPAY] Launching checkout. options.keys=${options.keys.toList()}',
+      );
+
+      // ── THE FIX: Use RazorpayService which uses JS interop on Web,
+      // ──          native SDK on Android/iOS. Awaits the result as a Future.
+      final result = await RazorpayService.launch(options);
+
+      debugPrint('[RAZORPAY] Checkout result: ${result.runtimeType}');
+
+      // ── 6. Handle result ──────────────────────────────────────────────────
+      if (result is RazorpaySuccess) {
+        debugPrint(
+          '[PAYMENT][SUCCESS] paymentId=${result.paymentId} orderId=${result.orderId}',
         );
-        final delFee = sub < 1000 ? 99.0 : 0.0;
-        final platFee = sub * 0.02;
-
-        ordersToCreate.add(
-          AppOrder(
-            orderId: '',
-            buyerId: userId,
-            buyerName: _selectedAddress!.fullName,
-            storeId: entry.key,
-            storeName: items.first.storeName,
-            status: OrderStatus.pending,
-            items: items
-                .map(
-                  (i) => OrderItem(
-                    productId: i.productId,
-                    title: i.title,
-                    imageUrl: i.imageUrl,
-                    quantity: i.quantity,
-                    unitPrice: i.unitPrice,
-                  ),
-                )
-                .toList(),
-            subtotal: sub,
-            deliveryFee: delFee,
-            platformFee: platFee,
-            totalAmount: sub + delFee + platFee,
-            paymentMethod: _paymentMethod,
-            paymentStatus: 'pending',
-            deliveryAddress: _selectedAddress!.fullAddress,
-            createdAt: now,
-            updatedAt: now,
+        // _isProcessing stays true during finalization
+        await _finalizePayment(
+          paymentId: result.paymentId,
+          rzpOrderId: result.orderId.isNotEmpty
+              ? result.orderId
+              : _capturedRazorpayOrderId!,
+          signature: result.signature,
+        );
+        // _isProcessing is reset inside _finalizePayment finally block
+        return; // don't reset _isProcessing twice
+      } else if (result is RazorpayCancelled) {
+        debugPrint('[PAYMENT] User cancelled Razorpay checkout.');
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Payment cancelled. Your cart is safe.'),
+            backgroundColor: AppColors.warning,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      } else if (result is RazorpayFailure) {
+        debugPrint(
+          '[PAYMENT][ERROR] code=${result.code} message=${result.message}',
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Payment failed: ${result.message}'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
-
-      await ref
-          .read(orderControllerProvider.notifier)
-          .checkout(
-            orders: ordersToCreate,
-            onFailure: (error) {
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Order failed: $error'),
-                  backgroundColor: AppColors.error,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-              );
-              setState(() => _isProcessing = false);
-            },
-            onSuccess: () async {
-              await ref.read(cartControllerProvider.notifier).clearCart();
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Order placed successfully!'),
-                  backgroundColor: AppColors.success,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-              );
-              context.go('/buyer/orders');
-            },
-          );
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        )
-      );
-      setState(() => _isProcessing = false);
+      debugPrint('[CHECKOUT][ERROR] _handlePlaceOrder threw: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    } finally {
+      // Always reset loading state — covers error, cancel, and failure paths.
+      // Success path resets inside _finalizePayment.
+      if (mounted) setState(() => _isProcessing = false);
     }
   }
 
-  Widget _billRow(String label, double amount, bool isDark, {bool isBold = false, Color? valueColor}) {
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  Widget _billRow(
+    String label,
+    double amount,
+    bool isDark, {
+    bool isBold = false,
+    Color? valueColor,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -761,7 +1173,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           style: TextStyle(
             fontSize: 15,
             fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
-            color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+            color: isDark
+                ? AppColors.textSecondaryDark
+                : AppColors.textSecondaryLight,
           ),
         ),
         Text(
@@ -769,7 +1183,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.bold,
-            color: valueColor ?? (isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight),
+            color:
+                valueColor ??
+                (isDark
+                    ? AppColors.textPrimaryDark
+                    : AppColors.textPrimaryLight),
           ),
         ),
       ],
@@ -777,11 +1195,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 }
 
+// ── Payment Option Tile ────────────────────────────────────────────────────
+
 class _PaymentOptionTile extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
-  final String value;
   final bool isSelected;
   final bool isDark;
 
@@ -789,7 +1208,6 @@ class _PaymentOptionTile extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
-    required this.value,
     required this.isSelected,
     required this.isDark,
   });
@@ -799,50 +1217,66 @@ class _PaymentOptionTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: isSelected ? (isDark ? AppColors.primaryLight : AppColors.primary).withValues(alpha: 0.05) : (isDark ? AppColors.surfaceDark : Colors.white),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isSelected ? (isDark ? AppColors.primaryLight : AppColors.primary) : (isDark ? AppColors.borderDark : AppColors.borderLight),
-          width: isSelected ? 2 : 1,
-        ),
         boxShadow: isDark ? AppShadows.darkSm : AppShadows.lightSm,
       ),
-      child: RadioListTile<String>(
-        value: value,
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: (isDark ? AppColors.primaryLight : AppColors.primary).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, size: 24, color: isDark ? AppColors.primaryLight : AppColors.primary),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              title,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
-              ),
-            ),
-          ],
+      child: Material(
+        color: isSelected
+            ? (isDark ? AppColors.primaryLight : AppColors.primary).withValues(
+                alpha: 0.05,
+              )
+            : (isDark ? AppColors.surfaceDark : Colors.white),
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: isSelected
+                ? (isDark ? AppColors.primaryLight : AppColors.primary)
+                : (isDark ? AppColors.borderDark : AppColors.borderLight),
+            width: isSelected ? 2 : 1,
+          ),
         ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(left: 44, top: 4),
-          child: Text(
+        child: ListTile(
+          contentPadding: const EdgeInsets.all(16),
+          leading: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: (isDark ? AppColors.primaryLight : AppColors.primary)
+                  .withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              size: 24,
+              color: isDark ? AppColors.primaryLight : AppColors.primary,
+            ),
+          ),
+          title: Text(
+            title,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: isDark
+                  ? AppColors.textPrimaryDark
+                  : AppColors.textPrimaryLight,
+            ),
+          ),
+          subtitle: Text(
             subtitle,
             style: TextStyle(
               fontSize: 13,
-              color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+              color: isDark
+                  ? AppColors.textSecondaryDark
+                  : AppColors.textSecondaryLight,
             ),
           ),
+          trailing: isSelected
+              ? Icon(
+                  Icons.check_circle,
+                  color: isDark ? AppColors.primaryLight : AppColors.primary,
+                )
+              : null,
         ),
-        activeColor: isDark ? AppColors.primaryLight : AppColors.primary,
-        contentPadding: const EdgeInsets.all(8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
     );
   }

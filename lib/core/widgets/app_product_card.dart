@@ -1,10 +1,11 @@
 import 'dart:ui';
-import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
-import '../theme/app_shadows.dart';
 
+import 'package:flutter/material.dart';
+
+import '../theme/app_colors.dart';
 import 'app_network_image.dart';
 import 'app_price_text.dart';
+import 'cards/glass_card.dart';
 
 class AppProductCard extends StatefulWidget {
   final String title;
@@ -39,9 +40,10 @@ class _AppProductCardState extends State<AppProductCard>
       vsync: this,
       duration: const Duration(milliseconds: 150),
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.96).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.96,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -55,6 +57,7 @@ class _AppProductCardState extends State<AppProductCard>
     _controller.reverse();
     widget.onTap();
   }
+
   void _onTapCancel() => _controller.reverse();
 
   @override
@@ -62,33 +65,21 @@ class _AppProductCardState extends State<AppProductCard>
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTapDown: _onTapDown,
-        onTapUp: _onTapUp,
-        onTapCancel: _onTapCancel,
-        child: AnimatedBuilder(
-          animation: _scaleAnimation,
-          builder: (context, child) => Transform.scale(
-            scale: _scaleAnimation.value,
-            child: child,
-          ),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.surfaceDark : Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: isDark ? AppColors.borderDark : AppColors.borderLight,
-              ),
-              boxShadow: _isHovered
-                  ? (isDark ? AppShadows.darkLg : AppShadows.lightLg)
-                  : (isDark ? AppShadows.darkSm : AppShadows.lightSm),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
+    return RepaintBoundary(
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: GestureDetector(
+          onTapDown: _onTapDown,
+          onTapUp: _onTapUp,
+          onTapCancel: _onTapCancel,
+          child: AnimatedBuilder(
+            animation: _scaleAnimation,
+            builder: (context, child) =>
+                Transform.scale(scale: _scaleAnimation.value, child: child),
+            child: GlassCard(
+              isDark: isDark,
+              padding: EdgeInsets.zero,
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final imageHeight = constraints.maxHeight * 0.65;
@@ -100,7 +91,11 @@ class _AppProductCardState extends State<AppProductCard>
                         children: [
                           AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
-                            transform: Matrix4.diagonal3Values(_isHovered ? 1.05 : 1.0, _isHovered ? 1.05 : 1.0, 1.0),
+                            transform: Matrix4.diagonal3Values(
+                              _isHovered ? 1.05 : 1.0,
+                              _isHovered ? 1.05 : 1.0,
+                              1.0,
+                            ),
                             transformAlignment: Alignment.center,
                             child: AppNetworkImage(
                               imageUrl: widget.imageUrl,
@@ -109,24 +104,28 @@ class _AppProductCardState extends State<AppProductCard>
                             ),
                           ),
                           Positioned(
-                            top: 12,
-                            right: 12,
+                            top: 8,
+                            right: 8,
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(20),
                               child: BackdropFilter(
                                 filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
                                 child: Container(
-                                  padding: const EdgeInsets.all(8),
+                                  padding: const EdgeInsets.all(6),
                                   decoration: BoxDecoration(
-                                    color: (isDark ? Colors.black : Colors.white).withValues(alpha: 0.6),
+                                    color:
+                                        (isDark ? Colors.black : Colors.white)
+                                            .withValues(alpha: 0.6),
                                     shape: BoxShape.circle,
                                     border: Border.all(
-                                      color: Colors.white.withValues(alpha: 0.2),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.2,
+                                      ),
                                     ),
                                   ),
                                   child: Icon(
                                     Icons.favorite_border,
-                                    size: 18,
+                                    size: 14,
                                     color: isDark ? Colors.white : Colors.black,
                                   ),
                                 ),
@@ -137,7 +136,7 @@ class _AppProductCardState extends State<AppProductCard>
                       ),
                       Expanded(
                         child: Padding(
-                          padding: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.all(8),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -148,49 +147,75 @@ class _AppProductCardState extends State<AppProductCard>
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontWeight: FontWeight.w700,
-                                  fontSize: 14,
+                                  fontSize: 12,
                                   height: 1.2,
-                                  color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                                  color: isDark
+                                      ? AppColors.textPrimaryDark
+                                      : AppColors.textPrimaryLight,
                                 ),
                               ),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
                                   Flexible(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           'Price',
                                           style: TextStyle(
-                                            fontSize: 10,
+                                            fontSize: 8,
                                             fontWeight: FontWeight.w600,
-                                            color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                                            color: isDark
+                                                ? AppColors.textSecondaryDark
+                                                : AppColors.textSecondaryLight,
                                           ),
                                         ),
                                         const SizedBox(height: 2),
-                                        AppPriceText(amount: widget.price),
+                                        AppPriceText(
+                                          amount: widget.price,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: theme.colorScheme.primary,
+                                          ),
+                                        ),
                                       ],
                                     ),
                                   ),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                      vertical: 2,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
+                                      color: isDark
+                                          ? Colors.white.withValues(alpha: 0.1)
+                                          : Colors.black.withValues(
+                                              alpha: 0.05,
+                                            ),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const Icon(Icons.star_rounded, size: 14, color: AppColors.warning),
-                                        const SizedBox(width: 4),
+                                        const Icon(
+                                          Icons.star_rounded,
+                                          size: 11,
+                                          color: AppColors.warning,
+                                        ),
+                                        const SizedBox(width: 2),
                                         Text(
                                           widget.rating.toStringAsFixed(1),
                                           style: TextStyle(
-                                            fontSize: 12,
+                                            fontSize: 10,
                                             fontWeight: FontWeight.w700,
-                                            color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                                            color: isDark
+                                                ? AppColors.textPrimaryDark
+                                                : AppColors.textPrimaryLight,
                                           ),
                                         ),
                                       ],

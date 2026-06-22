@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:ecom/features/orders/data/dtos/order_dto.dart';
 import 'package:ecom/features/orders/domain/entities/order.dart';
 import 'package:ecom/features/orders/domain/entities/order_status.dart';
@@ -14,13 +15,16 @@ class OrderRepositoryImpl implements OrderRepository {
   Future<Either<String, List<String>>> checkout({
     required List<AppOrder> orders,
   }) async {
+    debugPrint('[CHECKOUT] OrderRepositoryImpl.checkout: Beginning Firestore Transaction...');
     try {
       return await firestore.runTransaction((transaction) async {
         final orderIds = <String>[];
 
         // 1. Validate Stock for all items in all orders
         for (final order in orders) {
+          debugPrint('[CHECKOUT] OrderRepositoryImpl.checkout: Validating items for order from buyer: ${order.buyerId}, storeId: ${order.storeId}');
           for (final item in order.items) {
+            debugPrint('[CHECKOUT] OrderRepositoryImpl.checkout: Validating stock for productId: ${item.productId}, requested qty: ${item.quantity}');
             final productRef = firestore
                 .collection('catalog')
                 .doc(item.productId);
@@ -33,14 +37,17 @@ class OrderRepositoryImpl implements OrderRepository {
             final productDoc = await transaction.get(productRef);
 
             if (!productDoc.exists) {
+              debugPrint('[CHECKOUT] OrderRepositoryImpl.checkout Error: Product ${item.productId} not found in catalog');
               throw Exception('Product ${item.title} not found in catalog');
             }
 
             final data = productDoc.data() as Map<String, dynamic>;
             final metadata = data['metadata'] as Map<String, dynamic>? ?? {};
             final currentStock = (metadata['stock'] as num?) ?? 0;
+            debugPrint('[CHECKOUT] OrderRepositoryImpl.checkout: Product stock in DB: $currentStock');
 
             if (currentStock < item.quantity) {
+              debugPrint('[CHECKOUT] OrderRepositoryImpl.checkout Error: Insufficient stock for ${item.title}');
               throw Exception('Insufficient stock for ${item.title}');
             }
 
@@ -54,6 +61,7 @@ class OrderRepositoryImpl implements OrderRepository {
             };
 
             // 2. Deduct Stock in both collections
+            debugPrint('[CHECKOUT] OrderRepositoryImpl.checkout: Deducting stock. New stock: $newStock, new status: $newStatus');
             transaction.update(productRef, stockUpdate);
             transaction.update(storeProductRef, stockUpdate);
           }
@@ -63,6 +71,7 @@ class OrderRepositoryImpl implements OrderRepository {
         for (final order in orders) {
           final docRef = firestore.collection('orders').doc();
           orderIds.add(docRef.id);
+          debugPrint('[CHECKOUT] OrderRepositoryImpl.checkout: Creating order document with ID: ${docRef.id}');
 
           final dto = OrderDto(
             orderId: docRef.id,
@@ -96,6 +105,7 @@ class OrderRepositoryImpl implements OrderRepository {
           transaction.set(docRef, dto.toFirestore());
 
           // 4. Create Notifications (Atomic within transaction)
+          debugPrint('[CHECKOUT] OrderRepositoryImpl.checkout: Dispatching notifications for buyer and seller');
           _addNotification(
             transaction,
             order.buyerId,
@@ -113,9 +123,11 @@ class OrderRepositoryImpl implements OrderRepository {
           );
         }
 
+        debugPrint('[CHECKOUT] OrderRepositoryImpl.checkout: Transaction complete. Returning order IDs: $orderIds');
         return Right(orderIds);
       });
     } catch (e) {
+      debugPrint('[CHECKOUT] OrderRepositoryImpl.checkout Exception caught: $e');
       return Left(e.toString().replaceAll('Exception: ', ''));
     }
   }

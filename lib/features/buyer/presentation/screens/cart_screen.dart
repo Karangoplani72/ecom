@@ -5,9 +5,14 @@ import 'package:ecom/core/widgets/app_loading_view.dart';
 import 'package:ecom/core/widgets/app_price_text.dart';
 import 'package:ecom/core/widgets/app_primary_button.dart';
 import 'package:ecom/core/widgets/responsive_layout.dart';
+import 'package:ecom/core/widgets/scaffolds/premium_25d_scaffold.dart';
+import 'package:ecom/core/widgets/cards/glass_card.dart';
 import 'package:ecom/features/buyer/presentation/controllers/cart_controller.dart';
 import 'package:ecom/core/theme/app_colors.dart';
 import 'package:ecom/core/theme/app_shadows.dart';
+import 'package:ecom/core/providers/common_providers.dart';
+import 'package:ecom/features/buyer/presentation/controllers/guest_cart_controller.dart';
+import 'package:ecom/features/buyer/presentation/widgets/buyer_side_drawer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -17,12 +22,20 @@ class CartScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cartAsync = ref.watch(cartStreamProvider);
+    final userId = ref.watch(currentUserIdProvider);
+    final cartAsync = userId == null 
+        ? AsyncValue.data(ref.watch(guestCartControllerProvider)) 
+        : ref.watch(cartStreamProvider);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+    return Premium25DScaffold(
+      isDark: isDark,
+      drawer: const BuyerSideDrawer(),
+      particles: [
+        FloatingParticle(imagePath: 'assets/images/25d_cart.svg', width: 60, height: 60, dx: -50, dy: 100, delay: 0.1, depth: 1.5),
+        FloatingParticle(imagePath: 'assets/images/25d_bag.svg', width: 40, height: 40, dx: 300, dy: 300, delay: 0.5, depth: 0.8),
+      ],
       appBar: AppBar(
         title: Text(
           'My Cart',
@@ -33,7 +46,7 @@ class CartScreen extends ConsumerWidget {
           ),
         ),
         centerTitle: true,
-        backgroundColor: theme.scaffoldBackgroundColor,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
           cartAsync.when(
@@ -120,16 +133,9 @@ class CartScreen extends ConsumerWidget {
                           size: 28,
                         ),
                       ),
-                      child: Container(
+                      child: GlassCard(
+                        isDark: isDark,
                         padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: isDark ? AppColors.surfaceDark : Colors.white,
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: isDark ? AppColors.borderDark : AppColors.borderLight,
-                          ),
-                          boxShadow: isDark ? AppShadows.darkSm : AppShadows.lightSm,
-                        ),
                         child: Row(
                           children: [
                             GestureDetector(
@@ -327,7 +333,17 @@ class CartScreen extends ConsumerWidget {
                               const SizedBox(height: 20),
                               AppPrimaryButton(
                                 text: 'Proceed to Checkout',
-                                onPressed: () => context.push('/buyer/checkout'),
+                                onPressed: () {
+                                  debugPrint('[CHECKOUT] Proceed to Checkout clicked. userId: $userId');
+                                  if (userId == null) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Please login to purchase items')),
+                                    );
+                                    context.push('/login');
+                                  } else {
+                                    context.push('/buyer/checkout');
+                                  }
+                                },
                                 icon: Icons.arrow_forward,
                               ),
                             ],

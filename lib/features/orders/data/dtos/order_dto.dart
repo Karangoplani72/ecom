@@ -20,11 +20,11 @@ class OrderItemDto {
 
   factory OrderItemDto.fromMap(Map<String, dynamic> map) {
     return OrderItemDto(
-      productId: map['productId'] ?? '',
-      title: map['title'] ?? '',
-      imageUrl: map['imageUrl'] ?? '',
-      quantity: map['quantity'] ?? 0,
-      unitPrice: (map['unitPrice'] ?? 0).toDouble(),
+      productId: map['productId'] as String? ?? '',
+      title: map['title'] as String? ?? '',
+      imageUrl: map['imageUrl'] as String? ?? '',
+      quantity: (map['quantity'] as num?)?.toInt() ?? 0,
+      unitPrice: (map['unitPrice'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -63,6 +63,8 @@ class OrderDto {
   final double totalAmount;
   final String paymentMethod;
   final String paymentStatus;
+  final String? paymentId;
+  final String? razorpayOrderId;
   final String deliveryAddress;
   final Timestamp createdAt;
   final Timestamp updatedAt;
@@ -81,6 +83,8 @@ class OrderDto {
     required this.totalAmount,
     required this.paymentMethod,
     required this.paymentStatus,
+    this.paymentId,
+    this.razorpayOrderId,
     required this.deliveryAddress,
     required this.createdAt,
     required this.updatedAt,
@@ -90,23 +94,25 @@ class OrderDto {
     final data = doc.data() ?? {};
     return OrderDto(
       orderId: doc.id,
-      buyerId: data['buyerId'] ?? '',
-      buyerName: data['buyerName'] ?? '',
-      storeId: data['storeId'] ?? '',
-      storeName: data['storeName'] ?? '',
-      status: data['status'] ?? 'pending',
+      buyerId: data['buyerId'] as String? ?? '',
+      buyerName: data['buyerName'] as String? ?? '',
+      storeId: data['storeId'] as String? ?? '',
+      storeName: data['storeName'] as String? ?? '',
+      status: data['status'] as String? ?? 'pending',
       items: List<Map<String, dynamic>>.from(
-        data['items'] ?? [],
+        data['items'] as List? ?? [],
       ).map((item) => OrderItemDto.fromMap(item)).toList(),
-      subtotal: (data['subtotal'] ?? 0).toDouble(),
-      deliveryFee: (data['deliveryFee'] ?? 0).toDouble(),
-      platformFee: (data['platformFee'] ?? 0).toDouble(),
-      totalAmount: (data['totalAmount'] ?? 0).toDouble(),
-      paymentMethod: data['paymentMethod'] ?? 'COD',
-      paymentStatus: data['paymentStatus'] ?? 'pending',
-      deliveryAddress: data['deliveryAddress'] ?? '',
-      createdAt: data['createdAt'] ?? Timestamp.now(),
-      updatedAt: data['updatedAt'] ?? Timestamp.now(),
+      subtotal: (data['subtotal'] as num?)?.toDouble() ?? 0.0,
+      deliveryFee: (data['deliveryFee'] as num?)?.toDouble() ?? 0.0,
+      platformFee: (data['platformFee'] as num?)?.toDouble() ?? 0.0,
+      totalAmount: (data['totalAmount'] as num?)?.toDouble() ?? 0.0,
+      paymentMethod: data['paymentMethod'] as String? ?? 'COD',
+      paymentStatus: data['paymentStatus'] as String? ?? 'pending',
+      paymentId: data['paymentId'] as String?,
+      razorpayOrderId: data['razorpayOrderId'] as String?,
+      deliveryAddress: data['deliveryAddress'] as String? ?? '',
+      createdAt: data['createdAt'] as Timestamp? ?? Timestamp.now(),
+      updatedAt: data['updatedAt'] as Timestamp? ?? Timestamp.now(),
     );
   }
 
@@ -124,6 +130,8 @@ class OrderDto {
       'totalAmount': totalAmount,
       'paymentMethod': paymentMethod,
       'paymentStatus': paymentStatus,
+      if (paymentId != null) 'paymentId': paymentId,
+      if (razorpayOrderId != null) 'razorpayOrderId': razorpayOrderId,
       'deliveryAddress': deliveryAddress,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
@@ -148,6 +156,8 @@ class OrderDto {
       totalAmount: totalAmount,
       paymentMethod: paymentMethod,
       paymentStatus: paymentStatus,
+      paymentId: paymentId,
+      razorpayOrderId: razorpayOrderId,
       deliveryAddress: deliveryAddress,
       createdAt: createdAt.toDate(),
       updatedAt: updatedAt.toDate(),

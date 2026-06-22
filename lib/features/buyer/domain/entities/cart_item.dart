@@ -43,6 +43,7 @@ class CartItem {
 
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
       'productId': productId,
       'title': title,
       'storeId': storeId,
@@ -51,5 +52,18 @@ class CartItem {
       'imageUrl': imageUrl,
       'quantity': quantity,
     };
+  }
+
+  factory CartItem.fromMap(Map<String, dynamic> map) {
+    return CartItem(
+      id: map['id'] ?? '',
+      productId: map['productId'] ?? '',
+      title: map['title'] ?? '',
+      storeId: map['storeId'] ?? '',
+      storeName: map['storeName'] ?? '',
+      unitPrice: (map['unitPrice'] ?? 0.0).toDouble(),
+      imageUrl: map['imageUrl'] ?? '',
+      quantity: map['quantity']?.toInt() ?? 1,
+    );
   }
 }
