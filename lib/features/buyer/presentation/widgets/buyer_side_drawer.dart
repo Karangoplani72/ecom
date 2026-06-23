@@ -1,3 +1,4 @@
+import 'package:ecom/core/providers/theme_provider.dart';
 import 'package:ecom/core/theme/app_colors.dart';
 import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:ecom/features/buyer/presentation/controllers/profile_image_controller.dart';
@@ -14,6 +15,7 @@ class BuyerSideDrawer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final themeMode = ref.watch(themeProvider);
     final userAsync = ref.watch(currentUserProfileProvider);
     final opt = ref.watch(optimisticProfileProvider);
     final user = userAsync.value;
@@ -158,6 +160,60 @@ class BuyerSideDrawer extends ConsumerWidget {
                       },
                     ),
                     const Divider(height: 32),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Theme Mode',
+                            style: TextStyle(
+                              color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.05)
+                                  : Colors.black.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            padding: const EdgeInsets.all(4),
+                            child: Row(
+                              children: [
+                                _buildThemeToggleBtn(
+                                  context,
+                                  ref,
+                                  icon: Icons.light_mode_outlined,
+                                  mode: ThemeMode.light,
+                                  activeMode: themeMode,
+                                  isDark: isDark,
+                                ),
+                                _buildThemeToggleBtn(
+                                  context,
+                                  ref,
+                                  icon: Icons.dark_mode_outlined,
+                                  mode: ThemeMode.dark,
+                                  activeMode: themeMode,
+                                  isDark: isDark,
+                                ),
+                                _buildThemeToggleBtn(
+                                  context,
+                                  ref,
+                                  icon: Icons.settings_brightness_outlined,
+                                  mode: ThemeMode.system,
+                                  activeMode: themeMode,
+                                  isDark: isDark,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 32),
                     if (user != null)
                       _DrawerMenuItem(
                         icon: Icons.logout,
@@ -198,6 +254,45 @@ class BuyerSideDrawer extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildThemeToggleBtn(
+    BuildContext context,
+    WidgetRef ref, {
+    required IconData icon,
+    required ThemeMode mode,
+    required ThemeMode activeMode,
+    required bool isDark,
+  }) {
+    final isActive = mode == activeMode;
+    return GestureDetector(
+      onTap: () => ref.read(themeProvider.notifier).setThemeMode(mode),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isActive
+              ? (isDark ? Colors.white.withValues(alpha: 0.15) : Colors.white)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: isActive && !isDark
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Icon(
+          icon,
+          size: 18,
+          color: isActive
+              ? (isDark ? Colors.white : Theme.of(context).colorScheme.primary)
+              : (isDark ? Colors.white70 : Colors.black54),
+        ),
       ),
     );
   }

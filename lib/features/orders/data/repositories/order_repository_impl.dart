@@ -219,7 +219,8 @@ class OrderRepositoryImpl implements OrderRepository {
 
       return const Right(unit);
     } catch (e) {
-      return Left('Failed to update order status: $e');
+      final message = e.toString().replaceFirst('Exception: ', '');
+      return Left('Failed to update order status: $message');
     }
   }
 

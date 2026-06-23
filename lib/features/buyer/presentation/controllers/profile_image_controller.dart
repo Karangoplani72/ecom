@@ -26,26 +26,19 @@ class ProfileImageController extends _$ProfileImageController {
 
   @override
   ProfileImageState build() {
-    // Reset state if auth status changes (e.g. logout)
     ref.watch(firebaseAuthStateProvider);
-
-    // Keep alive so state survives navigation away from the profile screen.
-    // Without this the provider auto-disposes when the screen unmounts and
-    // the uploaded image is lost when the user navigates back.
     ref.keepAlive();
     return ProfileImageState.initial();
   }
 
   Future<void> pickAndUploadImage(ImageSource source) async {
-    debugPrint(
-      '[PROFILE_UPLOAD] pickAndUploadImage: Triggered with source=$source',
-    );
+    debugPrint('[PROFILE_UPLOAD] pickAndUploadImage: source=$source');
 
-    // 1. Check internet connectivity
+    // 1. Connectivity check
     try {
-      final connectivityResult = await Connectivity().checkConnectivity();
-      if (connectivityResult.contains(ConnectivityResult.none)) {
-        debugPrint('[PROFILE_UPLOAD][ERROR] No internet connection');
+      final result = await Connectivity().checkConnectivity();
+      if (result.contains(ConnectivityResult.none)) {
+        debugPrint('[PROFILE_UPLOAD][ERROR] No internet');
         state = const ProfileImageState(
           status: ProfileImageStatus.error,
           errorMessage:
@@ -54,21 +47,18 @@ class ProfileImageController extends _$ProfileImageController {
         return;
       }
     } catch (e) {
-      debugPrint('[PROFILE_UPLOAD][WARNING] Failed to check connectivity: $e');
+      debugPrint('[PROFILE_UPLOAD][WARNING] Connectivity check failed: $e');
     }
 
-    // 2. Set loading state while picker opens
+    // 2. Loading state while picker opens
     state = const ProfileImageState(status: ProfileImageStatus.loading);
 
-    // 3. Open image picker
+    // 3. Pick image
     XFile? pickedFile;
     try {
-      pickedFile = await _picker.pickImage(
-        source: source,
-        imageQuality: 100, // We will compress manually in our repository/utils
-      );
+      pickedFile = await _picker.pickImage(source: source, imageQuality: 100);
     } catch (e) {
-      debugPrint('[PROFILE_UPLOAD][ERROR] Image picking failed: $e');
+      debugPrint('[PROFILE_UPLOAD][ERROR] Picker failed: $e');
       state = ProfileImageState(
         status: ProfileImageStatus.error,
         errorMessage: 'Failed to access camera/gallery: ${e.toString()}',
@@ -76,41 +66,39 @@ class ProfileImageController extends _$ProfileImageController {
       return;
     }
 
-    // 4. Handle user cancellation
+    // 4. User cancelled
     if (pickedFile == null) {
-      debugPrint('[PROFILE_UPLOAD] Image picking cancelled by user');
+      debugPrint('[PROFILE_UPLOAD] Cancelled by user');
       state = ProfileImageState.initial();
       return;
     }
 
-    // 5. Read bytes — this is the cross-platform-safe step. `XFile.readAsBytes()`
-    // works identically on web, mobile, and desktop, unlike `dart:io.File`
-    // (whose `.path` is an unusable blob: URL on web).
+    // 5. Read bytes (cross-platform: XFile.readAsBytes() works on web + native)
     final Uint8List bytes;
     try {
       bytes = await pickedFile.readAsBytes();
     } catch (e) {
-      debugPrint(
-        '[PROFILE_UPLOAD][ERROR] Failed to read picked file bytes: $e',
-      );
+      debugPrint('[PROFILE_UPLOAD][ERROR] Failed to read bytes: $e');
       state = ProfileImageState(
         status: ProfileImageStatus.error,
         errorMessage: 'Failed to read the selected image. Please try again.',
       );
       return;
     }
-    final String fileName = pickedFile.name;
+    final fileName = pickedFile.name;
+    debugPrint('[PROFILE_UPLOAD] Picked: $fileName (${bytes.length} bytes)');
 
-    // 6. Show local preview immediately (bytes-based — safe on every platform)
-    debugPrint(
-      '[PROFILE_UPLOAD] Showing local preview immediately: $fileName (${bytes.length} bytes)',
-    );
+    // 6. Capture the CURRENT photoUrl BEFORE we start uploading so we can
+    // evict it from Flutter's image cache once the upload succeeds.
+    final previousUrl = ref.read(currentUserProfileProvider).value?.photoUrl;
+
+    // 7. Show local preview immediately
     state = ProfileImageState(
       status: ProfileImageStatus.uploading,
       localImageBytes: bytes,
     );
 
-    // 7. Perform repository upload (validates, compresses, uploads, updates Firestore)
+    // 8. Upload via repository
     final repository = ref.read(profileRepositoryProvider);
     final result = await repository.uploadProfileImage(
       bytes: bytes,
@@ -119,7 +107,7 @@ class ProfileImageController extends _$ProfileImageController {
 
     await result.fold(
       (failure) async {
-        debugPrint('[PROFILE_UPLOAD][ERROR] Flow failed: ${failure.message}');
+        debugPrint('[PROFILE_UPLOAD][ERROR] Upload failed: ${failure.message}');
         if (!ref.mounted) return;
         state = ProfileImageState(
           status: ProfileImageStatus.error,
@@ -128,16 +116,19 @@ class ProfileImageController extends _$ProfileImageController {
         );
       },
       (imageUrl) async {
-        debugPrint(
-          '[PROFILE_UPLOAD][SUCCESS] Flow completed successfully: $imageUrl',
-        );
+        debugPrint('[PROFILE_UPLOAD][SUCCESS] url=$imageUrl');
 
-        // BELT-AND-SUSPENDERS:
-        // We use cache-busting (?v=timestamp) so the URL is technically new,
-        // but some aggressive caches might still be tricky.
-        // Also, evicting the OLD url would be better, but since the new one
-        // is what we are about to show, we ensure Flutter's memory cache is
-        // clean for it just in case.
+        // CRITICAL FIX: Evict the OLD url from Flutter's memory cache, not
+        // the new one. The old entry is what causes the stale image to
+        // appear when CachedNetworkImage or Image.network reloads. We also
+        // evict the new url in case it somehow got pre-cached as a broken
+        // entry, but the old eviction is what actually fixes the bug.
+        if (previousUrl != null && previousUrl.isNotEmpty) {
+          PaintingBinding.instance.imageCache.evict(NetworkImage(previousUrl));
+          debugPrint(
+            '[PROFILE_UPLOAD] Evicted old image from cache: $previousUrl',
+          );
+        }
         PaintingBinding.instance.imageCache.evict(NetworkImage(imageUrl));
 
         if (!ref.mounted) return;
@@ -160,18 +151,19 @@ String? optimisticUserPhoto(Ref ref) {
   final uploadState = ref.watch(profileImageControllerProvider);
   final userProfile = ref.watch(currentUserProfileProvider).value;
 
-  // 1. If we have a freshly uploaded image in the controller, use it immediately.
+  // CRITICAL FIX: Return the fresh URL from a completed upload first.
   if (uploadState.status == ProfileImageStatus.success &&
       uploadState.imageUrl != null) {
     return uploadState.imageUrl;
   }
 
-  // 3. Fallback to the Firestore-persisted URL.
+  // During active upload there is no URL yet — fall back to Firestore profile.
+  // The avatar widget handles local bytes separately via optimisticProfile.
   return userProfile?.photoUrl;
 }
 
-/// A combined state for avatars across the app to show local preview
-/// during upload and the best available URL afterwards.
+/// Combined optimistic state: local bytes for immediate preview during upload,
+/// best available URL afterwards.
 class OptimisticProfile {
   final String? imageUrl;
   final Uint8List? localBytes;
@@ -191,15 +183,16 @@ OptimisticProfile optimisticProfile(Ref ref) {
 
   final isUploading = uploadState.status == ProfileImageStatus.uploading;
 
-  // Use local bytes if we are uploading OR if we just finished (to avoid flicker)
-  // or even on error (so user sees what failed).
-  final localBytes = (uploadState.status == ProfileImageStatus.uploading ||
-          uploadState.status == ProfileImageStatus.success ||
-          uploadState.status == ProfileImageStatus.error)
-      ? uploadState.localImageBytes
-      : null;
+  // Expose local bytes during upload, on success (to avoid flicker while
+  // CachedNetworkImage fetches the new URL), and on error (show what failed).
+  final localBytes = switch (uploadState.status) {
+    ProfileImageStatus.uploading ||
+    ProfileImageStatus.success ||
+    ProfileImageStatus.error => uploadState.localImageBytes,
+    _ => null,
+  };
 
-  // Prefer the freshly-uploaded URL from the controller
+  // Prefer the freshly-uploaded URL; fall back to Firestore profile URL.
   final imageUrl = uploadState.imageUrl ?? userProfile?.photoUrl;
 
   return OptimisticProfile(

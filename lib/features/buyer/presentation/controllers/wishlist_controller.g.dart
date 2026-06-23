@@ -123,7 +123,7 @@ final class WishlistControllerProvider
 }
 
 String _$wishlistControllerHash() =>
-    r'22ea8f2b31b69a436f29afceb74a2feaed0bfb95';
+    r'5c0dc57483037053b22939c632cad7927e727ac9';
 
 abstract class _$WishlistController extends $AsyncNotifier<void> {
   FutureOr<void> build();

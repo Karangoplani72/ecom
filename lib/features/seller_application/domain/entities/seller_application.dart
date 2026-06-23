@@ -20,6 +20,11 @@ class SellerApplication {
   final String? reviewedBy;
   final String? rejectionReason;
 
+  final String? bankName;
+  final String? accountNumber;
+  final String? ifscCode;
+  final String? accountHolderName;
+
   const SellerApplication({
     this.applicationId,
     required this.userId,
@@ -36,6 +41,10 @@ class SellerApplication {
     this.reviewedAt,
     this.reviewedBy,
     this.rejectionReason,
+    this.bankName,
+    this.accountNumber,
+    this.ifscCode,
+    this.accountHolderName,
   });
 
   bool get isPending => status == 'pending';
@@ -62,6 +71,10 @@ class SellerApplication {
     DateTime? reviewedAt,
     String? reviewedBy,
     String? rejectionReason,
+    String? bankName,
+    String? accountNumber,
+    String? ifscCode,
+    String? accountHolderName,
   }) {
     return SellerApplication(
       applicationId: applicationId ?? this.applicationId,
@@ -79,6 +92,10 @@ class SellerApplication {
       reviewedAt: reviewedAt ?? this.reviewedAt,
       reviewedBy: reviewedBy ?? this.reviewedBy,
       rejectionReason: rejectionReason ?? this.rejectionReason,
+      bankName: bankName ?? this.bankName,
+      accountNumber: accountNumber ?? this.accountNumber,
+      ifscCode: ifscCode ?? this.ifscCode,
+      accountHolderName: accountHolderName ?? this.accountHolderName,
     );
   }
 }

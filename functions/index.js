@@ -128,6 +128,29 @@ exports.createRazorpayOrder = onRequest(
     },
 );
 
+function isFlashSaleActive(itemData) {
+  const metadata = itemData.metadata || {};
+  if (metadata.isFlashDeal !== true) return false;
+  if (metadata.flashSaleStatus && metadata.flashSaleStatus !== 'active') return false;
+
+  const startsAt = metadata.flashSaleStartsAt;
+  const endsAt = metadata.flashSaleEndsAt;
+  if (!startsAt || !endsAt) return false;
+
+  const start = startsAt.toDate ? startsAt.toDate() : (startsAt._seconds ? new Date(startsAt._seconds * 1000) : new Date(startsAt));
+  const end = endsAt.toDate ? endsAt.toDate() : (endsAt._seconds ? new Date(endsAt._seconds * 1000) : new Date(endsAt));
+  const now = new Date();
+  return now >= start && now <= end;
+}
+
+function getEffectivePrice(itemData) {
+  const basePrice = parseFloat(itemData.basePrice) || 0;
+  if (!isFlashSaleActive(itemData)) return basePrice;
+  const metadata = itemData.metadata || {};
+  const percent = parseFloat(metadata.flashSaleDiscountPercent) || 0;
+  return basePrice * (1.0 - percent);
+}
+
 // ---------------------------------------------------------------------------
 // 3. verifyAndFinalizePayment — HMAC verification + atomic Firestore writes
 //    POST body:
@@ -277,7 +300,17 @@ exports.verifyAndFinalizePayment = onRequest(
 
             entry.currentStock = currentStock;
             entry.status = data.status || 'active';
+            entry.catalogData = data;
           }
+
+          // --- Load platform commission rate ---
+          const configRef = db.collection('platform_settings').doc('global_config');
+          const configDoc = await txn.get(configRef);
+          let defaultCommissionRate = 0.085;
+          if (configDoc.exists) {
+            defaultCommissionRate = parseFloat(configDoc.data().defaultCommissionRate) || 0.085;
+          }
+          console.log('[CONFIG] Loaded platform defaultCommissionRate:', defaultCommissionRate);
 
           // ── 2b. PHASE 2 — ALL WRITES ──
           const serverNow = admin.firestore.FieldValue.serverTimestamp();
@@ -300,11 +333,55 @@ exports.verifyAndFinalizePayment = onRequest(
             txn.update(entry.storeProductRef, stockUpdate);
           }
 
-          // ── 2c. Create order documents ──
+          // ── 2c. Create order documents, transaction logs & update wallets ──
 
           for (const order of orders) {
             const orderRef = db.collection('orders').doc();
             orderIds.push(orderRef.id);
+
+            let orderSubtotal = 0;
+            let orderPlatformFee = 0;
+            let orderVendorPayout = 0;
+
+            const orderItems = order.items.map((item) => {
+              const entry = stockEntries.get(item.productId);
+              const catalogData = entry.catalogData;
+              const originalPrice = parseFloat(catalogData.basePrice) || 0;
+              const effectivePrice = getEffectivePrice(catalogData);
+              const qty = parseInt(item.quantity) || 1;
+
+              const isSale = isFlashSaleActive(catalogData);
+              const metadata = catalogData.metadata || {};
+              const sponsor = metadata.flashSaleSponsor || 'seller';
+
+              let itemPlatformFee = 0;
+              let itemPayout = 0;
+
+              if (isSale && sponsor === 'admin') {
+                // Admin sponsored
+                itemPlatformFee = (originalPrice * defaultCommissionRate) - (originalPrice - effectivePrice);
+                itemPayout = originalPrice * (1.0 - defaultCommissionRate);
+              } else {
+                // Seller sponsored or no active sale
+                itemPlatformFee = effectivePrice * defaultCommissionRate;
+                itemPayout = effectivePrice * (1.0 - defaultCommissionRate);
+              }
+
+              orderSubtotal += effectivePrice * qty;
+              orderPlatformFee += itemPlatformFee * qty;
+              orderVendorPayout += itemPayout * qty;
+
+              return {
+                productId: item.productId,
+                title: item.title,
+                imageUrl: item.imageUrl,
+                quantity: qty,
+                unitPrice: effectivePrice,
+              };
+            });
+
+            const orderDeliveryFee = orderSubtotal < 1000 ? 99.0 : 0.0;
+            const orderTotalAmount = orderSubtotal + orderDeliveryFee + orderPlatformFee;
 
             const orderDoc = {
               orderId: orderRef.id,
@@ -313,17 +390,11 @@ exports.verifyAndFinalizePayment = onRequest(
               storeId: order.storeId,
               storeName: order.storeName || '',
               status: 'pending',
-              items: order.items.map((item) => ({
-                productId: item.productId,
-                title: item.title,
-                imageUrl: item.imageUrl,
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
-              })),
-              subtotal: order.subtotal,
-              deliveryFee: order.deliveryFee,
-              platformFee: order.platformFee,
-              totalAmount: order.totalAmount,
+              items: orderItems,
+              subtotal: orderSubtotal,
+              deliveryFee: orderDeliveryFee,
+              platformFee: orderPlatformFee,
+              totalAmount: orderTotalAmount,
               paymentMethod: order.paymentMethod || 'Online (Razorpay)',
               paymentStatus: 'completed',
               paymentId: paymentId,
@@ -336,11 +407,76 @@ exports.verifyAndFinalizePayment = onRequest(
             console.log('[ORDER] Creating order document:', orderRef.id,
                 '| buyerId:', buyerId,
                 '| storeId:', order.storeId,
-                '| amount: ₹', order.totalAmount,
-                '| paymentId:', paymentId,
-                '| ts:', ts);
+                '| calculated amount: ₹', orderTotalAmount,
+                '| payout: ₹', orderVendorPayout,
+                '| platformFee: ₹', orderPlatformFee,
+                '| paymentId:', paymentId);
 
             txn.set(orderRef, orderDoc);
+
+            // Log payment transaction record
+            const transactionRef = db.collection('transactions').doc();
+            const transactionDoc = {
+              id: transactionRef.id,
+              orderId: orderRef.id,
+              referenceId: orderRef.id,
+              buyerId: buyerId,
+              storeId: order.storeId,
+              type: 'sale',
+              status: 'completed',
+              gateway: 'razorpay',
+              externalTransactionId: paymentId,
+              grossAmount: orderSubtotal,
+              platformCommission: orderPlatformFee,
+              netVendorPayout: orderVendorPayout,
+              amount: orderVendorPayout,
+              currency: 'INR',
+              description: `Order placement for ${orderRef.id}`,
+              createdAt: serverNow,
+              completedAt: serverNow,
+            };
+            txn.set(transactionRef, transactionDoc);
+
+            // Update merchant wallet
+            const walletRef = db.collection('wallets').doc(order.storeId);
+            const walletDoc = await txn.get(walletRef);
+            let currentBalance = 0;
+            let currentPending = 0;
+            if (walletDoc.exists) {
+              const wData = walletDoc.data();
+              currentBalance = Number(wData.balance) || 0;
+              currentPending = Number(wData.pendingEscrowBalance) || 0;
+            }
+            // Update merchant wallet (add payout to escrow)
+            const walletRef = db.collection('wallets').doc(order.storeId);
+            const walletDoc = await txn.get(walletRef);
+            let currentBalance = 0;
+            let currentPending = 0;
+            if (walletDoc.exists) {
+              const wData = walletDoc.data();
+              currentBalance = Number(wData.balance) || 0;
+              currentPending = Number(wData.pendingEscrowBalance) || 0;
+            }
+            txn.set(walletRef, {
+              storeId: order.storeId,
+              balance: currentBalance,
+              pendingEscrowBalance: currentPending + orderVendorPayout,
+              currency: 'INR',
+              updatedAt: serverNow
+            }, { merge: true });
+
+            // Create escrow document for 10 days auto-release
+            const escrowRef = db.collection('escrows').doc();
+            txn.set(escrowRef, {
+              id: escrowRef.id,
+              orderId: orderRef.id,
+              storeId: order.storeId,
+              amount: orderVendorPayout,
+              status: 'pending',
+              releaseAt: admin.firestore.Timestamp.fromDate(new Date(Date.now() + 10 * 24 * 60 * 60 * 1000)), // 10 days
+              createdAt: serverNow,
+              updatedAt: serverNow
+            });
 
             // ── 2d. In-app notifications ──
             const buyerNotifRef = db.collection('users')
@@ -352,7 +488,7 @@ exports.verifyAndFinalizePayment = onRequest(
               title: '✅ Order Placed Successfully',
               body: `Your order #${orderRef.id.substring(0, 8).toUpperCase()} ` +
                     `from ${order.storeName} has been placed. ` +
-                    `Total: ₹${(order.totalAmount || 0).toFixed(2)}`,
+                    `Total: ₹${(orderTotalAmount || 0).toFixed(2)}`,
               deepLinkPath: `/buyer/orders/${orderRef.id}`,
               isRead: false,
               createdAt: serverNow,
@@ -367,7 +503,7 @@ exports.verifyAndFinalizePayment = onRequest(
               title: '🛍️ New Order Received',
               body: `New order from ${buyerName}. ` +
                     `Order #${orderRef.id.substring(0, 8).toUpperCase()}. ` +
-                    `Amount: ₹${(order.totalAmount || 0).toFixed(2)}`,
+                    `Amount: ₹${(orderTotalAmount || 0).toFixed(2)}`,
               deepLinkPath: `/seller/orders/${orderRef.id}`,
               isRead: false,
               createdAt: serverNow,
@@ -417,4 +553,80 @@ exports.verifyAndFinalizePayment = onRequest(
         });
       }
     },
+);
+
+exports.releaseMaturedEscrows = onRequest(
+    { cors: true, timeoutSeconds: 60 },
+    async (req, res) => {
+      const db = admin.firestore();
+      const now = new Date();
+      const serverNow = admin.firestore.FieldValue.serverTimestamp();
+
+      try {
+        const maturedEscrowsSnap = await db.collection('escrows')
+            .where('status', '==', 'pending')
+            .where('releaseAt', '<=', now)
+            .get();
+
+        if (maturedEscrowsSnap.empty) {
+          return res.json({ success: true, releasedCount: 0 });
+        }
+
+        const releasedIds = [];
+        await db.runTransaction(async (txn) => {
+          for (const doc of maturedEscrowsSnap.docs) {
+            const escrow = doc.data();
+            const storeId = escrow.storeId;
+            const amount = escrow.amount;
+
+            // Update wallet
+            const walletRef = db.collection('wallets').doc(storeId);
+            const walletDoc = await txn.get(walletRef);
+            let currentBalance = 0;
+            let currentPending = 0;
+            if (walletDoc.exists) {
+              const wData = walletDoc.data();
+              currentBalance = Number(wData.balance) || 0;
+              currentPending = Number(wData.pendingEscrowBalance) || 0;
+            }
+
+            txn.set(walletRef, {
+              balance: Math.max(0, currentBalance + amount),
+              pendingEscrowBalance: Math.max(0, currentPending - amount),
+              updatedAt: serverNow
+            }, { merge: true });
+
+            // Update escrow doc
+            txn.update(doc.ref, {
+              status: 'released',
+              updatedAt: serverNow
+            });
+
+            // Log transaction of type adjustment
+            const transactionRef = db.collection('transactions').doc();
+            txn.set(transactionRef, {
+              id: transactionRef.id,
+              orderId: escrow.orderId,
+              referenceId: escrow.id,
+              storeId: storeId,
+              type: 'adjustment',
+              status: 'completed',
+              amount: amount,
+              currency: 'INR',
+              description: `Escrow release for order ${escrow.orderId}`,
+              createdAt: serverNow,
+              completedAt: serverNow
+            });
+
+            releasedIds.push(doc.id);
+          }
+        });
+
+        console.log('[ESCROW] Successfully released', releasedIds.length, 'escrows.');
+        return res.json({ success: true, releasedCount: releasedIds.length, releasedIds });
+      } catch (error) {
+        console.error('[ESCROW][ERROR] Failed to release matured escrows:', error);
+        return res.status(500).json({ error: error.message });
+      }
+    }
 );

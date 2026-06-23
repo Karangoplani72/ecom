@@ -44,8 +44,12 @@ class WishlistController extends _$WishlistController {
         .read(wishlistRepositoryProvider)
         .addToWishlist(userId: userId, item: item);
     result.fold(
-      (error) => state = AsyncError(error, StackTrace.current),
-      (_) => state = const AsyncData(null),
+      (error) {
+        if (ref.mounted) state = AsyncError(error, StackTrace.current);
+      },
+      (_) {
+        if (ref.mounted) state = const AsyncData(null);
+      },
     );
   }
 
@@ -59,8 +63,12 @@ class WishlistController extends _$WishlistController {
         .read(wishlistRepositoryProvider)
         .removeFromWishlist(userId: userId, productId: productId);
     result.fold(
-      (error) => state = AsyncError(error, StackTrace.current),
-      (_) => state = const AsyncData(null),
+      (error) {
+        if (ref.mounted) state = AsyncError(error, StackTrace.current);
+      },
+      (_) {
+        if (ref.mounted) state = const AsyncData(null);
+      },
     );
   }
 

@@ -34,6 +34,7 @@ abstract class SellerFinanceRepository {
   Future<Either<Exception, Unit>> updateBankAccount({
     required String sellerId,
     required String accountId,
+    required String bankName,
     required String accountNumber,
     required String ifscCode,
     required String accountHolderName,

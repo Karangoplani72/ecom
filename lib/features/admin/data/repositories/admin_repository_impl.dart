@@ -404,6 +404,19 @@ class AdminRepositoryImpl implements AdminRepository {
             .replaceAll(RegExp(r'[^a-z0-9\s-]'), '')
             .replaceAll(RegExp(r'\s+'), '-');
 
+        // Set up bankAccount record automatically on approval
+        final bankAccountRef = _firestore.collection('bankAccounts').doc(application.userId);
+        transaction.set(bankAccountRef, {
+          'id': application.userId,
+          'storeId': application.userId,
+          'bankName': application.bankName ?? '',
+          'accountNumber': application.accountNumber ?? '',
+          'ifscCode': application.ifscCode ?? '',
+          'accountHolderName': application.accountHolderName ?? '',
+          'isVerified': true,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
         if (!storeDoc.exists) {
           transaction.set(storeRef, {
             'storeId': application.userId,
@@ -427,6 +440,10 @@ class AdminRepositoryImpl implements AdminRepository {
             'gstNumber': application.gstNumber ?? '',
             'address': '',
             'status': 'verified',
+            'bankName': application.bankName ?? '',
+            'accountNumber': application.accountNumber ?? '',
+            'ifscCode': application.ifscCode ?? '',
+            'accountHolderName': application.accountHolderName ?? '',
             'createdAt': FieldValue.serverTimestamp(),
             'updatedAt': FieldValue.serverTimestamp(),
           });
@@ -442,6 +459,10 @@ class AdminRepositoryImpl implements AdminRepository {
             'status': 'verified',
             'isVerified': true,
             'isActive': true,
+            'bankName': application.bankName ?? '',
+            'accountNumber': application.accountNumber ?? '',
+            'ifscCode': application.ifscCode ?? '',
+            'accountHolderName': application.accountHolderName ?? '',
             'updatedAt': FieldValue.serverTimestamp(),
           });
         }

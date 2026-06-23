@@ -4,6 +4,8 @@ import 'package:ecom/core/widgets/app_loading_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:ecom/core/providers/common_providers.dart';
 
 import '../controllers/seller_inventory_controller.dart';
 
@@ -149,6 +151,104 @@ class SellerInventoryScreen extends ConsumerWidget {
                               ),
                             ],
                           ),
+                          if (product.metadata['isFlashDeal'] == true &&
+                              product.metadata['flashSaleStatus'] == 'pending') ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.amber.withValues(alpha: 0.3),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.bolt,
+                                        color: Colors.amber,
+                                        size: 16,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '⚡ Campaign Offer Pending Approval',
+                                        style: theme.textTheme.labelMedium?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.amber[800],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Discount: ${(((product.metadata['flashSaleDiscountPercent'] as num?)?.toDouble() ?? 0.0) * 100).toStringAsFixed(0)}% OFF'
+                                    '\nFunded by: ${product.metadata['flashSaleSponsor'] == 'seller' ? 'Seller' : 'Platform/Admin'}',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      TextButton(
+                                        onPressed: () async {
+                                          final firestore = ref.read(firebaseFirestoreProvider);
+                                          await firestore.collection('catalog').doc(product.id).update({
+                                            'metadata.isFlashDeal': false,
+                                            'metadata.flashSaleStartsAt': FieldValue.delete(),
+                                            'metadata.flashSaleEndsAt': FieldValue.delete(),
+                                            'metadata.flashSaleDiscountPercent': FieldValue.delete(),
+                                            'metadata.flashSaleSponsor': FieldValue.delete(),
+                                            'metadata.flashSaleStatus': FieldValue.delete(),
+                                            'updatedAt': FieldValue.serverTimestamp(),
+                                          });
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(content: Text('Campaign offer declined.')),
+                                            );
+                                          }
+                                        },
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: colorScheme.error,
+                                          visualDensity: VisualDensity.compact,
+                                        ),
+                                        child: const Text('Decline'),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      ElevatedButton(
+                                        onPressed: () async {
+                                          final firestore = ref.read(firebaseFirestoreProvider);
+                                          await firestore.collection('catalog').doc(product.id).update({
+                                            'metadata.flashSaleStatus': 'active',
+                                            'updatedAt': FieldValue.serverTimestamp(),
+                                          });
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(content: Text('Campaign offer accepted! Discount is now scheduled.')),
+                                            );
+                                          }
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.green,
+                                          foregroundColor: Colors.white,
+                                          visualDensity: VisualDensity.compact,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                        ),
+                                        child: const Text('Accept'),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),

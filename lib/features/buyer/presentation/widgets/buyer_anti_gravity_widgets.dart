@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 // ============================================================================
 // PREMIUM ANTI-GRAVITY & GLASSMORPHISM WIDGETS
@@ -360,28 +361,365 @@ class GlassCardWidget extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           padding: padding,
           decoration: BoxDecoration(
             color: isDark
                 ? Colors.white.withValues(alpha: 0.07)
-                : Colors.white.withValues(alpha: 0.70),
+                : Colors.white.withValues(alpha: 0.75),
             borderRadius: BorderRadius.circular(borderRadius),
             border: Border.all(
-              color: Colors.white.withValues(alpha: 0.3),
+              color: Colors.white.withValues(alpha: isDark ? 0.1 : 0.5),
               width: 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF7C3AED).withValues(alpha: 0.12),
-                blurRadius: 32,
+                color: const Color(0xFF7C3AED).withValues(alpha: 0.15),
+                blurRadius: 24,
                 offset: const Offset(0, 8),
               ),
             ],
           ),
           child: child,
         ),
+      ),
+    );
+  }
+}
+
+// 5. ShimmerBox
+class ShimmerBox extends StatefulWidget {
+  final double? width;
+  final double? height;
+  final double borderRadius;
+
+  const ShimmerBox({
+    super.key,
+    this.width,
+    this.height,
+    this.borderRadius = 12.0,
+  });
+
+  @override
+  State<ShimmerBox> createState() => _ShimmerBoxState();
+}
+
+class _ShimmerBoxState extends State<ShimmerBox>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shimmerCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _shimmerCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _shimmerCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return AnimatedBuilder(
+      animation: _shimmerCtrl,
+      builder: (context, child) => Container(
+        width: widget.width,
+        height: widget.height,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              isDark
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : Colors.black.withValues(alpha: 0.04),
+              isDark
+                  ? Colors.white.withValues(alpha: 0.12)
+                  : Colors.black.withValues(alpha: 0.09),
+              isDark
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : Colors.black.withValues(alpha: 0.04),
+            ],
+            stops: [0.0, _shimmerCtrl.value, 1.0],
+          ),
+          borderRadius: BorderRadius.circular(widget.borderRadius),
+        ),
+      ),
+    );
+  }
+}
+
+// 6. GradientButton
+class GradientButton extends StatefulWidget {
+  final String label;
+  final VoidCallback? onTap;
+  final bool isLoading;
+  final double? width;
+  final Gradient? gradient;
+
+  const GradientButton({
+    super.key,
+    required this.label,
+    this.onTap,
+    this.isLoading = false,
+    this.width,
+    this.gradient,
+  });
+
+  @override
+  State<GradientButton> createState() => _GradientButtonState();
+}
+
+class _GradientButtonState extends State<GradientButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final defaultGradient = const LinearGradient(
+      colors: [Color(0xFF7C3AED), Color(0xFFA855F7)],
+    );
+    final buttonGradient = widget.gradient ?? defaultGradient;
+
+    return GestureDetector(
+      onTapDown: (_) {
+        if (widget.onTap != null && !widget.isLoading) _ctrl.forward();
+      },
+      onTapUp: (_) {
+        if (widget.onTap != null && !widget.isLoading) {
+          _ctrl.reverse();
+          widget.onTap!();
+        }
+      },
+      onTapCancel: () => _ctrl.reverse(),
+      child: ScaleTransition(
+        scale: Tween(begin: 1.0, end: 0.96).animate(
+          CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
+        ),
+        child: Container(
+          width: widget.width ?? double.infinity,
+          height: 50,
+          decoration: BoxDecoration(
+            gradient: widget.onTap == null ? null : buttonGradient,
+            color: widget.onTap == null
+                ? Colors.white.withValues(alpha: 0.08)
+                : null,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: widget.onTap == null
+                ? null
+                : [
+                    BoxShadow(
+                      color: const Color(0xFF7C3AED).withValues(alpha: 0.3),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+          ),
+          alignment: Alignment.center,
+          child: widget.isLoading
+              ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2.5,
+                  ),
+                )
+              : Text(
+                  widget.label,
+                  style: GoogleFonts.inter(
+                    color: widget.onTap == null ? Colors.white54 : Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+// 7. GradientText
+class GradientText extends StatelessWidget {
+  final String text;
+  final TextStyle style;
+  final Gradient? gradient;
+
+  const GradientText(
+    this.text, {
+    super.key,
+    required this.style,
+    this.gradient,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final defaultGradient = const LinearGradient(
+      colors: [Color(0xFF7C3AED), Color(0xFFA855F7)],
+    );
+
+    return ShaderMask(
+      shaderCallback: (bounds) =>
+          (gradient ?? defaultGradient).createShader(bounds),
+      child: Text(
+        text,
+        style: style.copyWith(color: Colors.white),
+      ),
+    );
+  }
+}
+
+// 8. PulsingDot
+class PulsingDot extends StatefulWidget {
+  final double size;
+  final Color color;
+
+  const PulsingDot({
+    super.key,
+    this.size = 12.0,
+    this.color = const Color(0xFFEC4899),
+  });
+
+  @override
+  State<PulsingDot> createState() => _PulsingDotState();
+}
+
+class _PulsingDotState extends State<PulsingDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scaleAnimation;
+  late final Animation<double> _opacityAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.4).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+
+    _opacityAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+
+    _controller.repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            return Transform.scale(
+              scale: _scaleAnimation.value,
+              child: Opacity(
+                opacity: _opacityAnimation.value,
+                child: Container(
+                  width: widget.size * 2.2,
+                  height: widget.size * 2.2,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: widget.color.withValues(alpha: 0.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: widget.color.withValues(alpha: 0.4),
+                        blurRadius: 8,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+        Container(
+          width: widget.size,
+          height: widget.size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: widget.color,
+            boxShadow: [
+              BoxShadow(
+                color: widget.color.withValues(alpha: 0.8),
+                blurRadius: 6,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// 9. AnimatedCounter
+class AnimatedCounter extends StatelessWidget {
+  final int count;
+  final TextStyle style;
+
+  const AnimatedCounter({
+    super.key,
+    required this.count,
+    required this.style,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      transitionBuilder: (Widget child, Animation<double> animation) {
+        final offsetAnimation = Tween<Offset>(
+          begin: const Offset(0.0, 0.5),
+          end: Offset.zero,
+        ).animate(animation);
+        return ClipRect(
+          child: SlideTransition(
+            position: offsetAnimation,
+            child: FadeTransition(
+              opacity: animation,
+              child: child,
+            ),
+          ),
+        );
+      },
+      child: Text(
+        '$count',
+        key: ValueKey<int>(count),
+        style: style,
       ),
     );
   }

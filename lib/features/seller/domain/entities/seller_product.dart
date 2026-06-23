@@ -13,6 +13,7 @@ class SellerProduct {
   final List<String> imageUrls;
   final String category;
   final int stock;
+  final Map<String, dynamic> metadata;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -36,6 +37,7 @@ class SellerProduct {
     required this.imageUrls,
     required this.category,
     required this.stock,
+    required this.metadata,
     this.createdAt,
     this.updatedAt,
   });
@@ -110,6 +112,7 @@ class SellerProduct {
     List<String>? imageUrls,
     String? category,
     int? stock,
+    Map<String, dynamic>? metadata,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -125,6 +128,7 @@ class SellerProduct {
       imageUrls: imageUrls ?? this.imageUrls,
       category: category ?? this.category,
       stock: stock ?? this.stock,
+      metadata: metadata ?? this.metadata,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

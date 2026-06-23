@@ -208,6 +208,7 @@ class SellerFinanceRepositoryImpl implements SellerFinanceRepository {
   Future<Either<Exception, Unit>> updateBankAccount({
     required String sellerId,
     required String accountId,
+    required String bankName,
     required String accountNumber,
     required String ifscCode,
     required String accountHolderName,
@@ -215,6 +216,12 @@ class SellerFinanceRepositoryImpl implements SellerFinanceRepository {
     try {
       if (sellerId.isEmpty) {
         return Left(Exception('Invalid seller ID: seller ID cannot be empty'));
+      }
+
+      if (bankName.isEmpty) {
+        return Left(
+          Exception('Invalid bank name: bank name cannot be empty'),
+        );
       }
 
       if (accountNumber.isEmpty) {
@@ -235,13 +242,24 @@ class SellerFinanceRepositoryImpl implements SellerFinanceRepository {
         );
       }
 
+      // Write to bankAccounts collection
       await _firestore.collection(_bankAccountsCollection).doc(accountId).set({
         'id': accountId,
         'storeId': sellerId,
+        'bankName': bankName,
         'accountNumber': accountNumber,
         'ifscCode': ifscCode,
         'accountHolderName': accountHolderName,
         'isVerified': false,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // Also update the store profile document
+      await _firestore.collection('stores').doc(sellerId).set({
+        'bankName': bankName,
+        'accountNumber': accountNumber,
+        'ifscCode': ifscCode,
+        'accountHolderName': accountHolderName,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 

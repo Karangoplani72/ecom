@@ -1,8 +1,8 @@
-import 'package:ecom/core/constants/app_info.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:ecom/core/widgets/scaffolds/premium_25d_scaffold.dart';
-import 'package:ecom/core/widgets/cards/glass_card.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+import 'package:ecom/core/theme/app_colors.dart';
+import 'package:ecom/features/buyer/presentation/widgets/buyer_anti_gravity_widgets.dart';
 
 class HelpScreen extends StatelessWidget {
   const HelpScreen({super.key});
@@ -54,141 +54,195 @@ class HelpScreen extends StatelessWidget {
     ),
   ];
 
+  Widget _buildFrostedCircleButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+    required bool isDark,
+  }) {
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.08)
+            : Colors.black.withValues(alpha: 0.04),
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Colors.white.withValues(alpha: isDark ? 0.12 : 0.2),
+        ),
+      ),
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        icon: Icon(icon, size: 18),
+        color: isDark ? Colors.white : AppColors.lightTextPrimary,
+        onPressed: onPressed,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : AppColors.lightTextPrimary;
+    final subtitleColor = isDark ? AppColors.darkTextSecond : AppColors.lightTextSecond;
 
-    return Premium25DScaffold(
-      isDark: theme.brightness == Brightness.dark,
-      appBar: AppBar(title: const Text('Help Center'), centerTitle: true, backgroundColor: Colors.transparent, elevation: 0),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
+    return Scaffold(
+      backgroundColor: isDark ? AppColors.darkBgPrimary : AppColors.lightBgPrimary,
+      body: Stack(
         children: [
-          // ── Hero banner ──
-          GlassCard(
-            isDark: theme.brightness == Brightness.dark,
-            padding: const EdgeInsets.all(24),
-            child: Row(
-              children: [
-                Icon(Icons.support_agent_outlined,
-                    size: 40, color: colorScheme.primary),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('How can we help?',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: colorScheme.onPrimaryContainer)),
-                      const SizedBox(height: 4),
-                      Text('Browse FAQs or contact our team.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onPrimaryContainer
-                                  .withValues(alpha: 0.8))),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 28),
-
-          // ── FAQ section ──
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12, left: 4),
-            child: Text(
-              'Frequently Asked Questions',
-              style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold, color: colorScheme.primary),
-            ),
-          ),
-          ..._faqs.map((faq) => _FaqTile(item: faq)),
-
-          const SizedBox(height: 32),
-
-          // ── Contact support ──
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12, left: 4),
-            child: Text(
-              'Contact Support',
-              style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold, color: colorScheme.primary),
-            ),
-          ),
-          GlassCard(
-            isDark: theme.brightness == Brightness.dark,
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: [
-                Material(
-                  color: Colors.transparent,
-                  child: ListTile(
-                    leading: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHighest
-                            .withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(Icons.email_outlined,
-                          size: 20, color: colorScheme.onSurface),
+          const IgnorePointer(child: OrbBackgroundWidget()),
+          CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              SliverAppBar(
+                floating: true,
+                pinned: true,
+                snap: true,
+                backgroundColor: Colors.transparent,
+                surfaceTintColor: Colors.transparent,
+                elevation: 0,
+                leadingWidth: 70,
+                leading: Padding(
+                  padding: const EdgeInsets.only(left: 16),
+                  child: Center(
+                    child: _buildFrostedCircleButton(
+                      icon: Icons.arrow_back_ios_new_rounded,
+                      onPressed: () => Navigator.pop(context),
+                      isDark: isDark,
                     ),
-                    title: const Text('Email Support'),
-                    subtitle: const Text(AppInfo.supportEmail),
-                    trailing: const Icon(Icons.copy, size: 16),
-                    onTap: () {
-                      Clipboard.setData(
-                          const ClipboardData(text: AppInfo.supportEmail));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text('Email address copied'),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                        ),
-                      );
-                    },
                   ),
                 ),
-                Divider(
-                    height: 1,
-                    indent: 16,
-                    endIndent: 16,
-                    color: colorScheme.outlineVariant),
-                Material(
-                  color: Colors.transparent,
-                  child: ListTile(
-                    leading: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHighest
-                            .withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(12),
+                title: Text(
+                  'Help Center',
+                  style: GoogleFonts.playfairDisplay(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: textColor,
+                  ),
+                ),
+                centerTitle: true,
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    // ── Support Agent Card ──
+                    GlassCardWidget(
+                      padding: const EdgeInsets.all(20),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF7C3AED).withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: const Color(0xFF7C3AED).withValues(alpha: 0.2),
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.support_agent_outlined,
+                              size: 32,
+                              color: Color(0xFF7C3AED),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'How can we help?',
+                                  style: GoogleFonts.playfairDisplay(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: textColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Browse our frequently asked questions below.',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    color: subtitleColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      child: Icon(Icons.phone_outlined,
-                          size: 20, color: colorScheme.onSurface),
                     ),
-                    title: const Text('Phone Support'),
-                    subtitle: const Text(AppInfo.supportPhone),
-                    trailing: const Icon(Icons.copy, size: 16),
-                    onTap: () {
-                      Clipboard.setData(
-                          const ClipboardData(text: AppInfo.supportPhone));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text('Phone number copied'),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
+                    const SizedBox(height: 28),
+
+                    // ── FAQ Header ──
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4, bottom: 16),
+                      child: Text(
+                        'Frequently Asked Questions',
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    ),
+
+                    // ── Accordion List of FAQs ──
+                    ..._faqs.map((faq) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: GlassCardWidget(
+                            padding: EdgeInsets.zero,
+                            child: Theme(
+                              data: theme.copyWith(dividerColor: Colors.transparent),
+                              child: ExpansionTile(
+                                leading: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF7C3AED).withValues(alpha: 0.08),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.question_answer_outlined,
+                                    size: 16,
+                                    color: Color(0xFFA855F7),
+                                  ),
+                                ),
+                                title: Text(
+                                  faq.question,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: textColor,
+                                  ),
+                                ),
+                                iconColor: const Color(0xFFA855F7),
+                                collapsedIconColor: const Color(0xFFA855F7),
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                                    child: Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        faq.answer,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 13,
+                                          color: subtitleColor,
+                                          height: 1.5,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        )),
+                  ]),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ],
       ),
@@ -199,64 +253,6 @@ class HelpScreen extends StatelessWidget {
 class _FaqItem {
   final String question;
   final String answer;
+
   const _FaqItem({required this.question, required this.answer});
-}
-
-class _FaqTile extends StatefulWidget {
-  final _FaqItem item;
-  const _FaqTile({required this.item});
-
-  @override
-  State<_FaqTile> createState() => _FaqTileState();
-}
-
-class _FaqTileState extends State<_FaqTile> {
-  bool _expanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => setState(() => _expanded = !_expanded),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.item.question,
-                      style: theme.textTheme.bodyLarge
-                          ?.copyWith(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  Icon(
-                    _expanded
-                        ? Icons.keyboard_arrow_up
-                        : Icons.keyboard_arrow_down,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ],
-              ),
-              if (_expanded) ...[
-                const SizedBox(height: 10),
-                Text(
-                  widget.item.answer,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant, height: 1.5),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }

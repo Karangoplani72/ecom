@@ -1,10 +1,13 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
+
+import 'package:ecom/core/theme/app_colors.dart';
 import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/core/widgets/app_error_view.dart';
 import 'package:ecom/core/widgets/app_loading_view.dart';
-import 'package:ecom/core/widgets/app_primary_button.dart';
-import 'package:ecom/core/widgets/app_stat_card.dart';
-import 'package:ecom/core/widgets/cards/glass_card.dart';
-import 'package:ecom/core/widgets/scaffolds/premium_25d_scaffold.dart';
 import 'package:ecom/features/auth/domain/entities/app_user.dart';
 import 'package:ecom/features/auth/presentation/controllers/address_controller.dart';
 import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
@@ -14,41 +17,41 @@ import 'package:ecom/features/buyer/presentation/controllers/wishlist_controller
 import 'package:ecom/features/buyer/presentation/widgets/profile_avatar.dart';
 import 'package:ecom/features/orders/presentation/controllers/order_controller.dart';
 import 'package:ecom/shared/presentation/navigation/router.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:ecom/features/buyer/presentation/widgets/buyer_anti_gravity_widgets.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
-  static void _showImageSourceActionSheet(BuildContext context, WidgetRef ref) {
+  static void _showImageSourceActionSheet(BuildContext context, WidgetRef ref, bool isDark) {
     showModalBottomSheet(
       context: context,
+      backgroundColor: isDark ? AppColors.darkBgSurface : AppColors.lightBgSurface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
+        final textColor = isDark ? Colors.white : AppColors.lightTextPrimary;
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(vertical: 20),
                 child: Text(
                   'Select Profile Photo',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
+                  style: GoogleFonts.playfairDisplay(
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
+                    color: textColor,
                   ),
                 ),
               ),
+              Divider(height: 1, color: isDark ? Colors.white10 : Colors.black12),
               ListTile(
-                leading: const Icon(Icons.photo_library_outlined),
+                leading: Icon(Icons.photo_library_outlined, color: isDark ? Colors.white70 : Colors.black54),
                 title: Text(
                   'Choose from Gallery',
-                  style: GoogleFonts.poppins(),
+                  style: GoogleFonts.inter(color: textColor),
                 ),
                 onTap: () {
                   Navigator.pop(context);
@@ -58,8 +61,11 @@ class ProfileScreen extends ConsumerWidget {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.camera_alt_outlined),
-                title: Text('Take a Photo', style: GoogleFonts.poppins()),
+                leading: Icon(Icons.camera_alt_outlined, color: isDark ? Colors.white70 : Colors.black54),
+                title: Text(
+                  'Take a Photo',
+                  style: GoogleFonts.inter(color: textColor),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   ref
@@ -67,7 +73,7 @@ class ProfileScreen extends ConsumerWidget {
                       .pickAndUploadImage(ImageSource.camera);
                 },
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
             ],
           ),
         );
@@ -75,9 +81,37 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildFrostedCircleButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+    required bool isDark,
+  }) {
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.08)
+            : Colors.black.withValues(alpha: 0.04),
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Colors.white.withValues(alpha: isDark ? 0.12 : 0.2),
+        ),
+      ),
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        icon: Icon(icon, size: 18),
+        color: isDark ? Colors.white : AppColors.lightTextPrimary,
+        onPressed: onPressed,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(firebaseAuthStateProvider);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     ref.listen<ProfileImageState>(profileImageControllerProvider, (prev, next) {
       if (next.status == ProfileImageStatus.error &&
@@ -94,7 +128,7 @@ class ProfileScreen extends ConsumerWidget {
           SnackBar(
             content: Text(
               'Profile image updated successfully!',
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+              style: GoogleFonts.inter(fontWeight: FontWeight.w500),
             ),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
@@ -103,70 +137,77 @@ class ProfileScreen extends ConsumerWidget {
       }
     });
 
-    return Premium25DScaffold(
-      isDark: Theme.of(context).brightness == Brightness.dark,
-      particles: [
-        FloatingParticle(
-          imagePath: 'assets/images/25d_star.svg',
-          width: 40,
-          height: 40,
-          dx: -100,
-          dy: 100,
-          delay: 0.1,
-          depth: 1.2,
-        ),
-        FloatingParticle(
-          imagePath: 'assets/images/25d_sphere.svg',
-          width: 30,
-          height: 30,
-          dx: 300,
-          dy: 300,
-          delay: 0.4,
-          depth: 0.8,
-        ),
-      ],
-      appBar: AppBar(
-        title: const Text('My Account'),
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          if (authState.value != null)
-            IconButton(
-              icon: const Icon(Icons.notifications_outlined),
-              onPressed: () => context.push(AppRoutes.buyerNotifications),
-            ),
-        ],
-      ),
-      body: authState.when(
-        loading: () => const AppLoadingView(),
-        error: (error, _) => AppErrorView(
-          message: 'Could not determine your sign-in status.',
-          onRetry: () => ref.invalidate(firebaseAuthStateProvider),
-        ),
-        data: (firebaseUser) {
-          if (firebaseUser == null) return const _GuestBody();
+    final textColor = isDark ? Colors.white : AppColors.lightTextPrimary;
 
-          // Authenticated with Firebase Auth from here on — Firestore
-          // only supplies the profile *data*, never the guest/authed
-          // decision, so a slow or momentarily-null profile read can
-          // only show loading, never Guest.
-          final profileAsync = ref.watch(currentUserProfileProvider);
-          // skipLoadingOnReload: keeps showing the existing UI (with stale
-          // data) while the stream re-fetches after ref.invalidate() — prevents
-          // the white loading flash every time a profile image is uploaded.
-          return profileAsync.when(
-            skipLoadingOnReload: true,
+    return Scaffold(
+      backgroundColor: isDark ? AppColors.darkBgPrimary : AppColors.lightBgPrimary,
+      body: Stack(
+        children: [
+          const IgnorePointer(child: OrbBackgroundWidget()),
+          authState.when(
             loading: () => const AppLoadingView(),
             error: (error, _) => AppErrorView(
-              message: 'Could not load your profile.',
-              onRetry: () => ref.invalidate(currentUserProfileProvider),
+              message: 'Could not determine your sign-in status.',
+              onRetry: () => ref.invalidate(firebaseAuthStateProvider),
             ),
-            data: (user) => user == null
-                ? const AppLoadingView()
-                : _AuthenticatedBody(user: user),
-          );
-        },
+            data: (firebaseUser) {
+              final Widget content;
+              if (firebaseUser == null) {
+                content = const _GuestBody();
+              } else {
+                final profileAsync = ref.watch(currentUserProfileProvider);
+                content = profileAsync.when(
+                  skipLoadingOnReload: true,
+                  loading: () => const AppLoadingView(),
+                  error: (error, _) => AppErrorView(
+                    message: 'Could not load your profile.',
+                    onRetry: () => ref.invalidate(currentUserProfileProvider),
+                  ),
+                  data: (user) => user == null
+                      ? const AppLoadingView()
+                      : _AuthenticatedBody(user: user),
+                );
+              }
+
+              return NestedScrollView(
+                physics: const BouncingScrollPhysics(),
+                headerSliverBuilder: (context, innerBoxIsScrolled) {
+                  return [
+                    SliverAppBar(
+                      floating: true,
+                      pinned: true,
+                      snap: true,
+                      backgroundColor: Colors.transparent,
+                      surfaceTintColor: Colors.transparent,
+                      elevation: 0,
+                      title: Text(
+                        'My Account',
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          color: textColor,
+                        ),
+                      ),
+                      centerTitle: true,
+                      actions: [
+                        if (firebaseUser != null)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 16),
+                            child: _buildFrostedCircleButton(
+                              icon: Icons.notifications_outlined,
+                              onPressed: () => context.push(AppRoutes.buyerNotifications),
+                              isDark: isDark,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ];
+                },
+                body: content,
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -182,59 +223,76 @@ class _GuestBody extends StatelessWidget {
   void _promptSignIn(BuildContext context, {required String feature}) {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (sheetCtx) {
-        final theme = Theme.of(sheetCtx);
-        return Padding(
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final textColor = isDark ? Colors.white : AppColors.lightTextPrimary;
+        final subtitleColor = isDark ? AppColors.darkTextSecond : AppColors.lightTextSecond;
+
+        return GlassCardWidget(
+          borderRadius: 24,
           padding: const EdgeInsets.fromLTRB(24, 28, 24, 40),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                Icons.lock_outline,
-                size: 32,
-                color: theme.colorScheme.primary,
+              Row(
+                children: [
+                  const Icon(
+                    Icons.lock_outline,
+                    size: 32,
+                    color: Color(0xFF7C3AED),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Sign in Required',
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
               Text(
-                'Sign in required',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
                 'Create a free account or sign in to use $feature.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                style: GoogleFonts.inter(
+                  fontSize: 15,
+                  color: subtitleColor,
+                  height: 1.5,
                 ),
               ),
-              const SizedBox(height: 24),
-              AppPrimaryButton(
-                text: 'Sign In',
-                onPressed: () {
+              const SizedBox(height: 28),
+              GradientButton(
+                label: 'Sign In',
+                onTap: () {
                   Navigator.of(sheetCtx).pop();
                   if (context.mounted) context.push(AppRoutes.login);
                 },
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               SizedBox(
                 width: double.infinity,
+                height: 50,
                 child: OutlinedButton(
                   onPressed: () {
                     Navigator.of(sheetCtx).pop();
                     if (context.mounted) context.push(AppRoutes.signup);
                   },
                   style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(52),
+                    side: const BorderSide(color: Color(0xFF7C3AED)),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  child: const Text('Create Account'),
+                  child: Text(
+                    'Create Account',
+                    style: GoogleFonts.inter(
+                      color: const Color(0xFF7C3AED),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -247,93 +305,128 @@ class _GuestBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : AppColors.lightTextPrimary;
+    final subtitleColor = isDark ? AppColors.darkTextSecond : AppColors.lightTextSecond;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 40, 24, 40),
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
       child: Column(
         children: [
-          CircleAvatar(
-            radius: 48,
-            backgroundColor: colorScheme.primaryContainer,
-            child: Icon(
-              Icons.person_outline,
-              size: 48,
-              color: colorScheme.primary,
+          // Glass Avatar Container
+          GlassCardWidget(
+            padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 48,
+                  backgroundColor: const Color(0xFF7C3AED).withValues(alpha: 0.1),
+                  child: const Icon(
+                    Icons.person_outline,
+                    size: 48,
+                    color: Color(0xFF7C3AED),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Welcome to ecom',
+                  style: GoogleFonts.playfairDisplay(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Sign in to track orders, save your wishlist, and check out faster.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: subtitleColor,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                GradientButton(
+                  label: 'Sign In',
+                  onTap: () => context.push(AppRoutes.login),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: OutlinedButton(
+                    onPressed: () => context.push(AppRoutes.signup),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFF7C3AED)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: Text(
+                      'Create Account',
+                      style: GoogleFonts.inter(
+                        color: const Color(0xFF7C3AED),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 20),
-          Text(
-            'Welcome to ecom',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Sign in to track orders, save your wishlist,\nand check out faster.',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 28),
-          AppPrimaryButton(
-            text: 'Sign In',
-            onPressed: () => context.push(AppRoutes.login),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: () => context.push(AppRoutes.signup),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(56),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+          const SizedBox(height: 32),
+
+          // Quick Access Header
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 16),
+              child: Text(
+                'Quick Access',
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
                 ),
               ),
-              child: const Text('Create Account'),
             ),
           ),
-          const SizedBox(height: 40),
-          _SectionHeader(title: 'Quick Access'),
-          const SizedBox(height: 12),
+
+          // Stats cards
           Row(
             children: [
               Expanded(
-                child: AppStatCard(
+                child: _GuestStatCard(
                   title: 'Orders',
-                  value: '—',
                   icon: Icons.receipt_long_outlined,
-                  locked: true,
                   onTap: () => _promptSignIn(context, feature: 'order history'),
+                  isDark: isDark,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
-                child: AppStatCard(
+                child: _GuestStatCard(
                   title: 'Wishlist',
-                  value: '—',
                   icon: Icons.favorite_border,
-                  locked: true,
                   onTap: () => _promptSignIn(context, feature: 'your wishlist'),
+                  isDark: isDark,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
-                child: AppStatCard(
+                child: _GuestStatCard(
                   title: 'Addresses',
-                  value: '—',
                   icon: Icons.location_on_outlined,
-                  locked: true,
-                  onTap: () =>
-                      _promptSignIn(context, feature: 'saved addresses'),
+                  onTap: () => _promptSignIn(context, feature: 'saved addresses'),
+                  isDark: isDark,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 36),
+
+          // Support and legal
           _ProfileSection(
             title: 'Help & Legal',
             items: [
@@ -353,8 +446,60 @@ class _GuestBody extends StatelessWidget {
                 onTap: () => context.push(AppRoutes.buyerAbout),
               ),
             ],
+            isDark: isDark,
           ),
         ],
+      ),
+    );
+  }
+}
+
+// Guest stat card helper
+class _GuestStatCard extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool isDark;
+
+  const _GuestStatCard({
+    required this.title,
+    required this.icon,
+    required this.onTap,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isDark ? Colors.white : AppColors.lightTextPrimary;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: GlassCardWidget(
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              size: 24,
+              color: const Color(0xFFA855F7),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Icon(
+              Icons.lock_outline,
+              size: 14,
+              color: isDark ? Colors.white38 : Colors.black38,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -372,12 +517,15 @@ class _AuthenticatedBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final opt = ref.watch(optimisticProfileProvider);
 
     final ordersCount = ref.watch(buyerOrdersProvider).value?.length ?? 0;
     final wishlistCount = ref.watch(wishlistStreamProvider).value?.length ?? 0;
     final addressCount = ref.watch(userAddressesProvider).value?.length ?? 0;
+
+    final textColor = isDark ? Colors.white : AppColors.lightTextPrimary;
+    final subtitleColor = isDark ? AppColors.darkTextSecond : AppColors.lightTextSecond;
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -388,108 +536,130 @@ class _AuthenticatedBody extends ConsumerWidget {
       },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(24, 28, 24, 40),
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Identity header ──
-            Center(
-              child: Column(
+            // Identity Header card
+            GlassCardWidget(
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+              child: Row(
                 children: [
                   ProfileAvatar(
                     imageUrl: opt.imageUrl,
                     localImageBytes: opt.localBytes,
                     userName: user.displayName,
-                    radius: 48,
+                    radius: 38,
                     isUploading: opt.isUploading,
                     onEditTap: () =>
-                        ProfileScreen._showImageSourceActionSheet(context, ref),
+                        ProfileScreen._showImageSourceActionSheet(context, ref, isDark),
                   ),
-                  const SizedBox(height: 14),
-                  Text(
-                    user.displayName.isEmpty ? 'My Account' : user.displayName,
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          user.displayName.isEmpty ? 'My Account' : user.displayName,
+                          style: GoogleFonts.playfairDisplay(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: textColor,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          user.email,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: subtitleColor,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        if (user.hasPhoneNumber)
+                          Text(
+                            user.phoneNumber!,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: subtitleColor,
+                            ),
+                          )
+                        else
+                          GestureDetector(
+                            onTap: () => context.push(AppRoutes.buyerAccountSettings),
+                            child: Text(
+                              '+ Add phone number',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: const Color(0xFF7C3AED),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    user.email,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  if (user.hasPhoneNumber) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      user.phoneNumber!,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ] else
-                    TextButton(
-                      onPressed: () =>
-                          context.push(AppRoutes.buyerAccountSettings),
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child: const Text('+ Add phone number'),
-                    ),
                 ],
               ),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 24),
 
-            // ── Quick stats ──
+            // Quick stats Row
             Row(
               children: [
                 Expanded(
-                  child: AppStatCard(
+                  child: _StatCard(
                     title: 'Orders',
                     value: '$ordersCount',
                     icon: Icons.receipt_long_outlined,
                     onTap: () => context.push(AppRoutes.buyerOrders),
+                    isDark: isDark,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: AppStatCard(
+                  child: _StatCard(
                     title: 'Wishlist',
                     value: '$wishlistCount',
                     icon: Icons.favorite_border,
                     onTap: () => context.push(AppRoutes.buyerWishlist),
+                    isDark: isDark,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: AppStatCard(
+                  child: _StatCard(
                     title: 'Addresses',
                     value: '$addressCount',
                     icon: Icons.location_on_outlined,
                     onTap: () => context.push(AppRoutes.buyerAddresses),
+                    isDark: isDark,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 28),
 
+            // Navigation sections
             _ProfileSection(
-              title: 'Account',
+              title: 'Account Settings',
               items: [
                 _ProfileLink(
                   icon: Icons.settings_outlined,
-                  title: 'Account Settings',
+                  title: 'Account Details',
+                  subtitle: 'Manage names, phones & emails',
                   onTap: () => context.push(AppRoutes.buyerAccountSettings),
                 ),
                 _ProfileLink(
                   icon: Icons.notifications_outlined,
                   title: 'Notifications',
+                  subtitle: 'Change alert preferences',
                   onTap: () => context.push(AppRoutes.buyerNotifications),
                 ),
               ],
+              isDark: isDark,
             ),
 
             _ProfileSection(
@@ -546,6 +716,7 @@ class _AuthenticatedBody extends ConsumerWidget {
                     onTap: () => context.push(AppRoutes.sellerApply),
                   ),
               ],
+              isDark: isDark,
             ),
 
             _ProfileSection(
@@ -554,24 +725,29 @@ class _AuthenticatedBody extends ConsumerWidget {
                 _ProfileLink(
                   icon: Icons.help_outline,
                   title: 'Help Center',
+                  subtitle: 'FAQs, contact support & requests',
                   onTap: () => context.push(AppRoutes.buyerHelp),
                 ),
                 _ProfileLink(
                   icon: Icons.policy_outlined,
                   title: 'Privacy Policy',
+                  subtitle: 'How we manage customer privacy',
                   onTap: () => context.push(AppRoutes.buyerPrivacy),
                 ),
                 _ProfileLink(
                   icon: Icons.info_outline,
                   title: 'About ecom',
+                  subtitle: 'Application details and licensing',
                   onTap: () => context.push(AppRoutes.buyerAbout),
                 ),
               ],
+              isDark: isDark,
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
+              height: 50,
               child: OutlinedButton.icon(
                 onPressed: () async {
                   await ref
@@ -580,14 +756,16 @@ class _AuthenticatedBody extends ConsumerWidget {
                   if (!context.mounted) return;
                   context.go(AppRoutes.login);
                 },
-                icon: const Icon(Icons.logout),
-                label: const Text('Logout'),
+                icon: const Icon(Icons.logout, size: 18),
+                label: Text(
+                  'Logout',
+                  style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                ),
                 style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(56),
-                  foregroundColor: colorScheme.error,
-                  side: BorderSide(color: colorScheme.error),
+                  foregroundColor: const Color(0xFFEF4444),
+                  side: const BorderSide(color: Color(0xFFEF4444)),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                 ),
               ),
@@ -603,21 +781,52 @@ class _AuthenticatedBody extends ConsumerWidget {
 // Shared layout helpers
 // ─────────────────────────────────────────────
 
-class _SectionHeader extends StatelessWidget {
+class _StatCard extends StatelessWidget {
   final String title;
+  final String value;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool isDark;
 
-  const _SectionHeader({required this.title});
+  const _StatCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.onTap,
+    required this.isDark,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Text(
-        title,
-        style: theme.textTheme.titleSmall?.copyWith(
-          fontWeight: FontWeight.bold,
-          color: theme.colorScheme.primary,
+    final textColor = isDark ? Colors.white : AppColors.lightTextPrimary;
+    final subtitleColor = isDark ? AppColors.darkTextSecond : AppColors.lightTextSecond;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: GlassCardWidget(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        child: Column(
+          children: [
+            Icon(icon, color: const Color(0xFFA855F7), size: 24),
+            const SizedBox(height: 10),
+            Text(
+              value,
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: subtitleColor,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -627,31 +836,36 @@ class _SectionHeader extends StatelessWidget {
 class _ProfileSection extends StatelessWidget {
   final String title;
   final List<_ProfileLink> items;
+  final bool isDark;
 
-  const _ProfileSection({required this.title, required this.items});
+  const _ProfileSection({
+    required this.title,
+    required this.items,
+    required this.isDark,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final textColor = isDark ? Colors.white : AppColors.lightTextPrimary;
+    final subtitleColor = isDark ? AppColors.darkTextSecond : AppColors.lightTextSecond;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.only(bottom: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(bottom: 10, left: 4),
+            padding: const EdgeInsets.only(bottom: 12, left: 4),
             child: Text(
               title,
-              style: theme.textTheme.titleSmall?.copyWith(
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: colorScheme.primary,
+                color: textColor,
               ),
             ),
           ),
-          GlassCard(
-            isDark: theme.brightness == Brightness.dark,
+          GlassCardWidget(
             padding: EdgeInsets.zero,
             child: Column(
               children: items.asMap().entries.map((entry) {
@@ -665,40 +879,49 @@ class _ProfileSection extends StatelessWidget {
                         leading: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: colorScheme.surfaceContainerHighest
-                                .withValues(alpha: 0.5),
-                            borderRadius: BorderRadius.circular(12),
+                            color: const Color(0xFF7C3AED).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                           child: Icon(
                             item.icon,
-                            size: 20,
-                            color: colorScheme.onSurface,
+                            size: 18,
+                            color: const Color(0xFFA855F7),
                           ),
                         ),
                         title: Text(
                           item.title,
-                          style: theme.textTheme.bodyLarge,
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: textColor,
+                          ),
                         ),
                         subtitle: item.subtitle != null
-                            ? Text(item.subtitle!)
+                            ? Text(
+                                item.subtitle!,
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: subtitleColor,
+                                ),
+                              )
                             : null,
-                        trailing:
-                            item.trailing ??
-                            const Icon(Icons.chevron_right, size: 18),
+                        trailing: item.trailing ??
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              size: 18,
+                              color: isDark ? Colors.white38 : Colors.black38,
+                            ),
                         onTap: item.onTap,
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16,
-                          vertical: 4,
+                          vertical: 6,
                         ),
                       ),
                     ),
                     if (!isLast)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Divider(
-                          height: 1,
-                          color: colorScheme.outlineVariant,
-                        ),
+                      Divider(
+                        height: 1,
+                        color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05),
                       ),
                   ],
                 );

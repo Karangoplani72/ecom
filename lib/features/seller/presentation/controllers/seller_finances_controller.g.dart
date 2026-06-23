@@ -96,6 +96,89 @@ final class MerchantWalletProvider
 
 String _$merchantWalletHash() => r'58a32536254bd493797bd7633bf9e7acc709e7a4';
 
+@ProviderFor(sellerBankAccount)
+final sellerBankAccountProvider = SellerBankAccountProvider._();
+
+final class SellerBankAccountProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<Map<String, dynamic>?>,
+          Map<String, dynamic>?,
+          FutureOr<Map<String, dynamic>?>
+        >
+    with
+        $FutureModifier<Map<String, dynamic>?>,
+        $FutureProvider<Map<String, dynamic>?> {
+  SellerBankAccountProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'sellerBankAccountProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$sellerBankAccountHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<Map<String, dynamic>?> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<Map<String, dynamic>?> create(Ref ref) {
+    return sellerBankAccount(ref);
+  }
+}
+
+String _$sellerBankAccountHash() => r'3ecd44dcd4bb4baf3e741da8f540f4bb80e29768';
+
+@ProviderFor(sellerTransactions)
+final sellerTransactionsProvider = SellerTransactionsProvider._();
+
+final class SellerTransactionsProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<SellerTransaction>>,
+          List<SellerTransaction>,
+          FutureOr<List<SellerTransaction>>
+        >
+    with
+        $FutureModifier<List<SellerTransaction>>,
+        $FutureProvider<List<SellerTransaction>> {
+  SellerTransactionsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'sellerTransactionsProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$sellerTransactionsHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<List<SellerTransaction>> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<List<SellerTransaction>> create(Ref ref) {
+    return sellerTransactions(ref);
+  }
+}
+
+String _$sellerTransactionsHash() =>
+    r'e060aa5e597b0f473b742547feb6be12f24f39e2';
+
 @ProviderFor(SellerFinancesController)
 final sellerFinancesControllerProvider = SellerFinancesControllerProvider._();
 
@@ -121,7 +204,7 @@ final class SellerFinancesControllerProvider
 }
 
 String _$sellerFinancesControllerHash() =>
-    r'6dd8594f8a302c9b9453349b3079f9fa69bf36c1';
+    r'4665e4915216c58699aadb161a31cbe176627e31';
 
 abstract class _$SellerFinancesController
     extends $AsyncNotifier<MerchantWallet> {

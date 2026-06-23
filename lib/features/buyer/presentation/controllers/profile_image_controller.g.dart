@@ -89,7 +89,7 @@ final class ProfileImageControllerProvider
 }
 
 String _$profileImageControllerHash() =>
-    r'42ee5db8c576e8fe2f8a7dd5cf82604a4c809e6a';
+    r'e9e4402b9e8ec174501bf22897243ae43493853e';
 
 abstract class _$ProfileImageController extends $Notifier<ProfileImageState> {
   ProfileImageState build();
@@ -196,4 +196,4 @@ final class OptimisticProfileProvider
   }
 }
 
-String _$optimisticProfileHash() => r'4bd4e4c16a0841ce27485e33063524d2be1211e3';
+String _$optimisticProfileHash() => r'23bf796547ee948a54088825b1d404ddb2f7b4eb';

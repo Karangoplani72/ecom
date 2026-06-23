@@ -70,9 +70,23 @@ class NotificationBell extends ConsumerWidget {
       ],
     );
 
+    String currentPath = '';
+    try {
+      currentPath = GoRouterState.of(context).uri.path;
+    } catch (_) {}
+
+    final String notificationPath;
+    if (currentPath.startsWith('/admin')) {
+      notificationPath = '/admin/notifications';
+    } else if (currentPath.startsWith('/seller')) {
+      notificationPath = '/seller/notifications';
+    } else {
+      notificationPath = '/buyer/notifications';
+    }
+
     if (isStyledContainer) {
       return GestureDetector(
-        onTap: () => context.push('/buyer/notifications'),
+        onTap: () => context.push(notificationPath),
         child: Container(
           width: 44,
           height: 44,
@@ -87,7 +101,7 @@ class NotificationBell extends ConsumerWidget {
 
     return IconButton(
       icon: iconWidget,
-      onPressed: () => context.push('/buyer/notifications'),
+      onPressed: () => context.push(notificationPath),
     );
   }
 }

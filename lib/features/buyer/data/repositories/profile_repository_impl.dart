@@ -21,27 +21,16 @@ class ProfileRepositoryImpl implements ProfileRepository {
     required String fileName,
   }) async {
     try {
-      debugPrint('[PROFILE_UPLOAD] uploadProfileImage: Start flow');
+      debugPrint('[PROFILE_UPLOAD] Start flow');
 
-      // 1. Get authenticated user
       final user = _auth.currentUser;
       if (user == null) {
-        debugPrint(
-          '[PROFILE_UPLOAD][ERROR] uploadProfileImage: No authenticated user found',
-        );
         return left(const Failure('User not authenticated'));
       }
-      final String userId = user.uid;
-      debugPrint(
-        '[PROFILE_UPLOAD] uploadProfileImage: Authenticated user uid=$userId',
-      );
+      final userId = user.uid;
+      debugPrint('[PROFILE_UPLOAD] userId=$userId');
 
-      // 2. Validate image type — by filename, not by a dart:io path (which
-      // is a blob: URL with no extension on Flutter Web).
       if (!ImageUtils.isValidImageType(fileName)) {
-        debugPrint(
-          '[PROFILE_UPLOAD][ERROR] uploadProfileImage: Invalid image format',
-        );
         return left(
           const Failure(
             'Invalid image type. Supported: JPG, JPEG, PNG, WEBP, GIF, BMP',
@@ -49,11 +38,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
         );
       }
 
-      // 3. Validate image size (Limit size to 5MB)
       if (!ImageUtils.isWithinSizeLimit(bytes, AppConstants.maxImageSizeMB)) {
-        debugPrint(
-          '[PROFILE_UPLOAD][ERROR] uploadProfileImage: Image size exceeds limit',
-        );
         return left(
           Failure(
             'Image exceeds maximum size of ${AppConstants.maxImageSizeMB}MB',
@@ -61,62 +46,46 @@ class ProfileRepositoryImpl implements ProfileRepository {
         );
       }
 
-      // 4. Compress image before upload
-      debugPrint('[PROFILE_UPLOAD] uploadProfileImage: Compressing image...');
+      debugPrint('[PROFILE_UPLOAD] Compressing...');
       final compressedBytes = await ImageUtils.compressImage(bytes);
 
-      // 5. Upload to Cloudinary
-      debugPrint(
-        '[CLOUDINARY] uploadProfileImage: Uploading to Cloudinary folder user_profiles...',
-      );
+      // Signed upload — deletes old image then uploads fresh.
+      // version param not needed: signed destroy+upload guarantees fresh CDN asset.
+      final version = DateTime.now().millisecondsSinceEpoch;
       final secureUrl = await CloudinaryService.uploadProfileImage(
         bytes: compressedBytes,
         userId: userId,
+        version: version,
       );
-      debugPrint(
-        '[CLOUDINARY] uploadProfileImage: Upload successful, url=$secureUrl',
-      );
+      debugPrint('[CLOUDINARY][SUCCESS] url=$secureUrl');
 
-      // 6. Save URL to Firestore
-      // We update BOTH the 'users' collection (for existing integration)
-      // AND the 'user_profiles' collection (as per new requirements).
-      final cacheBustedUrl =
-          '$secureUrl?v=${DateTime.now().millisecondsSinceEpoch}';
-
+      // Persist to Firestore
       final batch = _firestore.batch();
-      
-      final userRef = _firestore.collection('users').doc(userId);
-      final profileRef = _firestore.collection('user_profiles').doc(userId);
 
-      batch.update(userRef, {
-        'photoUrl': cacheBustedUrl,
+      batch.update(_firestore.collection('users').doc(userId), {
+        'photoUrl': secureUrl,
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      batch.set(profileRef, {
-        'photoUrl': cacheBustedUrl,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'userId': userId,
-      }, SetOptions(merge: true));
-
-      debugPrint(
-        '[PROFILE_FIRESTORE] uploadProfileImage: Committing batch update...',
+      batch.set(
+        _firestore.collection('user_profiles').doc(userId),
+        {
+          'photoUrl': secureUrl,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'userId': userId,
+        },
+        SetOptions(merge: true),
       );
-      
+
       await batch.commit().timeout(AppConstants.firestoreTimeout);
+      debugPrint('[PROFILE_FIRESTORE][SUCCESS] Firestore updated: $secureUrl');
 
-      debugPrint(
-        '[PROFILE_FIRESTORE][SUCCESS] uploadProfileImage: Firestore updated successfully',
-      );
-
-      return right(cacheBustedUrl);
+      return right(secureUrl);
     } on FirebaseException catch (e) {
-      debugPrint(
-        '[PROFILE_FIRESTORE][ERROR] Firestore error: ${e.code} - ${e.message}',
-      );
+      debugPrint('[PROFILE_FIRESTORE][ERROR] ${e.code}: ${e.message}');
       return left(ServerFailure('Database update failed: ${e.message}'));
     } catch (e) {
-      debugPrint('[PROFILE_UPLOAD][ERROR] Unexpected failure: $e');
+      debugPrint('[PROFILE_UPLOAD][ERROR] $e');
       return left(Failure('Failed to upload image: ${e.toString()}'));
     }
   }

@@ -8,21 +8,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-final _adminProductsProvider =
-    StreamProvider<List<Map<String, dynamic>>>((ref) {
-  return ref.watch(firebaseFirestoreProvider)
+final _adminProductsProvider = StreamProvider<List<Map<String, dynamic>>>((
+  ref,
+) {
+  return ref
+      .watch(firebaseFirestoreProvider)
       .collection('catalog')
       .orderBy('createdAt', descending: true)
       .limit(200)
       .snapshots()
-      .map((s) => s.docs
-          .map((d) => {'id': d.id, ...d.data()})
-          .toList());
+      .map((s) => s.docs.map((d) => {'id': d.id, ...d.data()}).toList());
 });
 
-final _storeNameProvider = FutureProvider.family<String, String>((ref, storeId) async {
+final _storeNameProvider = FutureProvider.family<String, String>((
+  ref,
+  storeId,
+) async {
   if (storeId.isEmpty) return 'Unknown Seller';
-  final doc = await ref.read(firebaseFirestoreProvider)
+  final doc = await ref
+      .read(firebaseFirestoreProvider)
       .collection('stores')
       .doc(storeId)
       .get();
@@ -46,7 +50,10 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
   String _statusFilter = 'all';
   final Set<String> _selectedProductIds = {};
 
-  Future<void> _batchMakeFlash(BuildContext context, List<String> productIds) async {
+  Future<void> _batchMakeFlash(
+    BuildContext context,
+    List<String> productIds,
+  ) async {
     final schedule = await _showFlashSaleDurationDialog(context);
     if (schedule == null) return;
 
@@ -59,23 +66,61 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
         'metadata.isFlashDeal': true,
         'metadata.flashSaleStartsAt': Timestamp.fromDate(schedule.startsAt),
         'metadata.flashSaleEndsAt': Timestamp.fromDate(schedule.endsAt),
+        'metadata.flashSaleDiscountPercent': schedule.discountPercent,
+        'metadata.flashSaleSponsor': schedule.discountPaidBy,
+        'metadata.flashSaleStatus': 'pending',
         'updatedAt': FieldValue.serverTimestamp(),
       });
     }
 
     await batch.commit();
 
+    for (final id in productIds) {
+      try {
+        final docSnap = await firestore.collection('catalog').doc(id).get();
+        if (docSnap.exists) {
+          final data = docSnap.data();
+          if (data != null) {
+            final storeId =
+                data['storeId'] as String? ?? data['sellerId'] as String?;
+            final title = data['title'] as String? ?? 'Product';
+            if (storeId != null) {
+              await firestore
+                  .collection('users')
+                  .doc(storeId)
+                  .collection('notifications')
+                  .add({
+                    'title': '⚡ New Campaign Offer',
+                    'body':
+                        'Admin offered a flash sale discount of ${(schedule.discountPercent * 100).toStringAsFixed(0)}% for "$title". Accept or cancel.',
+                    'deepLinkPath': '/seller/inventory',
+                    'isRead': false,
+                    'createdAt': FieldValue.serverTimestamp(),
+                  });
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Failed to send notification: $e');
+      }
+    }
+
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Successfully added ${productIds.length} products to Flash Deals'),
+          content: Text(
+            'Successfully added ${productIds.length} products to Flash Deals',
+          ),
         ),
       );
       setState(() => _selectedProductIds.clear());
     }
   }
 
-  Future<void> _batchRemoveFlash(BuildContext context, List<String> productIds) async {
+  Future<void> _batchRemoveFlash(
+    BuildContext context,
+    List<String> productIds,
+  ) async {
     final firestore = ref.read(firebaseFirestoreProvider);
     final batch = firestore.batch();
 
@@ -85,6 +130,8 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
         'metadata.isFlashDeal': false,
         'metadata.flashSaleStartsAt': FieldValue.delete(),
         'metadata.flashSaleEndsAt': FieldValue.delete(),
+        'metadata.flashSaleDiscountPercent': FieldValue.delete(),
+        'metadata.flashSaleSponsor': FieldValue.delete(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
     }
@@ -94,7 +141,9 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Removed ${productIds.length} products from Flash Deals'),
+          content: Text(
+            'Removed ${productIds.length} products from Flash Deals',
+          ),
         ),
       );
       setState(() => _selectedProductIds.clear());
@@ -106,11 +155,11 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface.withValues(alpha: 0.95) : Colors.white.withValues(alpha: 0.95),
+        color: isDark
+            ? AppColors.darkSurface.withValues(alpha: 0.95)
+            : Colors.white.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isDark ? Colors.white10 : AppColors.border,
-        ),
+        border: Border.all(color: isDark ? Colors.white10 : AppColors.border),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.15),
@@ -134,11 +183,13 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
             ),
             const Spacer(),
             TextButton(
-              style: TextButton.styleFrom(
-                minimumSize: const Size(80, 36),
+              style: TextButton.styleFrom(minimumSize: const Size(80, 36)),
+              onPressed: () =>
+                  _batchRemoveFlash(context, _selectedProductIds.toList()),
+              child: const Text(
+                'Remove Flash',
+                style: TextStyle(color: Colors.orange),
               ),
-              onPressed: () => _batchRemoveFlash(context, _selectedProductIds.toList()),
-              child: const Text('Remove Flash', style: TextStyle(color: Colors.orange)),
             ),
             const SizedBox(width: 8),
             ElevatedButton(
@@ -150,7 +201,8 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              onPressed: () => _batchMakeFlash(context, _selectedProductIds.toList()),
+              onPressed: () =>
+                  _batchMakeFlash(context, _selectedProductIds.toList()),
               child: const Text('Make Flash'),
             ),
           ],
@@ -163,8 +215,11 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(_adminProductsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final currencyFmt =
-        NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+    final currencyFmt = NumberFormat.currency(
+      locale: 'en_IN',
+      symbol: '₹',
+      decimalDigits: 0,
+    );
 
     return AdminScaffold(
       title: 'Products',
@@ -182,10 +237,13 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
                       decoration: InputDecoration(
                         hintText: 'Search products...',
                         prefixIcon: const Icon(Icons.search_rounded),
-                        border:
-                            OutlineInputBorder(borderRadius: AppRadius.borderLG),
+                        border: OutlineInputBorder(
+                          borderRadius: AppRadius.borderLG,
+                        ),
                         contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                       ),
                       onChanged: (v) => setState(() => _search = v),
                     ),
@@ -228,7 +286,8 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
                   data: (products) {
                     final filtered = products.where((p) {
                       final title = (p['title'] as String? ?? '').toLowerCase();
-                      final matchesSearch = _search.isEmpty ||
+                      final matchesSearch =
+                          _search.isEmpty ||
                           title.contains(_search.toLowerCase());
 
                       bool matchesStatus;
@@ -240,7 +299,10 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
                           matchesStatus = p['isActive'] == false;
                           break;
                         case 'outOfStock':
-                          final stock = (p['metadata'] as Map<String, dynamic>?)?['stock'] as int? ?? 0;
+                          final stock =
+                              (p['metadata'] as Map<String, dynamic>?)?['stock']
+                                  as int? ??
+                              0;
                           matchesStatus = stock == 0;
                           break;
                         default:
@@ -335,8 +397,12 @@ class _ProductTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isActive = product['isActive'] as bool? ?? true;
-    final isFlashDeal = (product['metadata'] as Map<String, dynamic>?)?['isFlashDeal'] as bool? ?? false;
-    final stockQty = (product['metadata'] as Map<String, dynamic>?)?['stock'] as int? ?? 0;
+    final isFlashDeal =
+        (product['metadata'] as Map<String, dynamic>?)?['isFlashDeal']
+            as bool? ??
+        false;
+    final stockQty =
+        (product['metadata'] as Map<String, dynamic>?)?['stock'] as int? ?? 0;
     final price = (product['basePrice'] as num?)?.toDouble() ?? 0;
     final imageUrl = (product['imageUrls'] as List?)?.isNotEmpty == true
         ? (product['imageUrls'] as List).first as String?
@@ -345,7 +411,8 @@ class _ProductTile extends ConsumerWidget {
     final storeId = product['storeId'] as String? ?? '';
     final storeNameAsync = ref.watch(_storeNameProvider(storeId));
 
-    final startsAtVal = (product['metadata'] as Map<String, dynamic>?)?['flashSaleStartsAt'];
+    final startsAtVal =
+        (product['metadata'] as Map<String, dynamic>?)?['flashSaleStartsAt'];
     DateTime? startsAt;
     if (startsAtVal != null) {
       if (startsAtVal is Timestamp) {
@@ -355,7 +422,8 @@ class _ProductTile extends ConsumerWidget {
       }
     }
 
-    final endsAtVal = (product['metadata'] as Map<String, dynamic>?)?['flashSaleEndsAt'];
+    final endsAtVal =
+        (product['metadata'] as Map<String, dynamic>?)?['flashSaleEndsAt'];
     DateTime? endsAt;
     if (endsAtVal != null) {
       if (endsAtVal is Timestamp) {
@@ -364,6 +432,15 @@ class _ProductTile extends ConsumerWidget {
         endsAt = DateTime.tryParse(endsAtVal);
       }
     }
+    final discountPercentVal =
+        (product['metadata']
+                as Map<String, dynamic>?)?['flashSaleDiscountPercent']
+            as num? ??
+        0.0;
+    final sponsorVal =
+        (product['metadata'] as Map<String, dynamic>?)?['flashSaleSponsor']
+            as String? ??
+        'seller';
     final isExpired = endsAt != null && DateTime.now().isAfter(endsAt);
 
     return AdminSectionCard(
@@ -408,7 +485,9 @@ class _ProductTile extends ConsumerWidget {
                     'Seller: $storeName',
                     style: TextStyle(
                       fontSize: 11,
-                      color: isDark ? Colors.white70 : AppColors.lightTextSecondary,
+                      color: isDark
+                          ? Colors.white70
+                          : AppColors.lightTextSecondary,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -440,8 +519,8 @@ class _ProductTile extends ConsumerWidget {
                         color: stockQty == 0
                             ? AppColors.error
                             : (isDark
-                                ? Colors.white54
-                                : AppColors.lightTextSecondary),
+                                  ? Colors.white54
+                                  : AppColors.lightTextSecondary),
                       ),
                     ),
                   ],
@@ -465,14 +544,16 @@ class _ProductTile extends ConsumerWidget {
                     AdminStatusPill(
                       label: isExpired
                           ? 'Flash (Exp)'
-                          : (startsAt != null && DateTime.now().isBefore(startsAt)
-                              ? 'Flash (Sched)'
-                              : _getFlashRemainingLabel(startsAt, endsAt)),
+                          : (startsAt != null &&
+                                    DateTime.now().isBefore(startsAt)
+                                ? 'Sched: ${(discountPercentVal * 100).toStringAsFixed(0)}% (${sponsorVal == 'admin' ? 'Plat' : 'Sel'})'
+                                : '${_getFlashRemainingLabel(startsAt, endsAt)} · ${(discountPercentVal * 100).toStringAsFixed(0)}% (${sponsorVal == 'admin' ? 'Plat' : 'Sel'})'),
                       color: isExpired
                           ? Colors.grey
-                          : (startsAt != null && DateTime.now().isBefore(startsAt)
-                              ? Colors.blue
-                              : const Color(0xFFEF4444)),
+                          : (startsAt != null &&
+                                    DateTime.now().isBefore(startsAt)
+                                ? Colors.blue
+                                : const Color(0xFFEF4444)),
                     ),
                   ],
                 ],
@@ -484,8 +565,9 @@ class _ProductTile extends ConsumerWidget {
                 child: OutlinedButton(
                   style: OutlinedButton.styleFrom(
                     padding: EdgeInsets.zero,
-                    foregroundColor:
-                        isActive ? AppColors.error : AppColors.success,
+                    foregroundColor: isActive
+                        ? AppColors.error
+                        : AppColors.success,
                     side: BorderSide(
                       color: isActive ? AppColors.error : AppColors.success,
                     ),
@@ -499,14 +581,16 @@ class _ProductTile extends ConsumerWidget {
                         .collection('catalog')
                         .doc(product['id'] as String)
                         .update({
-                      'isActive': !isActive,
-                      'updatedAt': FieldValue.serverTimestamp(),
-                    });
+                          'isActive': !isActive,
+                          'updatedAt': FieldValue.serverTimestamp(),
+                        });
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
-                            isActive ? 'Product deactivated' : 'Product activated',
+                            isActive
+                                ? 'Product deactivated'
+                                : 'Product activated',
                           ),
                         ),
                       );
@@ -514,7 +598,10 @@ class _ProductTile extends ConsumerWidget {
                   },
                   child: Text(
                     isActive ? 'Deactivate' : 'Activate',
-                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
@@ -525,8 +612,9 @@ class _ProductTile extends ConsumerWidget {
                 child: OutlinedButton(
                   style: OutlinedButton.styleFrom(
                     padding: EdgeInsets.zero,
-                    foregroundColor:
-                        isFlashDeal ? Colors.orange : AppColors.primary,
+                    foregroundColor: isFlashDeal
+                        ? Colors.orange
+                        : AppColors.primary,
                     side: BorderSide(
                       color: isFlashDeal ? Colors.orange : AppColors.primary,
                     ),
@@ -541,11 +629,14 @@ class _ProductTile extends ConsumerWidget {
                           .collection('catalog')
                           .doc(product['id'] as String)
                           .update({
-                        'metadata.isFlashDeal': false,
-                        'metadata.flashSaleStartsAt': FieldValue.delete(),
-                        'metadata.flashSaleEndsAt': FieldValue.delete(),
-                        'updatedAt': FieldValue.serverTimestamp(),
-                      });
+                            'metadata.isFlashDeal': false,
+                            'metadata.flashSaleStartsAt': FieldValue.delete(),
+                            'metadata.flashSaleEndsAt': FieldValue.delete(),
+                            'metadata.flashSaleDiscountPercent':
+                                FieldValue.delete(),
+                            'metadata.flashSaleSponsor': FieldValue.delete(),
+                            'updatedAt': FieldValue.serverTimestamp(),
+                          });
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
@@ -554,22 +645,55 @@ class _ProductTile extends ConsumerWidget {
                         );
                       }
                     } else {
-                      final schedule = await _showFlashSaleDurationDialog(context);
+                      final schedule = await _showFlashSaleDurationDialog(
+                        context,
+                      );
                       if (schedule != null) {
-                        await ref
-                            .read(firebaseFirestoreProvider)
+                        final firestore = ref.read(firebaseFirestoreProvider);
+                        await firestore
                             .collection('catalog')
                             .doc(product['id'] as String)
                             .update({
-                          'metadata.isFlashDeal': true,
-                          'metadata.flashSaleStartsAt': Timestamp.fromDate(schedule.startsAt),
-                          'metadata.flashSaleEndsAt': Timestamp.fromDate(schedule.endsAt),
-                          'updatedAt': FieldValue.serverTimestamp(),
-                        });
+                              'metadata.isFlashDeal': true,
+                              'metadata.flashSaleStartsAt': Timestamp.fromDate(
+                                schedule.startsAt,
+                              ),
+                              'metadata.flashSaleEndsAt': Timestamp.fromDate(
+                                schedule.endsAt,
+                              ),
+                              'metadata.flashSaleDiscountPercent':
+                                  schedule.discountPercent,
+                              'metadata.flashSaleSponsor':
+                                  schedule.discountPaidBy,
+                              'metadata.flashSaleStatus': 'pending',
+                              'updatedAt': FieldValue.serverTimestamp(),
+                            });
+
+                        final storeId =
+                            product['storeId'] as String? ??
+                            product['sellerId'] as String?;
+                        final title = product['title'] as String? ?? 'Product';
+                        if (storeId != null) {
+                          await firestore
+                              .collection('users')
+                              .doc(storeId)
+                              .collection('notifications')
+                              .add({
+                                'title': '⚡ New Campaign Offer',
+                                'body':
+                                    'Admin offered a flash sale discount of ${(schedule.discountPercent * 100).toStringAsFixed(0)}% for "$title". Accept or cancel.',
+                                'deepLinkPath': '/seller/inventory',
+                                'isRead': false,
+                                'createdAt': FieldValue.serverTimestamp(),
+                              });
+                        }
+
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Added to Flash Deals'),
+                              content: Text(
+                                'Added to Flash Deals (Pending Seller Approval)',
+                              ),
                             ),
                           );
                         }
@@ -578,7 +702,10 @@ class _ProductTile extends ConsumerWidget {
                   },
                   child: Text(
                     isFlashDeal ? 'Remove Flash' : 'Make Flash',
-                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
@@ -606,16 +733,31 @@ class _ProductTile extends ConsumerWidget {
 class FlashSaleSchedule {
   final DateTime startsAt;
   final DateTime endsAt;
-  FlashSaleSchedule({required this.startsAt, required this.endsAt});
+  final double discountPercent;
+  final String discountPaidBy;
+
+  FlashSaleSchedule({
+    required this.startsAt,
+    required this.endsAt,
+    required this.discountPercent,
+    required this.discountPaidBy,
+  });
 }
 
-Future<FlashSaleSchedule?> _showFlashSaleDurationDialog(BuildContext outerContext) async {
+Future<FlashSaleSchedule?> _showFlashSaleDurationDialog(
+  BuildContext outerContext,
+) async {
   final hoursController = TextEditingController(text: '1');
   bool startImmediately = true;
   DateTime customStartsAt = DateTime.now().add(const Duration(minutes: 5));
   bool usePresetDuration = true;
   int? selectedHoursPreset = 1;
-  DateTime customEndsAt = DateTime.now().add(const Duration(hours: 1, minutes: 5));
+  DateTime customEndsAt = DateTime.now().add(
+    const Duration(hours: 1, minutes: 5),
+  );
+
+  double discountPercent = 0.20; // 20% default
+  String discountPaidBy = 'seller'; // 'seller' default
 
   return showDialog<FlashSaleSchedule>(
     context: outerContext,
@@ -646,15 +788,19 @@ Future<FlashSaleSchedule?> _showFlashSaleDurationDialog(BuildContext outerContex
           if (durationDiff.isNegative) {
             durationStr = 'Invalid (Ends before Start)';
           } else if (durationDiff.inDays > 0) {
-            durationStr = '${durationDiff.inDays}d ${durationDiff.inHours % 24}h';
+            durationStr =
+                '${durationDiff.inDays}d ${durationDiff.inHours % 24}h';
           } else if (durationDiff.inHours > 0) {
-            durationStr = '${durationDiff.inHours}h ${durationDiff.inMinutes % 60}m';
+            durationStr =
+                '${durationDiff.inHours}h ${durationDiff.inMinutes % 60}m';
           } else {
             durationStr = '${durationDiff.inMinutes}m';
           }
 
           return AlertDialog(
-            backgroundColor: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+            backgroundColor: isDark
+                ? AppColors.darkSurface
+                : AppColors.lightSurface,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
@@ -668,10 +814,103 @@ Future<FlashSaleSchedule?> _showFlashSaleDurationDialog(BuildContext outerContex
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Configure start and end details for this flash sale.',
+                    'Configure start, end, discount and settlement details for this sale campaign.',
                     style: TextStyle(fontSize: 13, color: Colors.grey),
                   ),
                   const SizedBox(height: 16),
+
+                  // Discount Configuration
+                  const Text(
+                    'Discount Percentage',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<double>(
+                    initialValue: discountPercent,
+                    dropdownColor: isDark
+                        ? AppColors.darkSurface
+                        : AppColors.lightSurface,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 0.05, child: Text('5% Off')),
+                      DropdownMenuItem(value: 0.10, child: Text('10% Off')),
+                      DropdownMenuItem(value: 0.15, child: Text('15% Off')),
+                      DropdownMenuItem(value: 0.20, child: Text('20% Off')),
+                      DropdownMenuItem(value: 0.25, child: Text('25% Off')),
+                      DropdownMenuItem(value: 0.30, child: Text('30% Off')),
+                      DropdownMenuItem(value: 0.40, child: Text('40% Off')),
+                      DropdownMenuItem(value: 0.50, child: Text('50% Off')),
+                      DropdownMenuItem(value: 0.75, child: Text('75% Off')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        setDialogState(() {
+                          discountPercent = val;
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Discount Sponsor Configuration
+                  const Text(
+                    'Discount Sponsored By',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ChoiceChip(
+                          label: const Text('Seller Payout'),
+                          selected: discountPaidBy == 'seller',
+                          onSelected: (selected) {
+                            if (selected) {
+                              setDialogState(() {
+                                discountPaidBy = 'seller';
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ChoiceChip(
+                          label: const Text('Admin/Platform'),
+                          selected: discountPaidBy == 'admin',
+                          onSelected: (selected) {
+                            if (selected) {
+                              setDialogState(() {
+                                discountPaidBy = 'admin';
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    discountPaidBy == 'seller'
+                        ? 'The seller absorbs the discount cost from their payout.'
+                        : 'The admin/platform funds the discount difference to the seller.',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(),
                   const Text(
                     'Start Time',
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
@@ -742,7 +981,9 @@ Future<FlashSaleSchedule?> _showFlashSaleDurationDialog(BuildContext outerContex
                           });
                         },
                         icon: const Icon(Icons.access_time_rounded, size: 16),
-                        label: Text('Starts: ${DateFormat('MMM d, h:mm a').format(customStartsAt)}'),
+                        label: Text(
+                          'Starts: ${DateFormat('MMM d, h:mm a').format(customStartsAt)}',
+                        ),
                       ),
                     ),
                   ],
@@ -845,9 +1086,13 @@ Future<FlashSaleSchedule?> _showFlashSaleDurationDialog(BuildContext outerContex
                         onPressed: () async {
                           final pickedDate = await showDatePicker(
                             context: builderContext,
-                            initialDate: customEndsAt.isBefore(activeStartsAt) ? activeStartsAt.add(const Duration(hours: 1)) : customEndsAt,
+                            initialDate: customEndsAt.isBefore(activeStartsAt)
+                                ? activeStartsAt.add(const Duration(hours: 1))
+                                : customEndsAt,
                             firstDate: activeStartsAt,
-                            lastDate: activeStartsAt.add(const Duration(days: 365)),
+                            lastDate: activeStartsAt.add(
+                              const Duration(days: 365),
+                            ),
                           );
                           if (pickedDate == null) return;
                           if (!builderContext.mounted) return;
@@ -867,8 +1112,13 @@ Future<FlashSaleSchedule?> _showFlashSaleDurationDialog(BuildContext outerContex
                             );
                           });
                         },
-                        icon: const Icon(Icons.calendar_month_rounded, size: 16),
-                        label: Text('Ends: ${DateFormat('MMM d, h:mm a').format(customEndsAt)}'),
+                        icon: const Icon(
+                          Icons.calendar_month_rounded,
+                          size: 16,
+                        ),
+                        label: Text(
+                          'Ends: ${DateFormat('MMM d, h:mm a').format(customEndsAt)}',
+                        ),
                       ),
                     ),
                   ],
@@ -879,7 +1129,9 @@ Future<FlashSaleSchedule?> _showFlashSaleDurationDialog(BuildContext outerContex
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkSurface.withValues(alpha: 0.5) : AppColors.lightSurface,
+                      color: isDark
+                          ? AppColors.darkSurface.withValues(alpha: 0.5)
+                          : AppColors.lightSurface,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: isDark ? Colors.white10 : AppColors.border,
@@ -890,12 +1142,19 @@ Future<FlashSaleSchedule?> _showFlashSaleDurationDialog(BuildContext outerContex
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.event_available_rounded, color: AppColors.success, size: 16),
+                            const Icon(
+                              Icons.event_available_rounded,
+                              color: AppColors.success,
+                              size: 16,
+                            ),
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
                                 'Start: $startStr',
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ],
@@ -903,12 +1162,19 @@ Future<FlashSaleSchedule?> _showFlashSaleDurationDialog(BuildContext outerContex
                         const SizedBox(height: 6),
                         Row(
                           children: [
-                            const Icon(Icons.event_busy_rounded, color: AppColors.error, size: 16),
+                            const Icon(
+                              Icons.event_busy_rounded,
+                              color: AppColors.error,
+                              size: 16,
+                            ),
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
                                 'End: $endStr',
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ],
@@ -919,14 +1185,19 @@ Future<FlashSaleSchedule?> _showFlashSaleDurationDialog(BuildContext outerContex
                           children: [
                             const Text(
                               'Duration:',
-                              style: TextStyle(fontSize: 12, color: Colors.grey),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
                             ),
                             Text(
                               durationStr,
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
-                                color: durationDiff.isNegative ? AppColors.error : AppColors.primary,
+                                color: durationDiff.isNegative
+                                    ? AppColors.error
+                                    : AppColors.primary,
                               ),
                             ),
                           ],
@@ -940,7 +1211,10 @@ Future<FlashSaleSchedule?> _showFlashSaleDurationDialog(BuildContext outerContex
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(builderContext).pop(),
-                child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
@@ -951,14 +1225,18 @@ Future<FlashSaleSchedule?> _showFlashSaleDurationDialog(BuildContext outerContex
                   ),
                 ),
                 onPressed: () {
-                  final finalStartsAt = startImmediately ? DateTime.now() : customStartsAt;
+                  final finalStartsAt = startImmediately
+                      ? DateTime.now()
+                      : customStartsAt;
                   DateTime finalEndsAt;
                   if (usePresetDuration) {
                     final hoursText = hoursController.text.trim();
                     final hours = int.tryParse(hoursText);
                     if (hours == null || hours <= 0) {
                       ScaffoldMessenger.of(builderContext).showSnackBar(
-                        const SnackBar(content: Text('Please enter a valid number of hours')),
+                        const SnackBar(
+                          content: Text('Please enter a valid number of hours'),
+                        ),
                       );
                       return;
                     }
@@ -969,20 +1247,31 @@ Future<FlashSaleSchedule?> _showFlashSaleDurationDialog(BuildContext outerContex
 
                   if (finalEndsAt.isBefore(finalStartsAt)) {
                     ScaffoldMessenger.of(builderContext).showSnackBar(
-                      const SnackBar(content: Text('End date/time must be after start date/time')),
+                      const SnackBar(
+                        content: Text(
+                          'End date/time must be after start date/time',
+                        ),
+                      ),
                     );
                     return;
                   }
 
                   if (finalEndsAt.isBefore(DateTime.now())) {
                     ScaffoldMessenger.of(builderContext).showSnackBar(
-                      const SnackBar(content: Text('End date/time must be in the future')),
+                      const SnackBar(
+                        content: Text('End date/time must be in the future'),
+                      ),
                     );
                     return;
                   }
 
                   Navigator.of(builderContext).pop(
-                    FlashSaleSchedule(startsAt: finalStartsAt, endsAt: finalEndsAt),
+                    FlashSaleSchedule(
+                      startsAt: finalStartsAt,
+                      endsAt: finalEndsAt,
+                      discountPercent: discountPercent,
+                      discountPaidBy: discountPaidBy,
+                    ),
                   );
                 },
                 child: const Text('Set Flash'),

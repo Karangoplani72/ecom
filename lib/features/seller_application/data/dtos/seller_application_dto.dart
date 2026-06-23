@@ -22,6 +22,11 @@ class SellerApplicationDto {
   final String? reviewedBy;
   final String? rejectionReason;
 
+  final String? bankName;
+  final String? accountNumber;
+  final String? ifscCode;
+  final String? accountHolderName;
+
   const SellerApplicationDto({
     this.applicationId,
     required this.userId,
@@ -38,6 +43,10 @@ class SellerApplicationDto {
     this.reviewedAt,
     this.reviewedBy,
     this.rejectionReason,
+    this.bankName,
+    this.accountNumber,
+    this.ifscCode,
+    this.accountHolderName,
   });
 
   factory SellerApplicationDto.fromFirestore(
@@ -64,6 +73,10 @@ class SellerApplicationDto {
       reviewedAt: (data['reviewedAt'] as Timestamp?)?.toDate(),
       reviewedBy: data['reviewedBy'] as String?,
       rejectionReason: data['rejectionReason'] as String?,
+      bankName: data['bankName'] as String?,
+      accountNumber: data['accountNumber'] as String?,
+      ifscCode: data['ifscCode'] as String?,
+      accountHolderName: data['accountHolderName'] as String?,
     );
   }
 
@@ -84,6 +97,10 @@ class SellerApplicationDto {
       if (reviewedAt != null) 'reviewedAt': Timestamp.fromDate(reviewedAt!),
       if (reviewedBy != null) 'reviewedBy': reviewedBy,
       if (rejectionReason != null) 'rejectionReason': rejectionReason,
+      if (bankName != null && bankName!.isNotEmpty) 'bankName': bankName,
+      if (accountNumber != null && accountNumber!.isNotEmpty) 'accountNumber': accountNumber,
+      if (ifscCode != null && ifscCode!.isNotEmpty) 'ifscCode': ifscCode,
+      if (accountHolderName != null && accountHolderName!.isNotEmpty) 'accountHolderName': accountHolderName,
     };
   }
 
@@ -104,6 +121,10 @@ class SellerApplicationDto {
       reviewedAt: application.reviewedAt,
       reviewedBy: application.reviewedBy,
       rejectionReason: application.rejectionReason,
+      bankName: application.bankName,
+      accountNumber: application.accountNumber,
+      ifscCode: application.ifscCode,
+      accountHolderName: application.accountHolderName,
     );
   }
 
@@ -124,6 +145,10 @@ class SellerApplicationDto {
       reviewedAt: reviewedAt,
       reviewedBy: reviewedBy,
       rejectionReason: rejectionReason,
+      bankName: bankName,
+      accountNumber: accountNumber,
+      ifscCode: ifscCode,
+      accountHolderName: accountHolderName,
     );
   }
 }

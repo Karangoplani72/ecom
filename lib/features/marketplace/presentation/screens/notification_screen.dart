@@ -46,48 +46,51 @@ class NotificationScreen extends ConsumerWidget {
               itemCount: notifications.length,
               itemBuilder: (context, index) {
                 final notif = notifications[index];
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: notif.isRead
-                        ? colorScheme.surfaceContainerHighest
-                        : colorScheme.primaryContainer,
-                    child: Icon(
-                      Icons.notifications_outlined,
-                      color: notif.isRead
-                          ? colorScheme.onSurfaceVariant
-                          : colorScheme.primary,
-                    ),
-                  ),
-                  title: Text(
-                    notif.title,
-                    style: TextStyle(
-                      fontWeight: notif.isRead
-                          ? FontWeight.normal
-                          : FontWeight.bold,
-                    ),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(notif.body),
-                      const SizedBox(height: 4),
-                      Text(
-                        DateFormat('MMM d, h:mm a').format(notif.createdAt),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
+                return Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: notif.isRead
+                          ? colorScheme.surfaceContainerHighest
+                          : colorScheme.primaryContainer,
+                      child: Icon(
+                        Icons.notifications_outlined,
+                        color: notif.isRead
+                            ? colorScheme.onSurfaceVariant
+                            : colorScheme.primary,
                       ),
-                    ],
+                    ),
+                    title: Text(
+                      notif.title,
+                      style: TextStyle(
+                        fontWeight: notif.isRead
+                            ? FontWeight.normal
+                            : FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(notif.body),
+                        const SizedBox(height: 4),
+                        Text(
+                          DateFormat('MMM d, h:mm a').format(notif.createdAt),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                    onTap: () {
+                      ref
+                          .read(notificationControllerProvider.notifier)
+                          .markAsRead(notif.id);
+                      if (notif.deepLinkPath.isNotEmpty) {
+                        context.push(notif.deepLinkPath);
+                      }
+                    },
                   ),
-                  onTap: () {
-                    ref
-                        .read(notificationControllerProvider.notifier)
-                        .markAsRead(notif.id);
-                    if (notif.deepLinkPath.isNotEmpty) {
-                      context.push(notif.deepLinkPath);
-                    }
-                  },
                 );
               },
             );

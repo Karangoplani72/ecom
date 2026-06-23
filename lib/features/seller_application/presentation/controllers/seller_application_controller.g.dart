@@ -126,7 +126,7 @@ final class SellerApplicationControllerProvider
 }
 
 String _$sellerApplicationControllerHash() =>
-    r'cb4a2580e20b9f8132b393e882914af0505fada3';
+    r'80d20c18c0f18bfbc0d441b3bb9651537db0d89d';
 
 abstract class _$SellerApplicationController extends $AsyncNotifier<void> {
   FutureOr<void> build();

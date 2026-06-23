@@ -1,8 +1,12 @@
 import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/features/seller/data/repositories/seller_finance_repository_impl.dart';
 import 'package:ecom/features/seller/domain/entities/merchant_wallet.dart';
+import 'package:ecom/features/seller/domain/entities/seller_transaction.dart';
 import 'package:ecom/features/seller/domain/repositories/seller_finance_repository.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 
 part 'seller_finances_controller.g.dart';
 
@@ -29,6 +33,28 @@ Future<MerchantWallet> merchantWallet(Ref ref) async {
 }
 
 @riverpod
+Future<Map<String, dynamic>?> sellerBankAccount(Ref ref) async {
+  final sellerId = ref.watch(currentUserIdProvider);
+  if (sellerId == null || sellerId.isEmpty) return null;
+  final doc = await ref
+      .read(firebaseFirestoreProvider)
+      .collection('bankAccounts')
+      .doc(sellerId)
+      .get();
+  return doc.data();
+}
+
+@riverpod
+Future<List<SellerTransaction>> sellerTransactions(Ref ref) async {
+  final sellerId = ref.watch(currentUserIdProvider);
+  if (sellerId == null || sellerId.isEmpty) return [];
+  final result = await ref
+      .read(sellerFinanceRepositoryProvider)
+      .getTransactions(sellerId: sellerId);
+  return result.fold((error) => throw error, (list) => list);
+}
+
+@riverpod
 class SellerFinancesController extends _$SellerFinancesController {
   @override
   Future<MerchantWallet> build() async {
@@ -36,6 +62,21 @@ class SellerFinancesController extends _$SellerFinancesController {
 
     if (sellerId == null || sellerId.isEmpty) {
       throw Exception('Seller not authenticated');
+    }
+
+    try {
+      final idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
+      if (idToken != null) {
+        await http.post(
+          Uri.parse('https://us-central1-ecom-750fc.cloudfunctions.net/releaseMaturedEscrows'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $idToken',
+          },
+        ).timeout(const Duration(seconds: 10));
+      }
+    } catch (e) {
+      debugPrint('Failed to release matured escrows: $e');
     }
 
     final result = await ref
@@ -56,6 +97,21 @@ class SellerFinancesController extends _$SellerFinancesController {
         StackTrace.current,
       );
       return;
+    }
+
+    try {
+      final idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
+      if (idToken != null) {
+        await http.post(
+          Uri.parse('https://us-central1-ecom-750fc.cloudfunctions.net/releaseMaturedEscrows'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $idToken',
+          },
+        ).timeout(const Duration(seconds: 10));
+      }
+    } catch (e) {
+      debugPrint('Failed to release matured escrows in refresh: $e');
     }
 
     final result = await ref
@@ -124,10 +180,19 @@ class SellerFinancesController extends _$SellerFinancesController {
 
   Future<void> updateBankAccount({
     required String accountId,
+    required String bankName,
     required String accountNumber,
     required String ifscCode,
     required String accountHolderName,
   }) async {
+    if (bankName.isEmpty) {
+      state = AsyncError(
+        Exception('Bank name cannot be empty'),
+        StackTrace.current,
+      );
+      return;
+    }
+
     if (accountNumber.isEmpty) {
       state = AsyncError(
         Exception('Account number cannot be empty'),
@@ -169,6 +234,7 @@ class SellerFinancesController extends _$SellerFinancesController {
         .updateBankAccount(
           sellerId: sellerId,
           accountId: accountId,
+          bankName: bankName,
           accountNumber: accountNumber,
           ifscCode: ifscCode,
           accountHolderName: accountHolderName,
@@ -179,6 +245,7 @@ class SellerFinancesController extends _$SellerFinancesController {
         state = AsyncError(error, StackTrace.current);
       },
       (_) async {
+        ref.invalidate(sellerBankAccountProvider);
         await refresh();
       },
     );

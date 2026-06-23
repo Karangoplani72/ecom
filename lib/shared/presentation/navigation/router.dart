@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 
+import 'package:google_fonts/google_fonts.dart';
 import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/core/theme/app_colors.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_category_requests_screen.dart';
@@ -100,11 +102,13 @@ abstract class AppRoutes {
   // Seller push screens
   static const addProduct = '/seller/inventory/add';
   static const editProduct = '/seller/inventory/edit/:productId';
+  static const sellerNotifications = '/seller/notifications';
 
   // Seller application
   static const sellerApply = '/seller/apply';
 
   // Admin
+  static const adminNotifications = '/admin/notifications';
   static const adminPanel = '/admin/control-panel';
   static const adminUsers = '/admin/users';
   static const adminStoreApprovals = '/admin/store-approvals';
@@ -232,6 +236,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Chat is used by both buyers and sellers to talk to each other, so
       // it's intentionally exempt from panel isolation.
       if (loc.startsWith('/chat')) return null;
+      if (loc == AppRoutes.buyerNotifications) return null;
 
       // ── 8. Strict panel isolation ─────────────────────────────────────────
       // Every role is confined to its own panel — no cross-access, even
@@ -313,6 +318,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const NotificationScreen(),
       ),
       GoRoute(
+        path: AppRoutes.sellerNotifications,
+        builder: (context, state) => const NotificationScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminNotifications,
+        builder: (context, state) => const NotificationScreen(),
+      ),
+      GoRoute(
         path: AppRoutes.buyerAccountSettings,
         builder: (context, state) => const AccountSettingsScreen(),
       ),
@@ -357,7 +370,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: AppRoutes.buyerProducts,
-                builder: (context, state) => const ProductsScreen(),
+                builder: (context, state) {
+                  final search = state.uri.queryParameters['search'];
+                  return ProductsScreen(initialSearch: search);
+                },
               ),
             ],
           ),
@@ -489,16 +505,16 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
-class _BuyerShell extends StatefulWidget {
+class _BuyerShell extends ConsumerStatefulWidget {
   const _BuyerShell({required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
 
   @override
-  State<_BuyerShell> createState() => _BuyerShellState();
+  ConsumerState<_BuyerShell> createState() => _BuyerShellState();
 }
 
-class _BuyerShellState extends State<_BuyerShell> {
+class _BuyerShellState extends ConsumerState<_BuyerShell> {
   DateTime? _lastBackPress;
   static const _homeIndex = 0;
 
@@ -536,42 +552,131 @@ class _BuyerShellState extends State<_BuyerShell> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final currentIndex = widget.navigationShell.currentIndex;
+
+    final navItems = [
+      _NavItemData(
+        icon: Icons.home_rounded,
+        label: 'Home',
+      ),
+      _NavItemData(
+        icon: Icons.grid_view_rounded,
+        label: 'Products',
+      ),
+      _NavItemData(
+        icon: Icons.person_rounded,
+        label: 'Profile',
+      ),
+    ];
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _onWillPop();
       },
       child: Scaffold(
+        extendBody: true,
         body: widget.navigationShell,
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: widget.navigationShell.currentIndex,
-          onDestinationSelected: (index) {
-            widget.navigationShell.goBranch(
-              index,
-              initialLocation: index == widget.navigationShell.currentIndex,
-            );
-          },
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
-              label: 'Home',
+        bottomNavigationBar: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(28),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+              child: Container(
+                height: 68,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : Colors.white.withValues(alpha: 0.80),
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: isDark ? 0.12 : 0.6),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF7C3AED).withValues(alpha: 0.15),
+                      blurRadius: 24,
+                      offset: const Offset(0, -4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: List.generate(navItems.length, (index) {
+                    final item = navItems[index];
+                    final isSelected = currentIndex == index;
+                    final unselectedColor =
+                        isDark ? Colors.white54 : Colors.black45;
+
+                    return GestureDetector(
+                      onTap: () {
+                        widget.navigationShell.goBranch(
+                          index,
+                          initialLocation: index == currentIndex,
+                        );
+                      },
+                      behavior: HitTestBehavior.opaque,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isSelected ? 16 : 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: isSelected
+                              ? const LinearGradient(
+                                  colors: [Color(0xFF7C3AED), Color(0xFFA855F7)],
+                                )
+                              : null,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              item.icon,
+                              color: isSelected
+                                  ? Colors.white
+                                  : unselectedColor,
+                              size: 24,
+                            ),
+                            if (isSelected) ...[
+                              const SizedBox(width: 8),
+                              Text(
+                                item.label,
+                                style: GoogleFonts.inter(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ),
             ),
-            NavigationDestination(
-              icon: Icon(Icons.grid_view_outlined),
-              selectedIcon: Icon(Icons.grid_view),
-              label: 'Products',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: Icon(Icons.person),
-              label: 'Profile',
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _NavItemData {
+  final IconData icon;
+  final String label;
+
+  _NavItemData({
+    required this.icon,
+    required this.label,
+  });
 }
 
 class _SellerShell extends StatelessWidget {

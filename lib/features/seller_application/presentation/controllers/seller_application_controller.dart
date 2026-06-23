@@ -42,6 +42,10 @@ class SellerApplicationController extends _$SellerApplicationController {
     required String businessCategory,
     String? gstNumber,
     required String description,
+    required String bankName,
+    required String accountNumber,
+    required String ifscCode,
+    required String accountHolderName,
   }) async {
     final userId = ref.read(currentUserIdProvider);
     if (userId == null) {
@@ -60,6 +64,10 @@ class SellerApplicationController extends _$SellerApplicationController {
       gstNumber: gstNumber?.trim().isEmpty == true ? null : gstNumber?.trim(),
       status: 'pending',
       submittedAt: DateTime.now(),
+      bankName: bankName.trim(),
+      accountNumber: accountNumber.trim(),
+      ifscCode: ifscCode.trim(),
+      accountHolderName: accountHolderName.trim(),
     );
 
     final repo = ref.read(sellerApplicationRepositoryProvider);

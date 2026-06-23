@@ -25,6 +25,10 @@ class _SellerApplicationScreenState
   final _storeNameController = TextEditingController();
   final _gstController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _bankNameController = TextEditingController();
+  final _accountNumberController = TextEditingController();
+  final _ifscCodeController = TextEditingController();
+  final _accountHolderNameController = TextEditingController();
 
   String? _selectedCategory;
   bool _hasPrefilled = false;
@@ -36,6 +40,10 @@ class _SellerApplicationScreenState
     _storeNameController.dispose();
     _gstController.dispose();
     _descriptionController.dispose();
+    _bankNameController.dispose();
+    _accountNumberController.dispose();
+    _ifscCodeController.dispose();
+    _accountHolderNameController.dispose();
     super.dispose();
   }
 
@@ -51,6 +59,10 @@ class _SellerApplicationScreenState
           businessCategory: _selectedCategory!,
           gstNumber: _gstController.text.trim(),
           description: _descriptionController.text.trim(),
+          bankName: _bankNameController.text.trim(),
+          accountNumber: _accountNumberController.text.trim(),
+          ifscCode: _ifscCodeController.text.trim(),
+          accountHolderName: _accountHolderNameController.text.trim(),
         );
 
     if (!mounted) return;
@@ -102,6 +114,10 @@ class _SellerApplicationScreenState
           _storeNameController.text = app.storeName;
           _gstController.text = app.gstNumber ?? '';
           _descriptionController.text = app.storeDescription;
+          _bankNameController.text = app.bankName ?? '';
+          _accountNumberController.text = app.accountNumber ?? '';
+          _ifscCodeController.text = app.ifscCode ?? '';
+          _accountHolderNameController.text = app.accountHolderName ?? '';
           setState(() {
             _selectedCategory = app.businessCategory;
             _hasPrefilled = true;
@@ -211,6 +227,53 @@ class _SellerApplicationScreenState
                             }
                             return null;
                           },
+                        ),
+                        const SizedBox(height: 32),
+                        _SectionLabel(label: 'Settlement Bank Account Details', theme: theme),
+                        const SizedBox(height: 16),
+                        AppTextField(
+                          controller: _bankNameController,
+                          label: 'Bank Name',
+                          hint: 'e.g. State Bank of India',
+                          prefixIcon: Icons.account_balance_outlined,
+                          enabled: !isLoading,
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Bank name is required'
+                              : null,
+                        ),
+                        const SizedBox(height: 16),
+                        AppTextField(
+                          controller: _accountNumberController,
+                          label: 'Account Number',
+                          hint: 'e.g. 123456789012',
+                          prefixIcon: Icons.payment_outlined,
+                          enabled: !isLoading,
+                          keyboardType: TextInputType.number,
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Account number is required'
+                              : null,
+                        ),
+                        const SizedBox(height: 16),
+                        AppTextField(
+                          controller: _ifscCodeController,
+                          label: 'IFSC Code',
+                          hint: 'e.g. SBIN0001234',
+                          prefixIcon: Icons.code_rounded,
+                          enabled: !isLoading,
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'IFSC code is required'
+                              : null,
+                        ),
+                        const SizedBox(height: 16),
+                        AppTextField(
+                          controller: _accountHolderNameController,
+                          label: 'Account Holder Name',
+                          hint: 'e.g. John Doe',
+                          prefixIcon: Icons.person_pin_outlined,
+                          enabled: !isLoading,
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Account holder name is required'
+                              : null,
                         ),
                         const SizedBox(height: 32),
                         _DisclaimerCard(colorScheme: colorScheme),

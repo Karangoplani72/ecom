@@ -71,6 +71,7 @@ class SellerProductDto {
       imageUrls: imageUrls,
       category: metadata['category'] as String? ?? '',
       stock: metadata['stock'] as int? ?? 0,
+      metadata: metadata,
       createdAt: createdAt?.toDate(),
       updatedAt: updatedAt?.toDate(),
     );

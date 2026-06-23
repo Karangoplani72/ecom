@@ -63,7 +63,7 @@ class PaymentRepositoryImpl implements PaymentRepository {
   }) async {
     try {
       debugPrint('[PAYMENT_REPO] createOrder: amount=$amountInPaise paise');
-      final body = <String, dynamic>{
+      final bodyPayload = <String, dynamic>{
         'amount': amountInPaise,
         'currency': currency,
         'receipt': ?receipt,
@@ -76,7 +76,7 @@ class PaymentRepositoryImpl implements PaymentRepository {
               'Content-Type': 'application/json',
               'Authorization': 'Bearer $idToken',
             },
-            body: json.encode(body),
+            body: json.encode(bodyPayload),
           )
           .timeout(const Duration(seconds: 30));
 
@@ -114,7 +114,6 @@ class PaymentRepositoryImpl implements PaymentRepository {
         '[PAYMENT_REPO] verifyAndFinalize: paymentId=$razorpayPaymentId buyerId=$buyerId',
       );
 
-      // Build grouped orders payload
       final grouped = <String, List<CartItem>>{};
       for (final item in cartItems) {
         grouped.putIfAbsent(item.storeId, () => []).add(item);
@@ -215,7 +214,6 @@ class PaymentRepositoryImpl implements PaymentRepository {
         '[PAYMENT_REPO] recordPaymentFailure logged: orderId=$razorpayOrderId code=$code',
       );
     } catch (e) {
-      // Non-fatal — log only
       debugPrint('[PAYMENT_REPO][WARN] recordPaymentFailure failed: $e');
     }
   }
@@ -249,8 +247,7 @@ class PaymentRepositoryImpl implements PaymentRepository {
 }
 
 // ---------------------------------------------------------------------------
-// Fallback PlatformConfig used when the Riverpod provider hasn't loaded yet.
-// Mirrors the inline fallback in checkout_screen.dart.
+// Fallback PlatformConfig — used when Riverpod provider hasn't loaded yet.
 // ---------------------------------------------------------------------------
 const _fallbackConfig = PlatformConfig(
   defaultCommissionRate: 0.085,
@@ -260,6 +257,4 @@ const _fallbackConfig = PlatformConfig(
   razorpayKey: 'managed_via_functions',
 );
 
-// Expose the fallback so the controller can reference it without importing
-// checkout_screen.
 PlatformConfig get defaultPlatformConfig => _fallbackConfig;
