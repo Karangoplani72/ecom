@@ -21,6 +21,14 @@ service cloud.firestore {
       return isLoggedIn() && request.auth.uid == userId;
     }
 
+    function isAdmin() {
+      return hasRole('admin') || hasRole('superAdmin');
+    }
+
+    function isNonEmptyString(value, maxLength) {
+      return value is string && value.size() > 0 && value.size() <= maxLength;
+    }
+
     // ========================================================================
     // 2. USERS
     // Covers: AuthRepositoryImpl, AddressRepositoryImpl, CartRepositoryImpl,
@@ -80,8 +88,12 @@ service cloud.firestore {
       // write via client transaction).
       match /notifications/{notifId} {
         allow read:   if isOwner(userId);
-        allow create: if isLoggedIn();   // transaction writes on behalf of buyer/seller
-        allow update, delete: if isOwner(userId);
+        allow create: if false; // Cloud Functions/Admin SDK only
+        allow update: if isOwner(userId)
+                      && request.resource.data.diff(resource.data)
+                          .affectedKeys()
+                          .hasOnly(['isRead']);
+        allow delete: if isOwner(userId);
       }
     }
 
@@ -149,16 +161,7 @@ service cloud.firestore {
       // using the Admin SDK, which bypasses these rules entirely — so client-side
       // catalog updates are now locked down to sellers only.
       allow update: if isLoggedIn() && (
-        // Store owner can update anything in their own catalog entry
         get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.sellerId == request.auth.uid
-        ||
-        // Buyers may only update stock-related fields (belt-and-suspenders guard
-        // in case of legacy client paths) and stock must never go below zero.
-        (
-          request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['metadata.stock', 'status', 'updatedAt'])
-          && request.resource.data['metadata.stock'] >= 0
-        )
         || hasRole('admin') || hasRole('superAdmin')
       );
 
@@ -239,6 +242,19 @@ service cloud.firestore {
       allow update, delete: if false; // Cloud Functions only
     }
 
+    match /payment_failures/{failureId} {
+      allow create: if isLoggedIn()
+                    && request.resource.data.buyerId == request.auth.uid
+                    && request.resource.data.razorpayOrderId is string
+                    && request.resource.data.errorCode is int
+                    && request.resource.data.errorMessage is string;
+      allow read: if isLoggedIn() && (
+        resource.data.buyerId == request.auth.uid ||
+        hasRole('admin') || hasRole('superAdmin')
+      );
+      allow update, delete: if false;
+    }
+
     match /transactions/{transactionId} {
       // Buyer sees receipts; seller sees payouts (storeId == activeStoreId)
       // Also covers SellerFinanceRepositoryImpl.getTransactions (storeId filter)
@@ -279,7 +295,14 @@ service cloud.firestore {
     // ========================================================================
     match /bankAccounts/{accountId} {
       allow read:   if isLoggedIn() && resource.data.storeId == request.auth.uid;
-      allow write:  if isLoggedIn() && request.resource.data.storeId == request.auth.uid;
+      allow create, update:  if isLoggedIn()
+                    && request.resource.data.storeId == request.auth.uid
+                    && request.resource.data.accountNumber is string
+                    && request.resource.data.ifscCode is string
+                    && request.resource.data.accountHolderName is string
+                    && request.resource.data.bankName is string
+                    && request.resource.data.isVerified == false;
+      allow delete: if false;
     }
 
     // ========================================================================
@@ -350,8 +373,19 @@ service cloud.firestore {
     // ========================================================================
     match /reviews/{reviewId} {
       allow read:   if true;
-      allow create: if isLoggedIn() && request.resource.data.buyerId == request.auth.uid;
-      allow update, delete: if isLoggedIn() && resource.data.buyerId == request.auth.uid;
+      allow create: if isLoggedIn()
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.rating is int
+                    && request.resource.data.rating >= 1
+                    && request.resource.data.rating <= 5
+                    && request.resource.data.text is string
+                    && request.resource.data.text.size() <= 2000
+                    && request.resource.data.productId is string;
+      allow update: if false;
+      allow delete: if isLoggedIn() && (
+        resource.data.userId == request.auth.uid ||
+        hasRole('admin') || hasRole('superAdmin')
+      );
     }
 
     // ========================================================================
@@ -371,6 +405,11 @@ service cloud.firestore {
       allow create: if isLoggedIn() && request.resource.data.sellerId == request.auth.uid;
       allow update: if hasRole('admin') || hasRole('superAdmin');
       allow delete: if hasRole('superAdmin');
+    }
+
+    match /coupons/{couponId} {
+      allow read: if true;
+      allow write: if hasRole('admin') || hasRole('superAdmin');
     }
   }
 }

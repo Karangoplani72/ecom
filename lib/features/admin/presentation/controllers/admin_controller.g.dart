@@ -256,6 +256,45 @@ final class AdminAllDisputesProvider
 
 String _$adminAllDisputesHash() => r'93670f143e6c6b255091cfc88625dad9db53020c';
 
+@ProviderFor(adminAuditLogs)
+final adminAuditLogsProvider = AdminAuditLogsProvider._();
+
+final class AdminAuditLogsProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<AuditLog>>,
+          List<AuditLog>,
+          Stream<List<AuditLog>>
+        >
+    with $FutureModifier<List<AuditLog>>, $StreamProvider<List<AuditLog>> {
+  AdminAuditLogsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'adminAuditLogsProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$adminAuditLogsHash();
+
+  @$internal
+  @override
+  $StreamProviderElement<List<AuditLog>> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<List<AuditLog>> create(Ref ref) {
+    return adminAuditLogs(ref);
+  }
+}
+
+String _$adminAuditLogsHash() => r'd0eae3685d083ea60df204ec7cf75f7f2969d324';
+
 @ProviderFor(AdminController)
 final adminControllerProvider = AdminControllerProvider._();
 
@@ -280,7 +319,7 @@ final class AdminControllerProvider
   AdminController create() => AdminController();
 }
 
-String _$adminControllerHash() => r'289710f6b786c7e99a16ad492c001ebcbeed6f58';
+String _$adminControllerHash() => r'f1282937b82ef105f5ee59f2da4bab57de04f74c';
 
 abstract class _$AdminController extends $AsyncNotifier<void> {
   FutureOr<void> build();

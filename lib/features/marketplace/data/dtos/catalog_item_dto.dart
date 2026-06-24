@@ -15,6 +15,7 @@ class CatalogItemDto {
   final double basePrice;
   final String currency;
   final List<String> imageUrls;
+  final List<Map<String, dynamic>> variants;
   final Map<String, dynamic> metadata;
 
   CatalogItemDto({
@@ -27,6 +28,7 @@ class CatalogItemDto {
     required this.basePrice,
     required this.currency,
     required this.imageUrls,
+    this.variants = const [],
     required this.metadata,
   });
 
@@ -50,6 +52,7 @@ class CatalogItemDto {
       basePrice: basePrice,
       currency: currency,
       imageUrls: imageUrls,
+      variants: variants,
       metadata: metadata,
     );
   }

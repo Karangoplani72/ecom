@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ecom/core/providers/common_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ecom/features/marketplace/data/dtos/chat_message_dto.dart';
 
 import '../widgets/chat_bubble.dart';
 
@@ -163,10 +164,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   padding: const EdgeInsets.all(20),
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
-                    final data = docs[index].data() as Map<String, dynamic>;
+                    final message = ChatMessageDto.fromFirestore(docs[index]).toDomain();
                     return ChatBubble(
-                      message: data['text'] as String? ?? '',
-                      isMe: data['senderId'] == currentUserId,
+                      message: message,
+                      isMe: message.senderId == currentUserId,
                     );
                   },
                 );

@@ -3,29 +3,36 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-// import 'package:ecom/features/marketplace/presentation/controllers/communication_controller.dart';
+import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:ecom/core/providers/common_providers.dart';
 
-// 1. Top-Level Background Handler (Must be outside any class so it can run when app is killed)
+// 1. Top-Level Background Handler
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // If you need to initialize other Firebase services in the background, do it here.
   debugPrint("Handling a background message: ${message.messageId}");
 }
 
 // 2. Riverpod Provider for the Notification Service
-final pushNotificationServiceProvider = Provider<PushNotificationService>((
-  ref,
-) {
-  return PushNotificationService();
+final pushNotificationServiceProvider = Provider<PushNotificationService>((ref) {
+  return PushNotificationService(ref);
 });
 
 class PushNotificationService {
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
+  final Ref _ref;
+  String? _queuedToken;
 
-  PushNotificationService();
+  PushNotificationService(this._ref) {
+    // Listen to user auth state to associate token once logged in
+    _ref.listen(currentUserIdProvider, (previous, next) {
+      if (next != null && _queuedToken != null) {
+         _saveTokenToBackend(next, _queuedToken!);
+      }
+    });
+  }
 
   Future<void> initialize() async {
-    // 1. Request OS-level permissions (Critical for iOS)
+    // 1. Request OS-level permissions
     NotificationSettings settings = await _fcm.requestPermission(
       alert: true,
       badge: true,
@@ -43,46 +50,51 @@ class PushNotificationService {
     final String? token = await _fcm.getToken();
     if (token != null) {
       debugPrint('FCM Device Token: $token');
-      // Link the token to the current user's profile via the Communication Controller
-      // (Assumes a logged-in state; in production, call this after auth completes)
-      // _ref.read(communicationControllerProvider.notifier).associateDeviceToken('current_user_id', token);
+      _handleNewToken(token);
     }
 
     // 3. Listen for token refreshes
     _fcm.onTokenRefresh.listen((newToken) {
-      // Update backend with new token
       debugPrint('FCM Token Refreshed: $newToken');
+      _handleNewToken(newToken);
     });
 
-    // 4. Handle Foreground Messages (App is open and active)
+    // 4. Handle Foreground Messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       debugPrint('Received foreground message: ${message.notification?.title}');
-      // Here you could trigger a local in-app snack bar or banner
     });
 
-    // 5. Handle Background/Terminated Deep Links (User tapped the notification)
+    // 5. Deep Linking setup
     _setupDeepLinking();
   }
 
+  void _handleNewToken(String token) {
+     final userId = _ref.read(currentUserIdProvider);
+     if (userId != null) {
+        _saveTokenToBackend(userId, token);
+     } else {
+        _queuedToken = token;
+     }
+  }
+
+  void _saveTokenToBackend(String userId, String token) {
+     _ref.read(authRepositoryProvider).updateFCMToken(userId, token);
+     _queuedToken = null;
+  }
+
   void _setupDeepLinking() async {
-    // Scenario A: App was completely closed, user tapped notification to open it
-    RemoteMessage? initialMessage = await FirebaseMessaging.instance
-        .getInitialMessage();
+    RemoteMessage? initialMessage = await FirebaseMessaging.instance.getInitialMessage();
     if (initialMessage != null) {
       _handleNotificationRoute(initialMessage);
     }
 
-    // Scenario B: App was in background (minimized), user tapped notification
     FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationRoute);
   }
 
   void _handleNotificationRoute(RemoteMessage message) {
-    // Extract the deep link path from the FCM data payload.
-    // Example Payload from your backend: { "route": "/seller/dashboard" }
     final route = message.data['route'];
 
     if (route != null) {
-      // Use the global navigator key defined in router.dart to route contextualises
       final context = rootNavigatorKey.currentContext;
       if (context != null) {
         context.push(route);

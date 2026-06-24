@@ -6,5 +6,8 @@ enum OrderStatus {
   outForDelivery,
   delivered,
   cancelled,
+  returnRequested,
+  returnApproved,
+  returnRejected,
   refunded,
 }

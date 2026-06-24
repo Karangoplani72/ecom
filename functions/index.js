@@ -5,6 +5,7 @@ const {defineSecret} = require('firebase-functions/params');
 const admin = require('firebase-admin');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
+const PDFDocument = require('pdfkit');
 
 admin.initializeApp();
 
@@ -15,6 +16,22 @@ const RAZORPAY_KEY_SECRET = defineSecret('RAZORPAY_KEY_SECRET');
 // HELPER: Verify Firebase ID Token from Authorization header
 // ---------------------------------------------------------------------------
 async function verifyAuth(req, res) {
+  // 1. App Check Verification
+  const appCheckToken = req.header('X-Firebase-AppCheck');
+  if (!appCheckToken) {
+    console.error('[APP CHECK][ERROR] Missing App Check token.');
+    res.status(401).json({error: 'Unauthorized: missing App Check token.'});
+    return null;
+  }
+  try {
+    await admin.appCheck().verifyToken(appCheckToken);
+  } catch (err) {
+    console.error('[APP CHECK][ERROR] Invalid App Check token:', err.message);
+    res.status(401).json({error: 'Unauthorized: invalid App Check token.'});
+    return null;
+  }
+
+  // 2. User Auth Verification
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     console.error('[AUTH][ERROR] Missing or malformed Authorization header.');
@@ -42,9 +59,22 @@ exports.getRazorpayKey = onRequest(
       secrets: [RAZORPAY_KEY_ID],
       timeoutSeconds: 15,
     },
-    (req, res) => {
+    async (req, res) => {
       const ts = new Date().toISOString();
       console.log('[FUNCTION][getRazorpayKey] Request received at', ts);
+
+      // App Check Verification
+      const appCheckToken = req.header('X-Firebase-AppCheck');
+      if (!appCheckToken) {
+        console.error('[APP CHECK][ERROR] Missing App Check token.');
+        return res.status(401).json({error: 'Unauthorized: missing App Check token.'});
+      }
+      try {
+        await admin.appCheck().verifyToken(appCheckToken);
+      } catch (err) {
+        console.error('[APP CHECK][ERROR] Invalid App Check token:', err.message);
+        return res.status(401).json({error: 'Unauthorized: invalid App Check token.'});
+      }
 
       const key = RAZORPAY_KEY_ID.value();
       if (!key || key.trim() === '') {
@@ -437,30 +467,13 @@ exports.verifyAndFinalizePayment = onRequest(
             };
             txn.set(transactionRef, transactionDoc);
 
-            // Update merchant wallet
+            // Update merchant wallet. Use atomic increments so the transaction
+            // does not need reads after the stock/order writes.
             const walletRef = db.collection('wallets').doc(order.storeId);
-            const walletDoc = await txn.get(walletRef);
-            let currentBalance = 0;
-            let currentPending = 0;
-            if (walletDoc.exists) {
-              const wData = walletDoc.data();
-              currentBalance = Number(wData.balance) || 0;
-              currentPending = Number(wData.pendingEscrowBalance) || 0;
-            }
-            // Update merchant wallet (add payout to escrow)
-            const walletRef = db.collection('wallets').doc(order.storeId);
-            const walletDoc = await txn.get(walletRef);
-            let currentBalance = 0;
-            let currentPending = 0;
-            if (walletDoc.exists) {
-              const wData = walletDoc.data();
-              currentBalance = Number(wData.balance) || 0;
-              currentPending = Number(wData.pendingEscrowBalance) || 0;
-            }
             txn.set(walletRef, {
               storeId: order.storeId,
-              balance: currentBalance,
-              pendingEscrowBalance: currentPending + orderVendorPayout,
+              balance: admin.firestore.FieldValue.increment(0),
+              pendingEscrowBalance: admin.firestore.FieldValue.increment(orderVendorPayout),
               currency: 'INR',
               updatedAt: serverNow
             }, { merge: true });
@@ -579,20 +592,12 @@ exports.releaseMaturedEscrows = onRequest(
             const storeId = escrow.storeId;
             const amount = escrow.amount;
 
-            // Update wallet
+            // Update wallet with atomic increments. This avoids transaction
+            // reads after writes when multiple escrow records are processed.
             const walletRef = db.collection('wallets').doc(storeId);
-            const walletDoc = await txn.get(walletRef);
-            let currentBalance = 0;
-            let currentPending = 0;
-            if (walletDoc.exists) {
-              const wData = walletDoc.data();
-              currentBalance = Number(wData.balance) || 0;
-              currentPending = Number(wData.pendingEscrowBalance) || 0;
-            }
-
             txn.set(walletRef, {
-              balance: Math.max(0, currentBalance + amount),
-              pendingEscrowBalance: Math.max(0, currentPending - amount),
+              balance: admin.firestore.FieldValue.increment(amount),
+              pendingEscrowBalance: admin.firestore.FieldValue.increment(-amount),
               updatedAt: serverNow
             }, { merge: true });
 
@@ -628,5 +633,243 @@ exports.releaseMaturedEscrows = onRequest(
         console.error('[ESCROW][ERROR] Failed to release matured escrows:', error);
         return res.status(500).json({ error: error.message });
       }
+    }
+);
+
+// ---------------------------------------------------------------------------
+// 4. aggregateProductReviews — updates avgRating and reviewCount on product
+// ---------------------------------------------------------------------------
+const { onDocumentWritten, onDocumentUpdated } = require('firebase-functions/v2/firestore');
+
+exports.aggregateProductReviews = onDocumentWritten('reviews/{reviewId}', async (event) => {
+  const db = admin.firestore();
+  
+  // Get the product ID from the review document
+  const reviewData = event.data.after.exists ? event.data.after.data() : event.data.before.data();
+  const productId = reviewData.productId;
+
+  if (!productId) {
+    console.log('[REVIEWS] No productId found, skipping aggregation.');
+    return null;
+  }
+
+  console.log('[REVIEWS] Aggregating reviews for product:', productId);
+
+  try {
+    const reviewsSnap = await db.collection('reviews').where('productId', '==', productId).get();
+    
+    let totalRating = 0;
+    let reviewCount = 0;
+
+    reviewsSnap.forEach(doc => {
+      const data = doc.data();
+      if (typeof data.rating === 'number') {
+        totalRating += data.rating;
+        reviewCount++;
+      }
+    });
+
+    const avgRating = reviewCount > 0 ? (totalRating / reviewCount) : 0;
+
+    // We must update the catalog product
+    await db.collection('catalog').doc(productId).set({
+      avgRating: avgRating,
+      reviewCount: reviewCount,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    console.log('[REVIEWS][SUCCESS] Aggregated rating for product:', productId, '| avgRating:', avgRating, '| count:', reviewCount);
+    return null;
+  } catch (error) {
+    console.error('[REVIEWS][ERROR] Failed to aggregate reviews:', error);
+    return null;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 5. generateInvoicePDF — Generates a PDF invoice for a given order
+// ---------------------------------------------------------------------------
+exports.generateInvoicePDF = onRequest(
+    { cors: true, timeoutSeconds: 30 },
+    async (req, res) => {
+      if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method not allowed. Use POST.' });
+      }
+
+      const decoded = await verifyAuth(req, res);
+      if (!decoded) return;
+
+      const { orderId } = req.body;
+      if (!orderId) {
+        return res.status(400).json({ error: 'orderId is required.' });
+      }
+
+      const db = admin.firestore();
+      try {
+        const orderDoc = await db.collection('orders').doc(orderId).get();
+        if (!orderDoc.exists) {
+          return res.status(404).json({ error: 'Order not found.' });
+        }
+
+        const order = orderDoc.data();
+        if (order.buyerId !== decoded.uid && order.storeId !== decoded.uid) {
+          return res.status(403).json({ error: 'Forbidden: You do not have access to this order.' });
+        }
+
+        const doc = new PDFDocument({ margin: 50 });
+        const buffers = [];
+        doc.on('data', buffers.push.bind(buffers));
+        
+        // Build PDF
+        doc.fontSize(20).text('INVOICE', { align: 'center' });
+        doc.moveDown();
+        doc.fontSize(12).text(`Order ID: ${order.orderId}`);
+        doc.text(`Date: ${order.createdAt ? order.createdAt.toDate().toLocaleString() : new Date().toLocaleString()}`);
+        doc.moveDown();
+        doc.text(`Sold By: ${order.storeName}`);
+        doc.text(`Billed To: ${order.buyerName}`);
+        doc.text(`Address: ${order.deliveryAddress}`);
+        doc.moveDown();
+        
+        doc.fontSize(14).text('Items', { underline: true });
+        doc.moveDown(0.5);
+        
+        (order.items || []).forEach(item => {
+          doc.fontSize(12).text(`${item.title} (x${item.quantity}) - Rs. ${(item.unitPrice * item.quantity).toFixed(2)}`);
+        });
+        
+        doc.moveDown();
+        doc.fontSize(12).text(`Subtotal: Rs. ${order.subtotal.toFixed(2)}`);
+        doc.text(`Delivery Fee: Rs. ${order.deliveryFee.toFixed(2)}`);
+        doc.text(`Platform Fee: Rs. ${order.platformFee.toFixed(2)}`);
+        doc.moveDown();
+        doc.fontSize(16).text(`Total Amount: Rs. ${order.totalAmount.toFixed(2)}`, { underline: true });
+
+        doc.end();
+
+        doc.on('end', () => {
+          const pdfData = Buffer.concat(buffers);
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader('Content-Disposition', `attachment; filename="invoice_${orderId}.pdf"`);
+          res.send(pdfData);
+        });
+
+      } catch (error) {
+        console.error('[INVOICE][ERROR] Failed to generate invoice:', error);
+        return res.status(500).json({ error: 'Failed to generate invoice.' });
+      }
+    }
+);
+
+// ---------------------------------------------------------------------------
+// 6. checkLowStock — Triggers when catalog stock updates
+// ---------------------------------------------------------------------------
+exports.checkLowStock = onDocumentUpdated(
+    { document: 'catalog/{docId}', region: 'asia-south1' },
+    async (event) => {
+      const before = event.data.before.data();
+      const after = event.data.after.data();
+
+      if (!before || !after) return null;
+
+      const beforeStock = before.metadata && before.metadata.stock ? before.metadata.stock : 0;
+      const afterStock = after.metadata && after.metadata.stock ? after.metadata.stock : 0;
+
+      // Only trigger if stock dropped and is now below/equal to 5
+      const LOW_STOCK_THRESHOLD = 5;
+      if (afterStock <= LOW_STOCK_THRESHOLD && beforeStock > LOW_STOCK_THRESHOLD) {
+        const storeId = after.storeId;
+        const title = after.title;
+
+        const db = admin.firestore();
+        
+        // Notify seller about low stock
+        await db.collection('users').doc(storeId).collection('notifications').add({
+          title: 'Low Stock Alert',
+          body: `Product "${title}" has low stock (${afterStock} remaining).`,
+          type: 'stock_alert',
+          isRead: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          data: {
+            productId: event.params.docId,
+            stock: afterStock
+          }
+        });
+
+        console.log(`[STOCK] Low stock alert created for product ${event.params.docId}`);
+      }
+
+      return null;
+    }
+);
+
+// ---------------------------------------------------------------------------
+// 7. updateSearchKeywords — Triggers when catalog is written
+// ---------------------------------------------------------------------------
+exports.updateSearchKeywords = onDocumentWritten(
+    { document: 'catalog/{docId}', region: 'asia-south1' },
+    async (event) => {
+      if (!event.data.after.exists) return null;
+      const data = event.data.after.data();
+      const title = data.title || '';
+      const description = data.description || '';
+      const category = (data.metadata && data.metadata.category) || '';
+      
+      const text = `${title} ${description} ${category}`.toLowerCase();
+      const keywords = [...new Set(text.split(/[^a-z0-9]/).filter(w => w.length > 2))].slice(0, 10);
+      
+      const currentKeywords = data.searchKeywords || [];
+      if (JSON.stringify(keywords) !== JSON.stringify(currentKeywords)) {
+        await event.data.after.ref.update({ searchKeywords: keywords });
+        console.log(`[SEARCH] Updated keywords for ${event.params.docId}`);
+      }
+      return null;
+    }
+);
+
+// ---------------------------------------------------------------------------
+// 8. checkAbandonedCarts — Scans for abandoned carts
+// ---------------------------------------------------------------------------
+const { onSchedule } = require('firebase-functions/v2/scheduler');
+
+exports.checkAbandonedCarts = onSchedule(
+    { schedule: 'every 24 hours', region: 'asia-south1' },
+    async (event) => {
+      const db = admin.firestore();
+      const oneDayAgo = new Date();
+      oneDayAgo.setHours(oneDayAgo.getHours() - 24);
+
+      // Cart items live under users/{uid}/cart. Query the collection group for
+      // stale item docs, then notify each distinct owner once.
+      const cartsSnapshot = await db.collectionGroup('cart')
+          .where('updatedAt', '<', admin.firestore.Timestamp.fromDate(oneDayAgo))
+          .get();
+
+      if (cartsSnapshot.empty) return null;
+
+      const batch = db.batch();
+      const notifiedUsers = new Set();
+      let count = 0;
+
+      for (const doc of cartsSnapshot.docs) {
+        const userRef = doc.ref.parent.parent;
+        if (!userRef || notifiedUsers.has(userRef.id)) continue;
+        notifiedUsers.add(userRef.id);
+        const notifRef = userRef.collection('notifications').doc();
+        batch.set(notifRef, {
+          title: 'You left something behind!',
+          body: 'Items in your cart are waiting for you. Complete your purchase now.',
+          type: 'abandoned_cart',
+          isRead: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        count++;
+      }
+
+      if (count > 0) {
+        await batch.commit();
+        console.log(`[ABANDONED CARTS] Sent ${count} reminders.`);
+      }
+      return null;
     }
 );

@@ -11,6 +11,7 @@ class CatalogItem {
   final double basePrice;
   final String currency;
   final List<String> imageUrls;
+  final List<Map<String, dynamic>> variants;
   final Map<String, dynamic> metadata; // Handles flexible cross-domain structural variance
 
   const CatalogItem({
@@ -23,6 +24,7 @@ class CatalogItem {
     required this.basePrice,
     required this.currency,
     required this.imageUrls,
+    this.variants = const [],
     required this.metadata,
   });
 

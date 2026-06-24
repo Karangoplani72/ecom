@@ -1,6 +1,62 @@
 import 'package:flutter/foundation.dart';
 
 @immutable
+class ProductVariant {
+  final String id;
+  final String name; // e.g., 'Size', 'Color'
+  final String value; // e.g., 'XL', 'Red'
+  final double extraPrice;
+  final int stock;
+
+  const ProductVariant({
+    required this.id,
+    required this.name,
+    required this.value,
+    this.extraPrice = 0.0,
+    this.stock = 0,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'value': value,
+      'extraPrice': extraPrice,
+      'stock': stock,
+    };
+  }
+
+  factory ProductVariant.fromMap(Map<String, dynamic> map) {
+    return ProductVariant(
+      id: map['id'] as String? ?? '',
+      name: map['name'] as String? ?? '',
+      value: map['value'] as String? ?? '',
+      extraPrice: (map['extraPrice'] as num?)?.toDouble() ?? 0.0,
+      stock: map['stock'] as int? ?? 0,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ProductVariant &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          value == other.value &&
+          extraPrice == other.extraPrice &&
+          stock == other.stock;
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      value.hashCode ^
+      extraPrice.hashCode ^
+      stock.hashCode;
+}
+
+@immutable
 class SellerProduct {
   final String id;
   final String storeId;
@@ -14,6 +70,9 @@ class SellerProduct {
   final String category;
   final int stock;
   final Map<String, dynamic> metadata;
+  final double avgRating;
+  final int reviewCount;
+  final List<ProductVariant> variants;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -38,6 +97,9 @@ class SellerProduct {
     required this.category,
     required this.stock,
     required this.metadata,
+    this.avgRating = 0.0,
+    this.reviewCount = 0,
+    this.variants = const [],
     this.createdAt,
     this.updatedAt,
   });
@@ -81,6 +143,9 @@ class SellerProduct {
           imageUrls == other.imageUrls &&
           category == other.category &&
           stock == other.stock &&
+          avgRating == other.avgRating &&
+          reviewCount == other.reviewCount &&
+          listEquals(variants, other.variants) &&
           createdAt == other.createdAt &&
           updatedAt == other.updatedAt;
 
@@ -97,6 +162,9 @@ class SellerProduct {
       imageUrls.hashCode ^
       category.hashCode ^
       stock.hashCode ^
+      avgRating.hashCode ^
+      reviewCount.hashCode ^
+      variants.hashCode ^
       createdAt.hashCode ^
       updatedAt.hashCode;
 
@@ -113,6 +181,9 @@ class SellerProduct {
     String? category,
     int? stock,
     Map<String, dynamic>? metadata,
+    double? avgRating,
+    int? reviewCount,
+    List<ProductVariant>? variants,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -129,6 +200,9 @@ class SellerProduct {
       category: category ?? this.category,
       stock: stock ?? this.stock,
       metadata: metadata ?? this.metadata,
+      avgRating: avgRating ?? this.avgRating,
+      reviewCount: reviewCount ?? this.reviewCount,
+      variants: variants ?? this.variants,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

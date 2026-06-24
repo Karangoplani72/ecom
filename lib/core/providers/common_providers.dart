@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -104,8 +105,9 @@ final razorpayKeyProvider = FutureProvider.autoDispose<String>((ref) async {
   debugPrint('[RAZORPAY] razorpayKeyProvider: Fetching key from $url');
 
   try {
+    final appCheckToken = await FirebaseAppCheck.instance.getToken();
     final response = await http
-        .get(Uri.parse(url))
+        .get(Uri.parse(url), headers: {'X-Firebase-AppCheck': ?appCheckToken})
         .timeout(
           const Duration(seconds: 15),
         ); // Increased: CF cold start can take ~10s
@@ -179,12 +181,14 @@ Future<Map<String, dynamic>> createRazorpayOrder({
       bodyPayload['receipt'] = receipt;
     }
 
+    final appCheckToken = await FirebaseAppCheck.instance.getToken();
     final response = await http
         .post(
           Uri.parse(url),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $idToken',
+            'X-Firebase-AppCheck': ?appCheckToken,
           },
           body: json.encode(bodyPayload),
         )
@@ -236,12 +240,14 @@ Future<Map<String, dynamic>> verifyAndFinalizePayment({
   );
 
   try {
+    final appCheckToken = await FirebaseAppCheck.instance.getToken();
     final response = await http
         .post(
           Uri.parse(url),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $idToken',
+            'X-Firebase-AppCheck': ?appCheckToken,
           },
           body: json.encode({
             'razorpay_payment_id': razorpayPaymentId,

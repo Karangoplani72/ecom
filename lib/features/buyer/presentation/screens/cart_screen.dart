@@ -10,8 +10,21 @@ import 'package:ecom/features/buyer/presentation/controllers/cart_controller.dar
 import 'package:ecom/features/buyer/presentation/controllers/guest_cart_controller.dart';
 import 'package:ecom/features/buyer/presentation/widgets/buyer_anti_gravity_widgets.dart';
 
-class CartScreen extends ConsumerWidget {
+class CartScreen extends ConsumerStatefulWidget {
   const CartScreen({super.key});
+
+  @override
+  ConsumerState<CartScreen> createState() => _CartScreenState();
+}
+
+class _CartScreenState extends ConsumerState<CartScreen> {
+  final TextEditingController _couponController = TextEditingController();
+
+  @override
+  void dispose() {
+    _couponController.dispose();
+    super.dispose();
+  }
 
   void _showClearCartDialog(BuildContext context, WidgetRef ref, bool isDark) {
     showDialog(
@@ -65,11 +78,12 @@ class CartScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final userId = ref.watch(currentUserIdProvider);
     final cartAsync = userId == null
         ? AsyncValue.data(ref.watch(guestCartControllerProvider))
         : ref.watch(cartStreamProvider);
+    final appliedCoupon = ref.watch(appliedCouponProvider);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -472,6 +486,110 @@ class CartScreen extends ConsumerWidget {
                           _buildSummaryRow('Delivery Fee', '₹${delivery.toStringAsFixed(0)}', isDark),
                           const SizedBox(height: 6),
                           _buildSummaryRow('Platform Fee', '₹${platform.toStringAsFixed(0)}', isDark),
+                          if (appliedCoupon != null) ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      'Coupon (${appliedCoupon.code})',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        color: const Color(0xFF10B981),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    GestureDetector(
+                                      onTap: () {
+                                        ref.read(appliedCouponProvider.notifier).removeCoupon();
+                                        _couponController.clear();
+                                      },
+                                      child: const Icon(Icons.close, size: 14, color: Color(0xFFEF4444)),
+                                    ),
+                                  ],
+                                ),
+                                Text(
+                                  '-₹${appliedCoupon.calculateDiscount(subtotal).toStringAsFixed(0)}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF10B981),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                          const SizedBox(height: 16),
+                          if (appliedCoupon == null && userId != null)
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
+                                      ),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                                    child: TextField(
+                                      controller: _couponController,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 14,
+                                        color: textColor,
+                                      ),
+                                      decoration: InputDecoration(
+                                        border: InputBorder.none,
+                                        hintText: 'Enter coupon code',
+                                        hintStyle: GoogleFonts.inter(
+                                          fontSize: 14,
+                                          color: isDark ? AppColors.darkTextSecond : AppColors.lightTextSecond,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                InkWell(
+                                  onTap: () async {
+                                    if (_couponController.text.trim().isEmpty) return;
+                                    try {
+                                      await ref.read(appliedCouponProvider.notifier).applyCoupon(_couponController.text.trim());
+                                    } catch (e) {
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+                                        );
+                                      }
+                                    }
+                                  },
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    height: 44,
+                                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [Color(0xFF7C3AED), Color(0xFFA855F7)],
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      'Apply',
+                                      style: GoogleFonts.inter(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           const Divider(height: 20, thickness: 0.5),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -484,13 +602,13 @@ class CartScreen extends ConsumerWidget {
                                   color: textColor,
                                 ),
                               ),
-                              GradientText(
-                                '₹${total.toStringAsFixed(0)}',
-                                style: GoogleFonts.inter(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w900,
+                                GradientText(
+                                  '₹${(total - (appliedCoupon?.calculateDiscount(subtotal) ?? 0)).toStringAsFixed(0)}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w900,
+                                  ),
                                 ),
-                              ),
                             ],
                           ),
                           const SizedBox(height: 16),

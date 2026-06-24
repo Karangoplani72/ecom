@@ -3,6 +3,9 @@ import 'package:ecom/features/buyer/data/repositories/cart_repository_impl.dart'
 import 'package:ecom/features/buyer/domain/entities/cart_item.dart';
 import 'package:ecom/features/buyer/domain/repositories/cart_repository.dart';
 import 'package:ecom/features/buyer/presentation/controllers/guest_cart_controller.dart';
+import 'package:ecom/features/buyer/domain/entities/coupon.dart';
+
+import 'package:ecom/features/buyer/data/repositories/coupon_repository_impl.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'cart_controller.g.dart';
@@ -10,6 +13,27 @@ part 'cart_controller.g.dart';
 @riverpod
 CartRepository cartRepository(Ref ref) {
   return CartRepositoryImpl(firestore: ref.watch(firebaseFirestoreProvider));
+}
+
+@riverpod
+class AppliedCoupon extends _$AppliedCoupon {
+  @override
+  Coupon? build() {
+    return null;
+  }
+
+  Future<void> applyCoupon(String code) async {
+    final repo = ref.read(couponRepositoryProvider);
+    final result = await repo.validateCoupon(code);
+    result.fold(
+      (failure) => throw Exception(failure),
+      (coupon) => state = coupon,
+    );
+  }
+
+  void removeCoupon() {
+    state = null;
+  }
 }
 
 @riverpod

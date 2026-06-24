@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:ecom/features/admin/data/dtos/admin_user_dto.dart';
 import 'package:ecom/features/admin/data/dtos/dispute_ticket_dto.dart';
 import 'package:ecom/features/admin/domain/entities/admin_dashboard_metrics.dart';
 import 'package:ecom/features/admin/domain/entities/admin_user.dart';
+import 'package:ecom/features/admin/domain/entities/audit_log.dart';
 import 'package:ecom/features/admin/domain/entities/dispute_ticket.dart';
 import 'package:ecom/features/admin/domain/entities/platform_config.dart';
 import 'package:ecom/features/admin/domain/repositories/admin_repository.dart';
@@ -11,7 +13,6 @@ import 'package:fpdart/fpdart.dart';
 
 import '../../../seller/data/dtos/store_profile_dto.dart';
 import '../../../seller_application/data/dtos/seller_application_dto.dart';
-import '../dtos/admin_user_dto.dart';
 
 class AdminRepositoryImpl implements AdminRepository {
   final FirebaseFirestore _firestore;
@@ -131,7 +132,8 @@ class AdminRepositoryImpl implements AdminRepository {
           .get();
       if (configDoc.exists) {
         final configData = configDoc.data();
-        commissionRate = (configData?['defaultCommissionRate'] as num?)?.toDouble() ?? 0.085;
+        commissionRate =
+            (configData?['defaultCommissionRate'] as num?)?.toDouble() ?? 0.085;
       }
 
       final revenueSnapshot = await _firestore
@@ -405,7 +407,9 @@ class AdminRepositoryImpl implements AdminRepository {
             .replaceAll(RegExp(r'\s+'), '-');
 
         // Set up bankAccount record automatically on approval
-        final bankAccountRef = _firestore.collection('bankAccounts').doc(application.userId);
+        final bankAccountRef = _firestore
+            .collection('bankAccounts')
+            .doc(application.userId);
         transaction.set(bankAccountRef, {
           'id': application.userId,
           'storeId': application.userId,
@@ -681,6 +685,28 @@ class AdminRepositoryImpl implements AdminRepository {
       return const Right(unit);
     } catch (e) {
       return Left('Failed to update user status: ${e.toString()}');
+    }
+  }
+
+  // ─── Audit Logs ────────────────────────────────────────────────────────────
+  @override
+  Stream<List<AuditLog>> watchAuditLogs() {
+    return _firestore
+        .collection('audit_logs')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map(
+          (s) => s.docs.map((d) => AuditLog.fromJson(d.data(), d.id)).toList(),
+        );
+  }
+
+  @override
+  Future<Either<String, Unit>> createAuditLog(AuditLog log) async {
+    try {
+      await _firestore.collection('audit_logs').doc(log.id).set(log.toJson());
+      return const Right(unit);
+    } catch (e) {
+      return Left('Failed to create audit log: ${e.toString()}');
     }
   }
 }

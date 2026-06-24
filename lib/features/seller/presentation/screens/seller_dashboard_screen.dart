@@ -320,6 +320,12 @@ class _QuickActions extends StatelessWidget {
         onTap: () => context.go('/seller/analytics'),
         isPrimary: false,
       ),
+      _ActionConfig(
+        label: 'Returns',
+        icon: Icons.assignment_return_outlined,
+        onTap: () => context.push('/seller/returns'),
+        isPrimary: false,
+      ),
     ];
 
     return Column(
@@ -590,6 +596,12 @@ class _StatusBadge extends StatelessWidget {
         return (AppColors.success, 'Delivered');
       case OrderStatus.cancelled:
         return (AppColors.error, 'Cancelled');
+      case OrderStatus.returnRequested:
+        return (AppColors.warning, 'Return Requested');
+      case OrderStatus.returnApproved:
+        return (AppColors.success, 'Return Approved');
+      case OrderStatus.returnRejected:
+        return (AppColors.error, 'Return Rejected');
       case OrderStatus.refunded:
         return (Colors.grey, 'Refunded');
     }

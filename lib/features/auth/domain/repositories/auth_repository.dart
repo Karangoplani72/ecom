@@ -24,5 +24,7 @@ abstract interface class AuthRepository {
     Map<String, dynamic> updates,
   );
 
+  Future<Either<String, Unit>> updateFCMToken(String uid, String token);
+
   Future<Either<String, Unit>> sendPasswordResetEmail(String email);
 }

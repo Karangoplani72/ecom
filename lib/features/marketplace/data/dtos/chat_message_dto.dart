@@ -15,6 +15,8 @@ class ChatMessageDto {
   @JsonKey(fromJson: _timestampToDateTime, toJson: _dateTimeToTimestamp)
   final DateTime timestamp;
   final bool isRead;
+  final String? attachmentUrl;
+  final String? attachmentName;
 
   ChatMessageDto({
     required this.id,
@@ -24,6 +26,8 @@ class ChatMessageDto {
     required this.type,
     required this.timestamp,
     required this.isRead,
+    this.attachmentUrl,
+    this.attachmentName,
   });
 
   factory ChatMessageDto.fromJson(Map<String, dynamic> json) => _$ChatMessageDtoFromJson(json);
@@ -44,6 +48,8 @@ class ChatMessageDto {
       type: MessageType.values.byName(type),
       timestamp: timestamp,
       isRead: isRead,
+      attachmentUrl: attachmentUrl,
+      attachmentName: attachmentName,
     );
   }
 

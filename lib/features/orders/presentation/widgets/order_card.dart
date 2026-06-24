@@ -208,8 +208,14 @@ class _StatusBadge extends StatelessWidget {
         return (Colors.green, 'Delivered');
       case OrderStatus.cancelled:
         return (Colors.red, 'Cancelled');
+      case OrderStatus.returnRequested:
+        return (Colors.orange, 'Return Requested');
+      case OrderStatus.returnApproved:
+        return (Colors.green, 'Return Approved');
+      case OrderStatus.returnRejected:
+        return (Colors.red, 'Return Rejected');
       case OrderStatus.refunded:
-        return (Colors.grey, 'Refunded');
+        return (Colors.blueGrey, 'Refunded');
     }
   }
 }

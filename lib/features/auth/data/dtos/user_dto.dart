@@ -19,6 +19,7 @@ class UserDto {
   final List<String> roles;
 
   final bool isActive;
+  final String? fcmToken;
 
   @JsonKey(defaultValue: false)
   final bool sellerApproved;
@@ -37,6 +38,7 @@ class UserDto {
     this.phoneNumber,
     required this.roles,
     required this.isActive,
+    this.fcmToken,
     this.sellerApproved = false,
     this.sellerApplicationStatus = 'none',
     required this.createdAt,
@@ -75,6 +77,7 @@ class UserDto {
       roles: roles.map((r) => UserRole.values.byName(r)).toList(),
       verificationStatus: VerificationStatus.pending,
       isActive: isActive,
+      fcmToken: fcmToken,
       sellerApproved: sellerApproved,
       sellerApplicationStatus: sellerApplicationStatus,
       createdAt: createdAt,

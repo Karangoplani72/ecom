@@ -656,7 +656,7 @@ class _AuthenticatedBody extends ConsumerWidget {
                   icon: Icons.notifications_outlined,
                   title: 'Notifications',
                   subtitle: 'Change alert preferences',
-                  onTap: () => context.push(AppRoutes.buyerNotifications),
+                  onTap: () => context.push(AppRoutes.notificationPreferences),
                 ),
               ],
               isDark: isDark,

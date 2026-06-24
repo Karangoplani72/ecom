@@ -14,6 +14,7 @@ import 'package:ecom/features/admin/presentation/screens/admin_settings_screen.d
 import 'package:ecom/features/admin/presentation/screens/admin_store_approvals_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_stores_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_users_screen.dart';
+import 'package:ecom/features/admin/presentation/screens/admin_audit_logs_screen.dart';
 import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:ecom/features/admin/domain/entities/platform_config.dart';
 import 'package:ecom/features/admin/presentation/controllers/admin_controller.dart';
@@ -34,6 +35,7 @@ import 'package:ecom/features/buyer/presentation/screens/product_detail_screen.d
 import 'package:ecom/features/buyer/presentation/screens/products_screen.dart';
 import 'package:ecom/features/buyer/presentation/screens/profile_screen.dart';
 import 'package:ecom/features/buyer/presentation/screens/wishlist_screen.dart';
+
 import 'package:ecom/features/marketplace/presentation/screens/chat_screen.dart';
 import 'package:ecom/features/marketplace/presentation/screens/notification_screen.dart';
 import 'package:ecom/features/orders/presentation/screens/order_detail_screen.dart';
@@ -55,6 +57,7 @@ import 'package:go_router/go_router.dart';
 import '../../../features/auth/domain/entities/app_user.dart';
 import '../../../features/seller/presentation/screens/seller_customers_screen.dart';
 import '../../../features/seller/presentation/screens/seller_finances_screen.dart';
+import '../../../features/seller/presentation/screens/seller_returns_screen.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'rootNav',
@@ -81,6 +84,7 @@ abstract class AppRoutes {
   static const buyerOrderDetail = '/buyer/orders/:orderId';
   static const buyerAddresses = '/buyer/addresses';
   static const buyerNotifications = '/buyer/notifications';
+  static const notificationPreferences = '/buyer/notification-preferences';
   static const buyerAccountSettings = '/buyer/account-settings';
   static const buyerHelp = '/buyer/help';
   static const buyerPrivacy = '/buyer/privacy';
@@ -103,6 +107,7 @@ abstract class AppRoutes {
   static const addProduct = '/seller/inventory/add';
   static const editProduct = '/seller/inventory/edit/:productId';
   static const sellerNotifications = '/seller/notifications';
+  static const sellerReturns = '/seller/returns';
 
   // Seller application
   static const sellerApply = '/seller/apply';
@@ -118,6 +123,7 @@ abstract class AppRoutes {
   static const adminOrders = '/admin/orders';
   static const adminReports = '/admin/reports';
   static const adminSettings = '/admin/settings';
+  static const adminAuditLogs = '/admin/audit-logs';
   static const adminCategoryRequests = '/admin/category-requests';
 }
 
@@ -207,6 +213,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           loc == AppRoutes.buyerOrders ||
           loc == AppRoutes.buyerCheckout ||
           loc == AppRoutes.buyerNotifications ||
+          loc == AppRoutes.notificationPreferences ||
           loc == AppRoutes.buyerAddresses;
 
       // ── 4. Signed out ────────────────────────────────────────────────────
@@ -237,6 +244,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // it's intentionally exempt from panel isolation.
       if (loc.startsWith('/chat')) return null;
       if (loc == AppRoutes.buyerNotifications) return null;
+      if (loc == AppRoutes.notificationPreferences) return null;
 
       // ── 8. Strict panel isolation ─────────────────────────────────────────
       // Every role is confined to its own panel — no cross-access, even
@@ -402,6 +410,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const SellerFinancesScreen(),
       ),
       GoRoute(
+        path: AppRoutes.sellerReturns,
+        builder: (context, state) => const SellerReturnsScreen(),
+      ),
+      GoRoute(
         path: AppRoutes.sellerOrderDetail,
         builder: (context, state) =>
             OrderDetailScreen(orderId: state.pathParameters['orderId']!),
@@ -496,6 +508,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.adminSettings,
         builder: (context, state) => const AdminSettingsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminAuditLogs,
+        builder: (context, state) => const AdminAuditLogsScreen(),
       ),
       GoRoute(
         path: AppRoutes.adminCategoryRequests,

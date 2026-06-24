@@ -8,6 +8,8 @@ class ChatMessage {
   final MessageType type;
   final DateTime timestamp;
   final bool isRead;
+  final String? attachmentUrl;
+  final String? attachmentName;
 
   const ChatMessage({
     required this.id,
@@ -17,5 +19,7 @@ class ChatMessage {
     required this.type,
     required this.timestamp,
     required this.isRead,
+    this.attachmentUrl,
+    this.attachmentName,
   });
 }

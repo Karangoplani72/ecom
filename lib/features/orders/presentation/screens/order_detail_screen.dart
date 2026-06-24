@@ -114,6 +114,10 @@ class OrderDetailScreen extends ConsumerWidget {
                     const SizedBox(height: 32),
                     _buildCancelButton(context, ref, order),
                   ],
+                  if (isBuyer && order.status == OrderStatus.delivered) ...[
+                    const SizedBox(height: 32),
+                    _buildReturnButton(context, ref, order),
+                  ],
                   const SizedBox(height: 40),
                 ],
               ),
@@ -301,6 +305,12 @@ class OrderDetailScreen extends ConsumerWidget {
         return 'Delivered';
       case OrderStatus.cancelled:
         return 'Cancelled';
+      case OrderStatus.returnRequested:
+        return 'Return Requested';
+      case OrderStatus.returnApproved:
+        return 'Return Approved';
+      case OrderStatus.returnRejected:
+        return 'Return Rejected';
       case OrderStatus.refunded:
         return 'Refunded';
     }
@@ -541,6 +551,24 @@ class OrderDetailScreen extends ConsumerWidget {
               ),
             ),
           ),
+        if (order.status == OrderStatus.returnRequested) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => _updateStatus(context, ref, order.orderId, OrderStatus.returnRejected),
+              icon: const Icon(Icons.close),
+              label: const Text('REJECT RETURN'),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.red,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 12),
         SizedBox(
           width: double.infinity,
@@ -565,6 +593,10 @@ class OrderDetailScreen extends ConsumerWidget {
         return OrderStatus.outForDelivery;
       case OrderStatus.outForDelivery:
         return OrderStatus.delivered;
+      case OrderStatus.returnRequested:
+        return OrderStatus.returnApproved;
+      case OrderStatus.returnApproved:
+        return OrderStatus.refunded;
       default:
         return null;
     }
@@ -676,6 +708,63 @@ class OrderDetailScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildReturnButton(
+    BuildContext context,
+    WidgetRef ref,
+    AppOrder order,
+  ) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () => _showReturnDialog(context, ref, order),
+        icon: const Icon(Icons.assignment_return_outlined),
+        label: const Text('Request Return'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.orange,
+          side: const BorderSide(color: Colors.orange),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+        ),
+      ),
+    );
+  }
+
+  void _showReturnDialog(BuildContext context, WidgetRef ref, AppOrder order) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Request Return'),
+        content: const Text(
+          'Are you sure you want to return this order?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await ref
+                  .read(orderControllerProvider.notifier)
+                  .updateStatus(orderId: order.orderId, status: OrderStatus.returnRequested);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Return requested successfully')),
+                );
+                ref.invalidate(orderByIdProvider(order.orderId));
+              }
+            },
+            style: FilledButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('Confirm Return'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _priceRow(String label, double amount, ThemeData theme) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -731,6 +820,12 @@ class _StatusBadge extends StatelessWidget {
         return (Colors.green, 'Delivered');
       case OrderStatus.cancelled:
         return (Colors.red, 'Cancelled');
+      case OrderStatus.returnRequested:
+        return (Colors.orange, 'Return Requested');
+      case OrderStatus.returnApproved:
+        return (Colors.teal, 'Return Approved');
+      case OrderStatus.returnRejected:
+        return (Colors.redAccent, 'Return Rejected');
       case OrderStatus.refunded:
         return (Colors.grey, 'Refunded');
     }

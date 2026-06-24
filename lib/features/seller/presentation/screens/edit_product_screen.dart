@@ -18,6 +18,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/services/cloudinary_service.dart';
+import '../../domain/entities/seller_product.dart';
 
 class _NewImage {
   final XFile file;
@@ -52,6 +53,7 @@ class _EditProductScreenState extends ConsumerState<EditProductScreen> {
   String? _storeId;
   List<String> _existingImageUrls = [];
   final List<_NewImage> _newImages = [];
+  List<ProductVariant> _variants = [];
 
   @override
   void initState() {
@@ -210,6 +212,9 @@ class _EditProductScreenState extends ConsumerState<EditProductScreen> {
       _existingImageUrls = List<String>.from(
         (data['imageUrls'] as List?) ?? [],
       );
+      _variants = ((data['variants'] as List<dynamic>?) ?? [])
+          .map((e) => ProductVariant.fromMap(Map<String, dynamic>.from(e as Map)))
+          .toList();
 
       setState(() => _isLoading = false);
     } catch (e) {
@@ -298,6 +303,7 @@ class _EditProductScreenState extends ConsumerState<EditProductScreen> {
           'category': _selectedCategory,
           'stock': int.parse(_stockController.text.trim()),
         },
+        'variants': _variants.map((v) => v.toMap()).toList(),
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
@@ -535,6 +541,8 @@ class _EditProductScreenState extends ConsumerState<EditProductScreen> {
                   .toList(),
               onChanged: (value) => setState(() => _status = value ?? _status),
             ),
+            const SizedBox(height: 24),
+            _buildVariantsSection(),
             const SizedBox(height: 32),
 
             AppPrimaryButton(
@@ -615,6 +623,92 @@ class _EditProductScreenState extends ConsumerState<EditProductScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildVariantsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Product Variants', style: Theme.of(context).textTheme.titleMedium),
+            TextButton.icon(
+              onPressed: _showAddVariantDialog,
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('Add Variant'),
+            ),
+          ],
+        ),
+        if (_variants.isEmpty)
+          const Text('No variants added', style: TextStyle(color: Colors.grey, fontSize: 13))
+        else
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _variants.length,
+            itemBuilder: (context, index) {
+              final v = _variants[index];
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('${v.name}: ${v.value}'),
+                subtitle: Text('Extra: ₹${v.extraPrice} | Stock: ${v.stock}'),
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  onPressed: () => setState(() => _variants.removeAt(index)),
+                ),
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  void _showAddVariantDialog() {
+    final nameCtrl = TextEditingController();
+    final valueCtrl = TextEditingController();
+    final extraPriceCtrl = TextEditingController(text: '0');
+    final stockCtrl = TextEditingController(text: '0');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Variant'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppTextField(controller: nameCtrl, label: 'Variant Name (e.g., Size)'),
+              const SizedBox(height: 8),
+              AppTextField(controller: valueCtrl, label: 'Value (e.g., XL)'),
+              const SizedBox(height: 8),
+              AppTextField(controller: extraPriceCtrl, label: 'Extra Price', keyboardType: TextInputType.number),
+              const SizedBox(height: 8),
+              AppTextField(controller: stockCtrl, label: 'Stock', keyboardType: TextInputType.number),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              if (nameCtrl.text.isEmpty || valueCtrl.text.isEmpty) return;
+              setState(() {
+                _variants.add(ProductVariant(
+                  id: DateTime.now().millisecondsSinceEpoch.toString(),
+                  name: nameCtrl.text.trim(),
+                  value: valueCtrl.text.trim(),
+                  extraPrice: double.tryParse(extraPriceCtrl.text) ?? 0,
+                  stock: int.tryParse(stockCtrl.text) ?? 0,
+                ));
+              });
+              Navigator.pop(ctx);
+            },
+            child: const Text('Add'),
+          ),
+        ],
       ),
     );
   }

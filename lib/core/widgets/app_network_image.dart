@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 class AppNetworkImage extends StatelessWidget {
@@ -18,39 +19,41 @@ class AppNetworkImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Image.network(
-      imageUrl,
+    if (imageUrl.isEmpty) {
+      return _buildError(colorScheme);
+    }
+
+    return CachedNetworkImage(
+      imageUrl: imageUrl,
       height: height,
       width: width,
       fit: fit,
-      loadingBuilder: (context, child, progress) {
-        if (progress == null) return child;
+      placeholder: (context, url) => Container(
+        height: height,
+        width: width,
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        child: const Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      ),
+      errorWidget: (context, url, error) => _buildError(colorScheme),
+    );
+  }
 
-        return Container(
-          height: height,
-          width: width,
-          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-          child: const Center(
-            child: SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          ),
-        );
-      },
-      errorBuilder: (context, error, stackTrace) {
-        return Container(
-          height: height,
-          width: width,
-          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-          child: Icon(
-            Icons.image_not_supported_outlined,
-            color: colorScheme.primary.withValues(alpha: 0.5),
-            size: 32,
-          ),
-        );
-      },
+  Widget _buildError(ColorScheme colorScheme) {
+    return Container(
+      height: height,
+      width: width,
+      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+      child: Icon(
+        Icons.image_not_supported_outlined,
+        color: colorScheme.primary.withValues(alpha: 0.5),
+        size: 32,
+      ),
     );
   }
 }

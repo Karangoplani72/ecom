@@ -13,6 +13,7 @@ class AppUser {
   final List<UserRole> roles;
   final VerificationStatus verificationStatus;
   final bool isActive;
+  final String? fcmToken;
 
   /// Becomes true after admin approves seller application
   final bool sellerApproved;
@@ -31,6 +32,7 @@ class AppUser {
     required this.roles,
     required this.verificationStatus,
     required this.isActive,
+    this.fcmToken,
     this.sellerApproved = false,
     this.sellerApplicationStatus = 'none',
     required this.createdAt,
@@ -65,6 +67,7 @@ class AppUser {
     List<UserRole>? roles,
     VerificationStatus? verificationStatus,
     bool? isActive,
+    String? fcmToken,
     bool? sellerApproved,
     String? sellerApplicationStatus,
     DateTime? createdAt,
@@ -78,6 +81,7 @@ class AppUser {
       roles: roles ?? this.roles,
       verificationStatus: verificationStatus ?? this.verificationStatus,
       isActive: isActive ?? this.isActive,
+      fcmToken: fcmToken ?? this.fcmToken,
       sellerApproved: sellerApproved ?? this.sellerApproved,
       sellerApplicationStatus:
           sellerApplicationStatus ?? this.sellerApplicationStatus,

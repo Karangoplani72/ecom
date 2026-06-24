@@ -2,6 +2,7 @@ import 'package:ecom/features/admin/domain/entities/admin_dashboard_metrics.dart
 import 'package:ecom/features/admin/domain/entities/dispute_ticket.dart';
 import 'package:ecom/features/admin/domain/entities/platform_config.dart';
 import 'package:ecom/features/admin/domain/entities/admin_user.dart';
+import 'package:ecom/features/admin/domain/entities/audit_log.dart';
 import 'package:ecom/features/seller/domain/entities/store_profile.dart';
 import 'package:ecom/features/seller_application/domain/entities/seller_application.dart';
 import 'package:fpdart/fpdart.dart';
@@ -83,4 +84,9 @@ abstract class AdminRepository {
     String uid,
     bool isActive,
   );
+
+  // ─── Audit Logs ────────────────────────────────────────────────────────────
+  Stream<List<AuditLog>> watchAuditLogs();
+
+  Future<Either<String, Unit>> createAuditLog(AuditLog log);
 }

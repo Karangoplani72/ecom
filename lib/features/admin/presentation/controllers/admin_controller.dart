@@ -7,9 +7,12 @@ import 'package:ecom/features/admin/domain/entities/platform_config.dart';
 import 'package:ecom/features/admin/domain/repositories/admin_repository.dart';
 import 'package:ecom/features/seller/domain/entities/store_profile.dart';
 import 'package:ecom/features/seller_application/domain/entities/seller_application.dart';
+import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:ecom/features/admin/domain/entities/audit_log.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:uuid/uuid.dart';
 
 part 'admin_controller.g.dart';
 
@@ -48,24 +51,62 @@ Stream<List<DisputeTicket>> adminAllDisputes(Ref ref) {
   return ref.watch(adminRepositoryProvider).watchAllDisputes();
 }
 
+// ─── Audit Logs ──────────────────────────────────────────────────────────────
+@riverpod
+Stream<List<AuditLog>> adminAuditLogs(Ref ref) {
+  return ref.watch(adminRepositoryProvider).watchAuditLogs();
+}
+
 // ─── Admin controller — dispute + application + store actions ────────────────
 @riverpod
 class AdminController extends _$AdminController {
   @override
   FutureOr<void> build() {}
 
+  Future<Either<String, Unit>> _auditAction(
+    String action,
+    String targetId,
+    String targetType, {
+    Map<String, dynamic>? metadata,
+  }) async {
+    final user = ref.read(currentUserProfileProvider).value;
+    if (user == null) return const Right(unit);
+
+    final log = AuditLog(
+      id: const Uuid().v4(),
+      action: action,
+      userId: user.uid,
+      userEmail: user.email,
+      targetId: targetId,
+      targetType: targetType,
+      metadata: metadata ?? {},
+      createdAt: DateTime.now(),
+    );
+
+    return ref.read(adminRepositoryProvider).createAuditLog(log);
+  }
+
   // ── Dispute actions ──────────────────────────────────────────────────────
   Future<Either<String, Unit>> resolveTicket(String ticketId) async {
-    return ref
+    final result = await ref
         .read(adminRepositoryProvider)
         .updateTicketStatus(ticketId, TicketStatus.resolved);
+    
+    if (result.isRight()) {
+      await _auditAction('resolve_ticket', ticketId, 'dispute_ticket');
+    }
+    return result;
   }
 
   Future<Either<String, Unit>> assignTicket(
     String ticketId,
     String agentId,
   ) async {
-    return ref.read(adminRepositoryProvider).assignTicket(ticketId, agentId);
+    final result = await ref.read(adminRepositoryProvider).assignTicket(ticketId, agentId);
+    if (result.isRight()) {
+      await _auditAction('assign_ticket', ticketId, 'dispute_ticket', metadata: {'agentId': agentId});
+    }
+    return result;
   }
 
   // ── Seller application actions ───────────────────────────────────────────
@@ -76,6 +117,10 @@ class AdminController extends _$AdminController {
     final result = await ref
         .read(adminRepositoryProvider)
         .approveSellerApplication(applicationId, adminId);
+
+    if (result.isRight()) {
+      await _auditAction('approve_seller_application', applicationId, 'seller_application');
+    }
 
     ref.invalidate(adminDashboardMetricsProvider);
     return result;
@@ -89,6 +134,10 @@ class AdminController extends _$AdminController {
     final result = await ref
         .read(adminRepositoryProvider)
         .rejectSellerApplication(applicationId, adminId, reason);
+
+    if (result.isRight()) {
+      await _auditAction('reject_seller_application', applicationId, 'seller_application', metadata: {'reason': reason});
+    }
 
     ref.invalidate(adminDashboardMetricsProvider);
     return result;
@@ -108,6 +157,9 @@ class AdminController extends _$AdminController {
   Future<Either<String, Unit>> suspendStore(String storeId) async {
     final result =
         await ref.read(adminRepositoryProvider).suspendStore(storeId);
+    if (result.isRight()) {
+      await _auditAction('suspend_store', storeId, 'store');
+    }
     ref.invalidate(adminDashboardMetricsProvider);
     return result;
   }
@@ -115,6 +167,9 @@ class AdminController extends _$AdminController {
   Future<Either<String, Unit>> activateStore(String storeId) async {
     final result =
         await ref.read(adminRepositoryProvider).activateStore(storeId);
+    if (result.isRight()) {
+      await _auditAction('activate_store', storeId, 'store');
+    }
     ref.invalidate(adminDashboardMetricsProvider);
     return result;
   }
@@ -122,27 +177,42 @@ class AdminController extends _$AdminController {
   Future<Either<String, Unit>> deleteStore(String storeId) async {
     final result =
         await ref.read(adminRepositoryProvider).deleteStore(storeId);
+    if (result.isRight()) {
+      await _auditAction('delete_store', storeId, 'store');
+    }
     ref.invalidate(adminDashboardMetricsProvider);
     return result;
   }
 
   // ── User actions ─────────────────────────────────────────────────────────
   Future<Either<String, Unit>> deleteUser(String uid) async {
-    return ref.read(adminRepositoryProvider).deleteUser(uid);
+    final result = await ref.read(adminRepositoryProvider).deleteUser(uid);
+    if (result.isRight()) {
+      await _auditAction('delete_user', uid, 'user');
+    }
+    return result;
   }
 
   Future<Either<String, Unit>> updateUserRoles(
     String uid,
     List<String> roles,
   ) async {
-    return ref.read(adminRepositoryProvider).updateUserRoles(uid, roles);
+    final result = await ref.read(adminRepositoryProvider).updateUserRoles(uid, roles);
+    if (result.isRight()) {
+      await _auditAction('update_user_roles', uid, 'user', metadata: {'roles': roles});
+    }
+    return result;
   }
 
   Future<Either<String, Unit>> setUserActiveStatus(
     String uid,
     bool isActive,
   ) async {
-    return ref.read(adminRepositoryProvider).setUserActiveStatus(uid, isActive);
+    final result = await ref.read(adminRepositoryProvider).setUserActiveStatus(uid, isActive);
+    if (result.isRight()) {
+      await _auditAction('set_user_active_status', uid, 'user', metadata: {'isActive': isActive});
+    }
+    return result;
   }
 }
 

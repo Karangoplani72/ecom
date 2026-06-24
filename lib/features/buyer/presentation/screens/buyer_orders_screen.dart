@@ -441,8 +441,11 @@ class _InteractiveOrderCardState extends State<_InteractiveOrderCard>
         );
         break;
       case OrderStatus.cancelled:
+      case OrderStatus.returnRequested:
+      case OrderStatus.returnApproved:
+      case OrderStatus.returnRejected:
       case OrderStatus.refunded:
-        label = 'Cancelled';
+        label = 'Returns & Refunds';
         gradient = const LinearGradient(
           colors: [Color(0xFFEF4444), Color(0xFFF87171)],
         );

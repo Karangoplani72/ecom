@@ -226,6 +226,12 @@ class AdminModerationScreen extends ConsumerWidget {
                 icon: Icons.settings_outlined,
                 onTap: () => context.go('/admin/settings'),
               ),
+              _QuickNavTile(
+                title: 'System Audit Logs',
+                subtitle: 'View tracking and action logs',
+                icon: Icons.history_edu_outlined,
+                onTap: () => context.go('/admin/audit-logs'),
+              ),
             ],
           );
         },

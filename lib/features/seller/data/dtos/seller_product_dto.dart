@@ -13,6 +13,9 @@ class SellerProductDto {
   final String currency;
   final List<String> imageUrls;
   final Map<String, dynamic> metadata;
+  final double avgRating;
+  final int reviewCount;
+  final List<ProductVariant> variants;
   final Timestamp? createdAt;
   final Timestamp? updatedAt;
 
@@ -27,6 +30,9 @@ class SellerProductDto {
     required this.currency,
     required this.imageUrls,
     required this.metadata,
+    this.avgRating = 0.0,
+    this.reviewCount = 0,
+    this.variants = const [],
     this.createdAt,
     this.updatedAt,
   });
@@ -52,6 +58,11 @@ class SellerProductDto {
         (data['metadata'] as Map<dynamic, dynamic>? ?? {})
             .cast<String, dynamic>(),
       ),
+      avgRating: (data['avgRating'] as num? ?? 0).toDouble(),
+      reviewCount: data['reviewCount'] as int? ?? 0,
+      variants: (data['variants'] as List<dynamic>? ?? [])
+          .map((e) => ProductVariant.fromMap(Map<String, dynamic>.from(e as Map)))
+          .toList(),
       createdAt: data['createdAt'] as Timestamp?,
       updatedAt: data['updatedAt'] as Timestamp?,
     );
@@ -72,6 +83,9 @@ class SellerProductDto {
       category: metadata['category'] as String? ?? '',
       stock: metadata['stock'] as int? ?? 0,
       metadata: metadata,
+      avgRating: avgRating,
+      reviewCount: reviewCount,
+      variants: variants,
       createdAt: createdAt?.toDate(),
       updatedAt: updatedAt?.toDate(),
     );
@@ -89,6 +103,9 @@ class SellerProductDto {
       'currency': currency,
       'imageUrls': imageUrls,
       'metadata': metadata,
+      'avgRating': avgRating,
+      'reviewCount': reviewCount,
+      'variants': variants.map((v) => v.toMap()).toList(),
       'createdAt': createdAt,
       'updatedAt': updatedAt,
     };
@@ -105,6 +122,9 @@ class SellerProductDto {
     String? currency,
     List<String>? imageUrls,
     Map<String, dynamic>? metadata,
+    double? avgRating,
+    int? reviewCount,
+    List<ProductVariant>? variants,
     Timestamp? createdAt,
     Timestamp? updatedAt,
   }) {
@@ -119,6 +139,9 @@ class SellerProductDto {
       currency: currency ?? this.currency,
       imageUrls: imageUrls ?? this.imageUrls,
       metadata: metadata ?? this.metadata,
+      avgRating: avgRating ?? this.avgRating,
+      reviewCount: reviewCount ?? this.reviewCount,
+      variants: variants ?? this.variants,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -139,6 +162,9 @@ class SellerProductDto {
           currency == other.currency &&
           imageUrls == other.imageUrls &&
           metadata == other.metadata &&
+          avgRating == other.avgRating &&
+          reviewCount == other.reviewCount &&
+          variants == other.variants &&
           createdAt == other.createdAt &&
           updatedAt == other.updatedAt;
 
@@ -154,6 +180,9 @@ class SellerProductDto {
       currency.hashCode ^
       imageUrls.hashCode ^
       metadata.hashCode ^
+      avgRating.hashCode ^
+      reviewCount.hashCode ^
+      variants.hashCode ^
       createdAt.hashCode ^
       updatedAt.hashCode;
 

@@ -1,11 +1,12 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'package:ecom/core/providers/connectivity_provider.dart';
 import 'package:ecom/core/providers/theme_provider.dart';
 import 'package:ecom/core/theme/app_theme.dart';
 import 'package:ecom/shared/presentation/navigation/router.dart';
-import 'package:ecom/core/providers/connectivity_provider.dart';
 import 'package:ecom/shared/presentation/widgets/offline_overlay.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'l10n/app_localizations.dart';
 
 class EcomApp extends ConsumerWidget {
   const EcomApp({super.key});
@@ -23,6 +24,9 @@ class EcomApp extends ConsumerWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
+
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
 
       routerConfig: router,
       builder: (context, child) {

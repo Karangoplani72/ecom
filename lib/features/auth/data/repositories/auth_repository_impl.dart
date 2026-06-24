@@ -287,6 +287,19 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<Either<String, Unit>> updateFCMToken(String uid, String token) async {
+    try {
+      await _firestore.collection('users').doc(uid).update({
+        'fcmToken': token,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return const Right(unit);
+    } catch (e) {
+      return Left('Failed to update FCM token: ${e.toString()}');
+    }
+  }
+
+  @override
   Future<Either<String, Unit>> sendPasswordResetEmail(String email) async {
     try {
       await _firebaseAuth.sendPasswordResetEmail(email: email);

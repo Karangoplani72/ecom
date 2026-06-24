@@ -8,6 +8,7 @@ import 'package:ecom/features/buyer/data/dtos/payment_transaction_dto.dart';
 import 'package:ecom/features/buyer/domain/entities/cart_item.dart';
 import 'package:ecom/features/buyer/domain/entities/payment_transaction.dart';
 import 'package:ecom/features/buyer/domain/repositories/payment_repository.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/foundation.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:http/http.dart' as http;
@@ -25,8 +26,12 @@ class PaymentRepositoryImpl implements PaymentRepository {
   Future<Either<String, String>> fetchRazorpayKey() async {
     try {
       debugPrint('[PAYMENT_REPO] fetchRazorpayKey → $getRazorpayKeyUrl');
+      final appCheckToken = await FirebaseAppCheck.instance.getToken();
       final response = await _httpClient
-          .get(Uri.parse(getRazorpayKeyUrl))
+          .get(
+            Uri.parse(getRazorpayKeyUrl),
+            headers: {'X-Firebase-AppCheck': ?appCheckToken},
+          )
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
@@ -69,12 +74,14 @@ class PaymentRepositoryImpl implements PaymentRepository {
         'receipt': ?receipt,
       };
 
+      final appCheckToken = await FirebaseAppCheck.instance.getToken();
       final response = await _httpClient
           .post(
             Uri.parse(createRazorpayOrderUrl),
             headers: {
               'Content-Type': 'application/json',
               'Authorization': 'Bearer $idToken',
+              'X-Firebase-AppCheck': ?appCheckToken,
             },
             body: json.encode(bodyPayload),
           )
@@ -161,12 +168,14 @@ class PaymentRepositoryImpl implements PaymentRepository {
         'orders': ordersPayload,
       };
 
+      final appCheckToken = await FirebaseAppCheck.instance.getToken();
       final response = await _httpClient
           .post(
             Uri.parse(verifyAndFinalizePaymentUrl),
             headers: {
               'Content-Type': 'application/json',
               'Authorization': 'Bearer $idToken',
+              'X-Firebase-AppCheck': ?appCheckToken,
             },
             body: json.encode(requestBody),
           )
