@@ -24,9 +24,6 @@ class AdminAuditLogsScreen extends ConsumerWidget {
             color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
           ),
         ),
-        backgroundColor: isDark ? AppColors.darkBgPrimary : AppColors.lightBgPrimary,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
         iconTheme: IconThemeData(
           color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
         ),

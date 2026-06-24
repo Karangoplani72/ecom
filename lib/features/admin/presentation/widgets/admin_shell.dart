@@ -11,13 +11,14 @@
 // building its own `Scaffold`, so navigation stays consistent as more
 // screens are added.
 
+import 'dart:ui';
+
 import 'package:ecom/core/constants/app_radius.dart';
 import 'package:ecom/core/theme/app_colors.dart';
+import 'package:ecom/shared/presentation/widgets/notification_bell.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:ecom/shared/presentation/widgets/notification_bell.dart';
-
 
 // ─────────────────────────────────────────────────────────────
 // AdminScaffold — page-level wrapper
@@ -94,44 +95,64 @@ class _AdminTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-      child: Row(
-        children: [
-          if (!isDesktop)
-            Builder(
-              builder: (ctx) => IconButton(
-                icon: const Icon(Icons.menu_rounded),
-                onPressed: () => Scaffold.of(ctx).openDrawer(),
-                padding: EdgeInsets.zero,
-                visualDensity: VisualDensity.compact,
-              ),
-            ),
-          if (!isDesktop) const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.headlineMedium
-                      ?.copyWith(fontWeight: FontWeight.w700, fontSize: 22),
-                ),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle!,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.lightTextSecondary,
-                    ),
-                  ),
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: Theme.of(context).brightness == Brightness.dark
+              ? [
+                  Colors.black.withValues(alpha: 0.6),
+                  Colors.black.withValues(alpha: 0.3),
+                ]
+              : [
+                  Colors.white.withValues(alpha: 0.8),
+                  Colors.white.withValues(alpha: 0.5),
                 ],
-              ],
-            ),
+        ),
+      ),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+          child: Row(
+            children: [
+              if (!isDesktop)
+                Builder(
+                  builder: (ctx) => IconButton(
+                    icon: const Icon(Icons.menu_rounded),
+                    onPressed: () => Scaffold.of(ctx).openDrawer(),
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              if (!isDesktop) const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(fontWeight: FontWeight.w700, fontSize: 22),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle!,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.lightTextSecondary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const NotificationBell(),
+              if (actions != null) ...[const SizedBox(width: 12), ...actions!],
+            ],
           ),
-          const NotificationBell(),
-          if (actions != null) ...[const SizedBox(width: 12), ...actions!],
-        ],
+        ),
       ),
     );
   }
@@ -154,9 +175,7 @@ class AdminSidebar extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         border: Border(
-          right: BorderSide(
-            color: Theme.of(context).dividerColor,
-          ),
+          right: BorderSide(color: Theme.of(context).dividerColor),
         ),
       ),
       child: Column(
@@ -238,7 +257,9 @@ class AdminSidebar extends StatelessWidget {
                         activeIcon: Icons.category_rounded,
                         label: 'Category Requests',
                         route: '/admin/category-requests',
-                        isActive: currentPath.startsWith('/admin/category-requests'),
+                        isActive: currentPath.startsWith(
+                          '/admin/category-requests',
+                        ),
                       ),
                       _SidebarItem(
                         icon: Icons.storefront_outlined,
@@ -313,7 +334,9 @@ class AdminSidebar extends StatelessWidget {
           ),
           Divider(
             height: 1,
-            color: isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.border,
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.08)
+                : AppColors.border,
           ),
           const _SidebarLogout(),
           const SizedBox(height: 16),
@@ -371,8 +394,9 @@ class _SidebarItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final inactiveColor =
-        isDark ? Colors.white60 : AppColors.lightTextSecondary;
+    final inactiveColor = isDark
+        ? Colors.white60
+        : AppColors.lightTextSecondary;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
@@ -404,8 +428,9 @@ class _SidebarItem extends StatelessWidget {
                     label,
                     style: TextStyle(
                       color: isActive ? AppColors.primary : inactiveColor,
-                      fontWeight:
-                          isActive ? FontWeight.w600 : FontWeight.normal,
+                      fontWeight: isActive
+                          ? FontWeight.w600
+                          : FontWeight.normal,
                       fontSize: 14,
                     ),
                   ),

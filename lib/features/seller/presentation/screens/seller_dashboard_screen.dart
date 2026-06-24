@@ -81,7 +81,8 @@ class _DashboardHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final greeting = _getGreeting();
-    final sellerName = ref.watch(authControllerProvider).value?.displayName ?? 'Seller';
+    final sellerName =
+        ref.watch(authControllerProvider).value?.displayName ?? 'Seller';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
@@ -106,14 +107,22 @@ class _DashboardHeader extends ConsumerWidget {
                     Text(
                       greeting,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.lightTextSecondary,
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? AppColors.darkTextSecond
+                            : AppColors.lightTextSecondary,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       sellerName,
                       style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                          ?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color:
+                                Theme.of(context).brightness == Brightness.dark
+                                ? AppColors.darkTextPrimary
+                                : AppColors.lightTextPrimary,
+                          ),
                     ),
                   ],
                 ),
@@ -230,15 +239,27 @@ class _MetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = isDark
+        ? AppColors.darkTextPrimary
+        : AppColors.lightTextPrimary;
+    final textSecondary = isDark
+        ? AppColors.darkTextSecond
+        : AppColors.lightTextSecond;
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkCard : AppColors.lightCard,
+        color: isDark ? const Color(0xFF1E1B33) : AppColors.lightCard,
         borderRadius: AppRadius.borderLG,
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : AppColors.borderLight,
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.06),
+            blurRadius: isDark ? 20 : 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -262,17 +283,16 @@ class _MetricCard extends StatelessWidget {
               children: [
                 Text(
                   config.value,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 22,
+                    color: textPrimary,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   config.label,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.lightTextSecondary,
-                  ),
+                  style: TextStyle(fontSize: 12, color: textSecondary),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -333,9 +353,12 @@ class _QuickActions extends StatelessWidget {
       children: [
         Text(
           'Quick Actions',
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: Theme.of(context).brightness == Brightness.dark
+                ? AppColors.darkTextPrimary
+                : AppColors.lightTextPrimary,
+          ),
         ),
         const SizedBox(height: 12),
         Wrap(
@@ -516,8 +539,11 @@ class _OrderRow extends StatelessWidget {
                     const SizedBox(width: 6),
                     Text(
                       '#$shortId',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.lightTextSecondary,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark
+                            ? AppColors.darkTextSecond
+                            : AppColors.lightTextSecondary,
                       ),
                     ),
                   ],
@@ -527,8 +553,11 @@ class _OrderRow extends StatelessWidget {
                   summary,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.lightTextSecondary,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark
+                        ? AppColors.darkTextSecond
+                        : AppColors.lightTextSecondary,
                   ),
                 ),
               ],
@@ -540,9 +569,12 @@ class _OrderRow extends StatelessWidget {
             children: [
               Text(
                 '₹${amount.toStringAsFixed(0)}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 14,
+                  color: isDark
+                      ? AppColors.darkTextPrimary
+                      : AppColors.lightTextPrimary,
                 ),
               ),
               const SizedBox(height: 4),
@@ -604,6 +636,9 @@ class _StatusBadge extends StatelessWidget {
         return (AppColors.error, 'Return Rejected');
       case OrderStatus.refunded:
         return (Colors.grey, 'Refunded');
+      case OrderStatus.returned:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 }
@@ -785,7 +820,7 @@ class _PlaceholderImage extends StatelessWidget {
       child: const Icon(
         Icons.image_outlined,
         size: 20,
-        color: AppColors.lightTextSecondary,
+        color: AppColors.darkTextSecond,
       ),
     );
   }
@@ -806,13 +841,19 @@ class _SectionCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkCard : AppColors.lightCard,
+        color: isDark ? const Color(0xFF1E1B33) : AppColors.lightCard,
         borderRadius: AppRadius.borderLG,
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : AppColors.borderLight,
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.06),
+            blurRadius: isDark ? 20 : 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -844,13 +885,17 @@ class _EmptyStateRow extends StatelessWidget {
               size: 40,
               color:
                   iconColor ??
-                  AppColors.lightTextSecondary.withValues(alpha: 0.5),
+                  (Theme.of(context).brightness == Brightness.dark
+                      ? AppColors.darkTextSecond.withValues(alpha: 0.5)
+                      : AppColors.lightTextSecondary.withValues(alpha: 0.5)),
             ),
             const SizedBox(height: 12),
             Text(
               message,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.lightTextSecondary,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? AppColors.darkTextSecond
+                    : AppColors.lightTextSecondary,
               ),
               textAlign: TextAlign.center,
             ),

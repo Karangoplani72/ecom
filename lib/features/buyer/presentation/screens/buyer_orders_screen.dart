@@ -1,16 +1,16 @@
 import 'dart:ui';
+
+import 'package:ecom/core/theme/app_colors.dart';
+import 'package:ecom/features/buyer/presentation/widgets/buyer_anti_gravity_widgets.dart';
+import 'package:ecom/features/orders/domain/entities/order.dart';
+import 'package:ecom/features/orders/domain/entities/order_item.dart';
+import 'package:ecom/features/orders/domain/entities/order_status.dart';
+import 'package:ecom/features/orders/presentation/controllers/order_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-
-import 'package:ecom/core/theme/app_colors.dart';
-import 'package:ecom/features/orders/domain/entities/order.dart';
-import 'package:ecom/features/orders/domain/entities/order_item.dart';
-import 'package:ecom/features/orders/domain/entities/order_status.dart';
-import 'package:ecom/features/orders/presentation/controllers/order_controller.dart';
-import 'package:ecom/features/buyer/presentation/widgets/buyer_anti_gravity_widgets.dart';
 
 class BuyerOrdersScreen extends ConsumerWidget {
   const BuyerOrdersScreen({super.key});
@@ -24,8 +24,9 @@ class BuyerOrdersScreen extends ConsumerWidget {
     return DefaultTabController(
       length: 4,
       child: Scaffold(
-        backgroundColor:
-            isDark ? AppColors.darkBgPrimary : AppColors.lightBgPrimary,
+        backgroundColor: isDark
+            ? AppColors.darkBgPrimary
+            : AppColors.lightBgPrimary,
         body: Stack(
           children: [
             const IgnorePointer(child: OrbBackgroundWidget()),
@@ -34,7 +35,10 @@ class BuyerOrdersScreen extends ConsumerWidget {
                 child: CircularProgressIndicator(color: Color(0xFF7C3AED)),
               ),
               error: (error, _) => Center(
-                child: Text('Error: $error', style: const TextStyle(color: Colors.red)),
+                child: Text(
+                  'Error: $error',
+                  style: const TextStyle(color: Colors.red),
+                ),
               ),
               data: (orders) {
                 final activeOrders = orders.where((o) {
@@ -61,9 +65,7 @@ class BuyerOrdersScreen extends ConsumerWidget {
                         floating: true,
                         pinned: true,
                         snap: true,
-                        backgroundColor: Colors.transparent,
-                        surfaceTintColor: Colors.transparent,
-                        elevation: 0,
+                        forceElevated: innerBoxIsScrolled,
                         leadingWidth: 70,
                         leading: Padding(
                           padding: const EdgeInsets.only(left: 16),
@@ -123,16 +125,20 @@ class BuyerOrdersScreen extends ConsumerWidget {
                                   end: Alignment.bottomCenter,
                                   colors: isDark
                                       ? [
-                                          AppColors.darkBgPrimary
-                                              .withValues(alpha: 0.95),
-                                          AppColors.darkBgPrimary
-                                              .withValues(alpha: 0.6)
+                                          AppColors.darkBgPrimary.withValues(
+                                            alpha: 0.95,
+                                          ),
+                                          AppColors.darkBgPrimary.withValues(
+                                            alpha: 0.6,
+                                          ),
                                         ]
                                       : [
-                                          AppColors.lightBgPrimary
-                                              .withValues(alpha: 0.95),
-                                          AppColors.lightBgPrimary
-                                              .withValues(alpha: 0.6)
+                                          AppColors.lightBgPrimary.withValues(
+                                            alpha: 0.95,
+                                          ),
+                                          AppColors.lightBgPrimary.withValues(
+                                            alpha: 0.6,
+                                          ),
                                         ],
                                 ),
                               ),
@@ -288,8 +294,9 @@ class _InteractiveOrderCardState extends State<_InteractiveOrderCard>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : AppColors.lightTextPrimary;
-    final formattedDate =
-        DateFormat('MMM d, yyyy').format(widget.order.createdAt);
+    final formattedDate = DateFormat(
+      'MMM d, yyyy',
+    ).format(widget.order.createdAt);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -450,6 +457,9 @@ class _InteractiveOrderCardState extends State<_InteractiveOrderCard>
           colors: [Color(0xFFEF4444), Color(0xFFF87171)],
         );
         break;
+      case OrderStatus.returned:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
 
     return Container(

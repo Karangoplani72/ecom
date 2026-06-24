@@ -18,6 +18,7 @@ import 'package:ecom/features/buyer/presentation/widgets/profile_avatar.dart';
 import 'package:ecom/features/orders/presentation/controllers/order_controller.dart';
 import 'package:ecom/shared/presentation/navigation/router.dart';
 import 'package:ecom/features/buyer/presentation/widgets/buyer_anti_gravity_widgets.dart';
+import 'package:ecom/shared/presentation/widgets/blur_app_bar.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -136,9 +137,6 @@ class ProfileScreen extends ConsumerWidget {
         );
       }
     });
-
-    final textColor = isDark ? Colors.white : AppColors.lightTextPrimary;
-
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBgPrimary : AppColors.lightBgPrimary,
       body: Stack(
@@ -173,22 +171,9 @@ class ProfileScreen extends ConsumerWidget {
                 physics: const BouncingScrollPhysics(),
                 headerSliverBuilder: (context, innerBoxIsScrolled) {
                   return [
-                    SliverAppBar(
-                      floating: true,
-                      pinned: true,
-                      snap: true,
-                      backgroundColor: Colors.transparent,
-                      surfaceTintColor: Colors.transparent,
-                      elevation: 0,
-                      title: Text(
-                        'My Account',
-                        style: GoogleFonts.playfairDisplay(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                          color: textColor,
-                        ),
-                      ),
-                      centerTitle: true,
+                    BlurAppBar(
+                      title: 'My Account',
+                      showLeading: false,
                       actions: [
                         if (firebaseUser != null)
                           Padding(
@@ -200,6 +185,7 @@ class ProfileScreen extends ConsumerWidget {
                             ),
                           ),
                       ],
+                      isDark: isDark,
                     ),
                   ];
                 },
@@ -536,7 +522,7 @@ class _AuthenticatedBody extends ConsumerWidget {
       },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 120),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

@@ -15,6 +15,7 @@ import 'package:ecom/features/marketplace/presentation/controllers/marketplace_c
 import 'package:ecom/shared/presentation/widgets/cart_icon_with_badge.dart';
 import 'package:ecom/shared/presentation/widgets/notification_bell.dart';
 import 'package:ecom/shared/presentation/widgets/wishlist_icon_with_badge.dart';
+import 'package:ecom/shared/presentation/widgets/blur_app_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -203,92 +204,17 @@ class _ProductsScreenContentState extends ConsumerState<ProductsScreenContent> {
   // ── Sliver AppBar ──────────────────────────────────────────────────────────
 
   Widget _buildSliverAppBar(bool isDark) {
-    return SliverAppBar(
-      automaticallyImplyLeading: false,
-      expandedHeight: 80,
-      floating: true,
-      pinned: true,
-      backgroundColor: Colors.transparent,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      flexibleSpace: ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: FlexibleSpaceBar(
-            background: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: isDark
-                      ? [
-                          AppColors.darkBgPrimary.withValues(alpha: 0.95),
-                          AppColors.darkBgPrimary.withValues(alpha: 0.7),
-                        ]
-                      : [
-                          AppColors.lightBgPrimary.withValues(alpha: 0.95),
-                          AppColors.lightBgPrimary.withValues(alpha: 0.7),
-                        ],
-                ),
-              ),
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    children: [
-                      Builder(
-                        builder: (ctx) => GestureDetector(
-                          onTap: () => Scaffold.of(ctx).openDrawer(),
-                          child: _GlassIcon(
-                            isDark: isDark,
-                            icon: Icons.menu_rounded,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Discover',
-                              style: GoogleFonts.playfairDisplay(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w700,
-                                color: isDark
-                                    ? AppColors.darkTextPrimary
-                                    : AppColors.lightTextPrimary,
-                                height: 1.1,
-                              ),
-                            ),
-                            Text(
-                              'Find what you love',
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                color: isDark
-                                    ? AppColors.darkTextSecond
-                                    : AppColors.lightTextSecond,
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const NotificationBell(),
-                      const WishlistIconWithBadge(),
-                      const CartIconWithBadge(),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
+    return BlurAppBar(
+      title: 'Discover',
+      subtitle: 'Find what you love',
+      actions: const [
+        NotificationBell(),
+        WishlistIconWithBadge(),
+        CartIconWithBadge(),
+      ],
+      showLeading: true,
+      onLeadingTap: () {}, // Will be handled by the BlurAppBar's default behavior
+      isDark: isDark,
     );
   }
 

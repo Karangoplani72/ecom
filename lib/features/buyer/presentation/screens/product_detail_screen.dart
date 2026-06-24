@@ -31,8 +31,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   int _selectedColorIndex = 0;
   bool _isDescriptionExpanded = false;
   late final PageController _imagePageController;
-  late final TextEditingController _searchController;
-  int _currentImageIndex = 0;
+    int _currentImageIndex = 0;
   bool _isActionLoading = false;
 
   final List<Color> _fallbackColors = [
@@ -47,14 +46,12 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   void initState() {
     super.initState();
     _imagePageController = PageController();
-    _searchController = TextEditingController();
-  }
+      }
 
   @override
   void dispose() {
     _imagePageController.dispose();
-    _searchController.dispose();
-    super.dispose();
+        super.dispose();
   }
 
   @override
@@ -116,8 +113,6 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                     expandedHeight: screenHeight * 0.42,
                     collapsedHeight: 80,
                     pinned: true,
-                    backgroundColor: Colors.transparent,
-                    elevation: 0,
                     leadingWidth: 70,
                     leading: Padding(
                       padding: const EdgeInsets.only(left: 16),
@@ -285,85 +280,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                     ),
                   ),
  
-                  // Search Bar (same style as home screen)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.05)
-                              : Colors.white.withValues(alpha: 0.8),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: isDark ? 0.1 : 0.4),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF7C3AED).withValues(alpha: isDark ? 0.1 : 0.05),
-                              blurRadius: 20,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.search,
-                              color: isDark ? AppColors.darkTextSecond : AppColors.lightTextSecond,
-                              size: 22,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: TextField(
-                                controller: _searchController,
-                                style: GoogleFonts.inter(
-                                  color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                decoration: InputDecoration(
-                                  hintText: 'Search products, brands & more...',
-                                  hintStyle: GoogleFonts.inter(
-                                    color: isDark ? AppColors.darkTextSecond : AppColors.lightTextSecond,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w400,
-                                  ),
-                                  border: InputBorder.none,
-                                  isDense: true,
-                                  contentPadding: EdgeInsets.zero,
-                                ),
-                                onChanged: (val) => setState(() {}),
-                                onSubmitted: (val) {
-                                  if (val.trim().isNotEmpty) {
-                                    context.go('/buyer/products?search=${Uri.encodeComponent(val.trim())}');
-                                  }
-                                },
-                              ),
-                            ),
-                            if (_searchController.text.isNotEmpty)
-                              GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _searchController.clear();
-                                  });
-                                },
-                                child: Icon(
-                                  Icons.close,
-                                  color: isDark ? AppColors.darkTextSecond : AppColors.lightTextSecond,
-                                  size: 20,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
- 
+                   
                   // 2. Content Info Panel
                   SliverToBoxAdapter(
                     child: Transform.translate(

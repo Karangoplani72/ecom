@@ -87,21 +87,37 @@ class _AnalyticsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 24),
-
-            const SizedBox(height: 6),
-
-            Text(value, style: Theme.of(context).textTheme.headlineSmall),
-
-            const SizedBox(height: 4),
-
-            Text(title),
-          ],
+      child: InkWell(
+        onTap: () {}, // Add inkwell for better visual feedback
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 24),
+              const SizedBox(height: 6),
+              Expanded(
+                flex: 2,
+                child: Text(
+                  value,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Expanded(
+                flex: 1,
+                child: Text(
+                  title,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

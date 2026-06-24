@@ -13,6 +13,16 @@ import 'package:flutter/foundation.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:http/http.dart' as http;
 
+// App Check token — never throws; omits header on any failure.
+Future<String?> _safeAppCheckToken() async {
+  try {
+    return await FirebaseAppCheck.instance.getToken();
+  } catch (e) {
+    debugPrint('[APP_CHECK] getToken() failed (non-fatal): $e');
+    return null;
+  }
+}
+
 class PaymentRepositoryImpl implements PaymentRepository {
   final FirebaseFirestore _firestore;
   final http.Client _httpClient;
@@ -26,7 +36,7 @@ class PaymentRepositoryImpl implements PaymentRepository {
   Future<Either<String, String>> fetchRazorpayKey() async {
     try {
       debugPrint('[PAYMENT_REPO] fetchRazorpayKey → $getRazorpayKeyUrl');
-      final appCheckToken = await FirebaseAppCheck.instance.getToken();
+      final appCheckToken = await _safeAppCheckToken();
       final response = await _httpClient
           .get(
             Uri.parse(getRazorpayKeyUrl),
@@ -74,7 +84,7 @@ class PaymentRepositoryImpl implements PaymentRepository {
         'receipt': ?receipt,
       };
 
-      final appCheckToken = await FirebaseAppCheck.instance.getToken();
+      final appCheckToken = await _safeAppCheckToken();
       final response = await _httpClient
           .post(
             Uri.parse(createRazorpayOrderUrl),
@@ -168,7 +178,7 @@ class PaymentRepositoryImpl implements PaymentRepository {
         'orders': ordersPayload,
       };
 
-      final appCheckToken = await FirebaseAppCheck.instance.getToken();
+      final appCheckToken = await _safeAppCheckToken();
       final response = await _httpClient
           .post(
             Uri.parse(verifyAndFinalizePaymentUrl),

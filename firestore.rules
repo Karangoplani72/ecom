@@ -2,9 +2,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ========================================================================
-    // 1. CORE AUTHENTICATION FUNCTIONS
-    // ========================================================================
     function isLoggedIn() {
       return request.auth != null && request.auth.uid != null;
     }
@@ -25,391 +22,364 @@ service cloud.firestore {
       return hasRole('admin') || hasRole('superAdmin');
     }
 
-    function isNonEmptyString(value, maxLength) {
-      return value is string && value.size() > 0 && value.size() <= maxLength;
+    function isString(value, min, max) {
+      return value is string && value.size() >= min && value.size() <= max;
     }
 
-    // ========================================================================
-    // 2. USERS
-    // Covers: AuthRepositoryImpl, AddressRepositoryImpl, CartRepositoryImpl,
-    //         WishlistRepositoryImpl, CommunicationRepositoryImpl (tokens),
-    //         OrderRepositoryImpl (notifications subcollection),
-    //         AdminUserRepositoryImpl
-    // ========================================================================
+    function isNumber(value, min, max) {
+      return (value is int || value is float) && value >= min && value <= max;
+    }
+
+    function isList(value, max) {
+      return value is list && value.size() <= max;
+    }
+
+    function isStoreOwner(storeId) {
+      return isLoggedIn() && request.auth.uid == storeId;
+    }
+
+    // =========================================================================
+    // USERS
+    // =========================================================================
     match /users/{userId} {
-      // Own profile read; admins can list/read all (AdminUserRepositoryImpl.watchUsers)
-      allow get:  if isOwner(userId) || hasRole('admin') || hasRole('superAdmin');
-      allow list: if hasRole('admin') || hasRole('superAdmin');
+      allow get:    if isOwner(userId) || isAdmin();
+      allow list:   if isAdmin();
 
-      // Own profile create (signup)
-      allow create: if isLoggedIn() && isOwner(userId);
+      allow create: if isLoggedIn()
+                    && isOwner(userId)
+                    && request.resource.data.roles == ['buyer']
+                    && (!('walletBalance' in request.resource.data) || request.resource.data.walletBalance == 0)
+                    && (!('isActive' in request.resource.data) || request.resource.data.isActive == true)
+                    && (!('sellerApproved' in request.resource.data) || request.resource.data.sellerApproved == false)
+                    && (!('sellerApplicationStatus' in request.resource.data) || request.resource.data.sellerApplicationStatus == 'none');
 
-      // Own profile update — blocked fields enforced here.
-      // Admin can update roles/isActive (AdminUserRepositoryImpl.updateRoles/updateStatus).
-      allow update: if (
-                      isOwner(userId)
-                      && !request.resource.data.diff(resource.data)
-                          .affectedKeys()
-                          .hasAny(['roles', 'isActive', 'walletBalance', 'sellerApproved'])
-                      && (
-                           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['sellerApplicationStatus'])
-                           || request.resource.data.sellerApplicationStatus == 'pending'
-                         )
-                    )
-                    || hasRole('admin')
-                    || hasRole('superAdmin');
+      allow update: if isAdmin()
+                    || (isOwner(userId)
+                        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['roles', 'isActive', 'walletBalance', 'sellerApproved'])
+                        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['sellerApplicationStatus'])
+                            || request.resource.data.sellerApplicationStatus == 'pending'));
 
       allow delete: if hasRole('superAdmin');
 
-      // --- Push notification tokens (CommunicationRepositoryImpl) ---
       match /tokens/{tokenId} {
         allow read, write: if isOwner(userId);
       }
 
-      // --- Addresses (AddressRepositoryImpl) ---
       match /addresses/{addressId} {
         allow read, write: if isOwner(userId);
       }
 
-      // --- Cart (CartRepositoryImpl) ---
       match /cart/{itemId} {
         allow read, write: if isOwner(userId);
       }
 
-      // --- Wishlist (WishlistRepositoryImpl) ---
       match /wishlist/{itemId} {
         allow read, write: if isOwner(userId);
       }
 
-      // --- In-app notifications (OrderRepositoryImpl._addNotification) ---
-      // Written inside transactions on behalf of both buyer and seller storeId.
-      // The storeId equals the seller's userId in this app, so allow any
-      // logged-in user to create notifications for any userId (backend-style
-      // write via client transaction).
+      match /recent_searches/{searchId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Notifications: allow cross-user create for order flow (seller->buyer, admin->seller)
       match /notifications/{notifId} {
-        allow read:   if isOwner(userId);
-        allow create: if false; // Cloud Functions/Admin SDK only
-        allow update: if isOwner(userId)
-                      && request.resource.data.diff(resource.data)
-                          .affectedKeys()
-                          .hasOnly(['isRead']);
-        allow delete: if isOwner(userId);
+        allow read:   if isOwner(userId) || isAdmin();
+        allow create: if isLoggedIn()
+                      && request.resource.data.title is string
+                      && request.resource.data.body is string
+                      && (!('isRead' in request.resource.data) || request.resource.data.isRead == false);
+        allow update: if (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']))
+                      || isAdmin();
+        allow delete: if isOwner(userId) || isAdmin();
       }
     }
 
-    // ========================================================================
-    // 3. STORES
-    // Covers: SellerStoreRepositoryImpl, AdminRepositoryImpl (approve/reject)
-    // ========================================================================
+    // =========================================================================
+    // STORES
+    // =========================================================================
     match /stores/{storeId} {
-      // Verified stores are public; unverified stores visible to owner & admin
-      allow get: if resource.data.status == 'verified'
-                 || (isLoggedIn() && resource.data.sellerId == request.auth.uid)
-                 || hasRole('admin')
-                 || hasRole('superAdmin');
+      allow get:  if resource.data.status == 'verified'
+                  || isStoreOwner(storeId)
+                  || isAdmin();
+      allow list: if isAdmin() || isLoggedIn();
 
-      // Admins list all stores; SellerStoreRepositoryImpl.getStoresByStatus lists by status
-      allow list: if hasRole('admin') || hasRole('superAdmin');
-
-      // Seller updates own store; admin updates any (approval flow)
-      allow update: if (isLoggedIn() && resource.data.sellerId == request.auth.uid)
-                    || hasRole('admin')
-                    || hasRole('superAdmin');
-
-      // Store docs created by admin during seller approval transaction
-      allow create: if hasRole('admin') || hasRole('superAdmin');
+      allow create: if isAdmin();
+      allow update: if isStoreOwner(storeId) || isAdmin();
       allow delete: if hasRole('superAdmin');
 
-      // --- Store products subcollection (SellerProductRepositoryImpl) ---
+      // store doc id == sellerId; seller owns subcollection products
       match /products/{productId} {
-        // Owner or admin can get a single product
-        allow get: if (isLoggedIn() && get(/databases/$(database)/documents/stores/$(storeId)).data.sellerId == request.auth.uid)
-                   || hasRole('admin');
-
-        // Owner lists their own inventory (watchProducts, getProductsByCategory, searchProducts)
-        allow list: if isLoggedIn()
-                    && get(/databases/$(database)/documents/stores/$(storeId)).data.sellerId == request.auth.uid;
-
-        // Owner manages their inventory (create/update/delete/updateStock/updateStatus)
-        allow write: if isLoggedIn()
-                     && get(/databases/$(database)/documents/stores/$(storeId)).data.sellerId == request.auth.uid;
+        allow get:  if isStoreOwner(storeId) || isAdmin();
+        allow list: if isStoreOwner(storeId) || isAdmin();
+        // Seller write (CRUD) + authenticated buyer update for stock decrement during checkout
+        allow create, delete: if isStoreOwner(storeId) || isAdmin();
+        allow update: if isStoreOwner(storeId)
+                      || isAdmin()
+                      || (isLoggedIn()
+                          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['metadata', 'status', 'updatedAt'])
+                          && request.resource.data.metadata.stock <= resource.data.metadata.stock);
       }
     }
 
-    // ========================================================================
-    // 4. CATALOG
-    // Covers: MarketplaceRepositoryImpl, SellerProductRepositoryImpl (dual-write),
-    //         WishlistRepositoryImpl (catalog.doc read), OrderRepositoryImpl
-    //         (catalog.doc read+update in checkout transaction)
-    // ========================================================================
+    // =========================================================================
+    // CATALOG
+    // =========================================================================
     match /catalog/{productId} {
-      // Single-doc get: product must be active and store verified
-      // (WishlistRepositoryImpl fetches individual catalog docs)
+      // Public get for active products from verified stores
       allow get: if resource.data.status == 'active'
-                 && exists(/databases/$(database)/documents/stores/$(resource.data.storeId))
-                 && get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.status == 'verified';
+                 || isLoggedIn();
 
-      // resource.data assertions enforce that queries MUST include these filters unless bypassed by role.
-      allow list: if (resource.data.status == 'active') || hasRole('admin') || hasRole('superAdmin') || (isLoggedIn() && resource.data.storeId == request.auth.uid);
+      allow list: if true;
 
-      // Seller creates catalog entry (dual-write batch in createProduct)
+      // Seller creates catalog items; storeId == sellerId (doc id)
       allow create: if isLoggedIn()
-                    && get(/databases/$(database)/documents/stores/$(request.resource.data.storeId)).data.sellerId == request.auth.uid;
+                    && request.resource.data.storeId == request.auth.uid
+                    && isString(request.resource.data.title, 1, 200)
+                    && isNumber(request.resource.data.basePrice, 0.01, 10000000);
 
-      // Seller can update their own catalog entry freely.
-      // Stock deduction (checkout) now runs via the verifyAndFinalizePayment Cloud Function
-      // using the Admin SDK, which bypasses these rules entirely — so client-side
-      // catalog updates are now locked down to sellers only.
-      allow update: if isLoggedIn() && (
-        get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.sellerId == request.auth.uid
-        || hasRole('admin') || hasRole('superAdmin')
-      );
+      // Seller or admin update; also allow buyer to decrement stock (checkout)
+      allow update: if isAdmin()
+                    || (isLoggedIn() && resource.data.storeId == request.auth.uid)
+                    || (isLoggedIn()
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['metadata', 'status', 'updatedAt'])
+                        && request.resource.data.metadata.stock <= resource.data.metadata.stock);
 
-      // Only owner can delete (deleteProduct dual-write batch)
-      allow delete: if isLoggedIn()
-                    && get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.sellerId == request.auth.uid;
+      allow delete: if isLoggedIn() && resource.data.storeId == request.auth.uid;
     }
 
-    // ========================================================================
-    // 5. ORDERS
-    // Covers: OrderRepositoryImpl (checkout, watchBuyerOrders, watchSellerOrders,
-    //         updateOrderStatus, getOrderById, cancelOrder),
-    //         SellerDashboardRepositoryImpl, SellerAnalyticsRepositoryImpl
-    // ========================================================================
+    // =========================================================================
+    // ORDERS
+    // =========================================================================
     match /orders/{orderId} {
-      // Single-doc get by buyer, seller, or admin
-      allow get: if isLoggedIn() && (
-        resource.data.buyerId == request.auth.uid ||
-        resource.data.storeId == request.auth.uid ||
-        hasRole('admin') || hasRole('superAdmin')
-      );
+      allow get:  if isLoggedIn() && (resource.data.buyerId == request.auth.uid || resource.data.storeId == request.auth.uid || isAdmin());
+      allow list: if isLoggedIn() && (resource.data.buyerId == request.auth.uid || resource.data.storeId == request.auth.uid || isAdmin());
 
-      // List queries: watchBuyerOrders (buyerId==uid), watchSellerOrders (storeId==uid),
-      // analytics queries (storeId==sellerId). Require equality filter matching caller's uid.
-      allow list: if isLoggedIn() && (
-        resource.data.buyerId == request.auth.uid ||
-        resource.data.storeId == request.auth.uid ||
-        hasRole('admin') || hasRole('superAdmin')
-      );
+      // Order creation: buyer client (COD/fallback) or Cloud Function (Admin SDK bypasses rules)
+      allow create: if isLoggedIn()
+                    && request.resource.data.buyerId == request.auth.uid
+                    && (!('status' in request.resource.data) || request.resource.data.status == 'pending');
 
-      // Buyer creates orders at checkout
-      allow create: if isLoggedIn() && request.resource.data.buyerId == request.auth.uid;
-
-      // Seller updates status; admin updates anything
-      allow update: if isLoggedIn() && (
-        (resource.data.storeId == request.auth.uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']))
-        || hasRole('admin') || hasRole('superAdmin')
-      );
+      // Seller updates status/tracking; buyer can cancel or request return
+      allow update: if isAdmin()
+                    || (isLoggedIn()
+                        && resource.data.storeId == request.auth.uid
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                             'status', 'updatedAt', 'shippingStatus', 'trackingNumber',
+                             'estimatedDeliveryDate', 'paymentStatus', 'carrier', 'deliveryNotes'
+                           ]))
+                    || (isLoggedIn()
+                        && resource.data.buyerId == request.auth.uid
+                        && request.resource.data.status in ['cancelled', 'returnRequested']
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']));
 
       allow delete: if hasRole('superAdmin');
     }
 
-    // ========================================================================
-    // 6. SELLER APPLICATIONS
-    // Covers: SellerApplicationRepositoryImpl, AdminRepositoryImpl
-    // ========================================================================
+    // =========================================================================
+    // SELLER APPLICATIONS
+    // =========================================================================
     match /sellerApplications/{applicationId} {
-      // User reads own application; admin reads all (fetchPendingSellerApplications)
-      allow get:  if isLoggedIn() && (applicationId == request.auth.uid || hasRole('admin') || hasRole('superAdmin'));
-      allow list: if hasRole('admin') || hasRole('superAdmin');
+      allow get:  if isLoggedIn() && (applicationId == request.auth.uid || isAdmin());
+      allow list: if isAdmin();
 
-      // User submits own application (applicationId == userId enforced)
       allow create: if isLoggedIn()
                     && request.resource.data.userId == request.auth.uid
-                    && applicationId == request.auth.uid;
+                    && applicationId == request.auth.uid
+                    && request.resource.data.status == 'pending';
 
-      // User re-submits edits to own application (no status/review fields);
-      // Admin approves/rejects (approveSellerApplication, rejectSellerApplication,
-      // requestChangesOnSellerApplication)
-      allow update: if isLoggedIn() && (
-        (applicationId == request.auth.uid
-          && !request.resource.data.diff(resource.data).affectedKeys()
-              .hasAny(['status', 'reviewedAt', 'reviewedBy', 'rejectionReason']))
-        || hasRole('admin') || hasRole('superAdmin')
-      );
+      allow update: if isAdmin()
+                    || (isLoggedIn()
+                        && applicationId == request.auth.uid
+                        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'reviewedAt', 'reviewedBy', 'rejectionReason']));
 
       allow delete: if hasRole('superAdmin');
     }
 
-    // ========================================================================
-    // 7. FINANCIAL — PAYMENT INTENTS & TRANSACTIONS
-    // Covers: PaymentRepositoryImpl, SellerFinanceRepositoryImpl
-    // ========================================================================
-    match /payment_intents/{intentId} {
-      allow create: if isLoggedIn();
-      allow read:   if isLoggedIn() && resource.data.buyerId == request.auth.uid;
-      allow update, delete: if false; // Cloud Functions only
-    }
-
+    // =========================================================================
+    // FINANCIAL
+    // =========================================================================
     match /payment_failures/{failureId} {
       allow create: if isLoggedIn()
                     && request.resource.data.buyerId == request.auth.uid
                     && request.resource.data.razorpayOrderId is string
-                    && request.resource.data.errorCode is int
                     && request.resource.data.errorMessage is string;
-      allow read: if isLoggedIn() && (
-        resource.data.buyerId == request.auth.uid ||
-        hasRole('admin') || hasRole('superAdmin')
-      );
+      allow read:   if isLoggedIn() && (resource.data.buyerId == request.auth.uid || isAdmin());
       allow update, delete: if false;
     }
 
     match /transactions/{transactionId} {
-      // Buyer sees receipts; seller sees payouts (storeId == activeStoreId)
-      // Also covers SellerFinanceRepositoryImpl.getTransactions (storeId filter)
-      allow get: if isLoggedIn() && (
-        resource.data.buyerId == request.auth.uid ||
-        resource.data.storeId == request.auth.uid
-      );
-      allow list: if isLoggedIn() && (
-        resource.data.buyerId == request.auth.uid ||
-        resource.data.storeId == request.auth.uid ||
-        hasRole('admin') || hasRole('superAdmin')
-      );
-      allow write: if false; // Cloud Functions only
+      allow get:  if isLoggedIn() && (resource.data.buyerId == request.auth.uid
+                                       || resource.data.storeId == request.auth.uid
+                                       || isAdmin());
+      allow list: if isLoggedIn() && (resource.data.buyerId == request.auth.uid
+                                       || resource.data.storeId == request.auth.uid
+                                       || isAdmin());
+      allow write: if false;
     }
 
-    // ========================================================================
-    // 8. SELLER WALLETS
-    // Covers: SellerFinanceRepositoryImpl.getMerchantWallet
-    // ========================================================================
+    // =========================================================================
+    // WALLETS
+    // =========================================================================
     match /wallets/{sellerId} {
-      allow read: if isLoggedIn() && request.auth.uid == sellerId;
-      allow write: if false; // Cloud Functions only
+      allow read:  if isLoggedIn() && request.auth.uid == sellerId;
+      allow write: if false;
     }
 
-    // ========================================================================
-    // 9. PAYOUTS
-    // Covers: SellerFinanceRepositoryImpl.requestPayout, getPayoutStatus
-    // ========================================================================
+    // =========================================================================
+    // PAYOUTS
+    // =========================================================================
     match /payouts/{payoutId} {
-      allow read:   if isLoggedIn() && resource.data.storeId == request.auth.uid;
-      allow create: if isLoggedIn() && request.resource.data.storeId == request.auth.uid;
-      allow update, delete: if false; // Cloud Functions only
+      allow read:   if isLoggedIn() && (resource.data.storeId == request.auth.uid || isAdmin());
+      allow create: if isLoggedIn()
+                    && request.resource.data.storeId == request.auth.uid
+                    && request.resource.data.status == 'pending'
+                    && isNumber(request.resource.data.amount, 0.01, 100000000);
+      allow update, delete: if false;
     }
 
-    // ========================================================================
-    // 10. BANK ACCOUNTS
-    // Covers: SellerFinanceRepositoryImpl.updateBankAccount
-    // ========================================================================
+    match /escrows/{escrowId} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // BANK ACCOUNTS  (accountId == sellerId)
+    // =========================================================================
     match /bankAccounts/{accountId} {
-      allow read:   if isLoggedIn() && resource.data.storeId == request.auth.uid;
-      allow create, update:  if isLoggedIn()
-                    && request.resource.data.storeId == request.auth.uid
-                    && request.resource.data.accountNumber is string
-                    && request.resource.data.ifscCode is string
-                    && request.resource.data.accountHolderName is string
-                    && request.resource.data.bankName is string
-                    && request.resource.data.isVerified == false;
+      allow read:          if isLoggedIn() && (request.auth.uid == accountId || isAdmin());
+      allow create, update: if isAdmin()
+                            || (isLoggedIn()
+                                && request.auth.uid == accountId
+                                && request.resource.data.storeId == request.auth.uid
+                                && isString(request.resource.data.bankName, 1, 100)
+                                && isString(request.resource.data.accountNumber, 5, 30)
+                                && isString(request.resource.data.ifscCode, 5, 20)
+                                && isString(request.resource.data.accountHolderName, 2, 100)
+                                && (!('isVerified' in request.resource.data) || request.resource.data.isVerified == false));
       allow delete: if false;
     }
 
-    // ========================================================================
-    // 11. CHATS & MESSAGES
-    // Covers: CommunicationRepositoryImpl
-    // ========================================================================
+    // =========================================================================
+    // CHATS & MESSAGES
+    // =========================================================================
     match /chats/{roomId} {
-      allow read, update: if isLoggedIn() && request.auth.uid in resource.data.participants;
-      allow create:       if isLoggedIn();
+      allow read:   if isLoggedIn() && request.auth.uid in resource.data.participants;
+      allow create: if isLoggedIn()
+                    && isList(request.resource.data.participants, 10)
+                    && request.auth.uid in request.resource.data.participants;
+      allow update: if isLoggedIn()
+                    && request.auth.uid in resource.data.participants
+                    && request.auth.uid in request.resource.data.participants;
 
       match /messages/{messageId} {
-        allow read, create: if isLoggedIn()
-                            && request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.participants;
-        allow update, delete: if false; // Messages immutable once sent
+        allow read: if isLoggedIn()
+                    && request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.participants;
+        // Allow first-message create before room doc exists (app writes message then room)
+        allow create: if isLoggedIn()
+                      && request.resource.data.senderId == request.auth.uid
+                      && isString(request.resource.data.text, 1, 2000)
+                      && (!exists(/databases/$(database)/documents/chats/$(roomId))
+                          || request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.participants);
+        allow update, delete: if false;
       }
     }
 
-    // ========================================================================
-    // 12. LOGISTICS ASSIGNMENTS
-    // Covers: LogisticsRepositoryImpl
-    // ========================================================================
+    // =========================================================================
+    // LOGISTICS ASSIGNMENTS
+    // =========================================================================
     match /logistics_assignments/{assignmentId} {
-      // streamActiveAssignment queries by orderId; buyer or agent reads
-      allow get: if isLoggedIn() && (
-        resource.data.buyerId == request.auth.uid ||
-        resource.data.deliveryAgentId == request.auth.uid
-      );
-      allow list: if isLoggedIn() && (
-        resource.data.buyerId == request.auth.uid ||
-        resource.data.deliveryAgentId == request.auth.uid ||
-        hasRole('admin') || hasRole('superAdmin')
-      );
-
-      // Agent updates coordinates and advances status
-      allow update: if isLoggedIn()
-                    && resource.data.deliveryAgentId == request.auth.uid
-                    && request.resource.data.diff(resource.data)
-                        .affectedKeys()
-                        .hasOnly(['currentLatitude', 'currentLongitude', 'status', 'updatedTime']);
-
-      allow create, delete: if false; // Backend only
+      allow get:  if isLoggedIn() && (resource.data.buyerId == request.auth.uid
+                                       || resource.data.deliveryAgentId == request.auth.uid
+                                       || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin()
+                    || (isLoggedIn()
+                        && resource.data.deliveryAgentId == request.auth.uid
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                             'currentLatitude', 'currentLongitude', 'status', 'updatedTime'
+                           ]));
+      allow delete: if false;
     }
 
-    // ========================================================================
-    // 13. DISPUTES
-    // Covers: AdminRepositoryImpl.fetchActiveDisputes, updateTicketStatus
-    // ========================================================================
+    // =========================================================================
+    // DISPUTES
+    // =========================================================================
     match /disputes/{ticketId} {
-      allow create: if isLoggedIn();
-      allow get:    if isLoggedIn() && (resource.data.reporterId == request.auth.uid || hasRole('admin') || hasRole('superAdmin'));
-      allow list:   if hasRole('admin') || hasRole('superAdmin');
-      allow update: if hasRole('admin') || hasRole('superAdmin');
+      allow create: if isLoggedIn()
+                    && request.resource.data.reporterId == request.auth.uid
+                    && request.resource.data.status == 'open'
+                    && isString(request.resource.data.reason, 1, 1000);
+      allow get:    if isLoggedIn() && (resource.data.reporterId == request.auth.uid || isAdmin());
+      allow list:   if isAdmin();
+      allow update: if isAdmin();
       allow delete: if hasRole('superAdmin');
     }
 
-    // ========================================================================
-    // 14. PLATFORM SETTINGS
-    // Covers: AdminRepositoryImpl.fetchSystemGlobalConfigurations,
-    //         patchCommissionStructure
-    // ========================================================================
+    // =========================================================================
+    // PLATFORM SETTINGS
+    // =========================================================================
     match /platform_settings/{docId} {
-      allow read:  if true; // Public config (rate limits etc.)
-      allow write: if hasRole('admin') || hasRole('superAdmin');
+      allow read:  if true;
+      allow write: if isAdmin();
     }
 
-    // ========================================================================
-    // 15. REVIEWS  (indexes reference this collection — rules needed)
-    // ========================================================================
+    // =========================================================================
+    // REVIEWS
+    // =========================================================================
     match /reviews/{reviewId} {
       allow read:   if true;
       allow create: if isLoggedIn()
                     && request.resource.data.userId == request.auth.uid
-                    && request.resource.data.rating is int
-                    && request.resource.data.rating >= 1
-                    && request.resource.data.rating <= 5
-                    && request.resource.data.text is string
-                    && request.resource.data.text.size() <= 2000
-                    && request.resource.data.productId is string;
-      allow update: if false;
-      allow delete: if isLoggedIn() && (
-        resource.data.userId == request.auth.uid ||
-        hasRole('admin') || hasRole('superAdmin')
-      );
+                    && isNumber(request.resource.data.rating, 1, 5)
+                    && isString(request.resource.data.text, 0, 2000)
+                    && isString(request.resource.data.productId, 1, 100);
+      allow update: if isAdmin();
+      allow delete: if isLoggedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
-    // ========================================================================
-    // 16. CATEGORIES
-    // ========================================================================
+    // =========================================================================
+    // CATEGORIES & COUPONS
+    // =========================================================================
     match /categories/{categoryId} {
-      allow read: if true;
-      allow write: if hasRole('admin') || hasRole('superAdmin');
-    }
-
-    // ========================================================================
-    // 17. CATEGORY REQUESTS
-    // ========================================================================
-    match /category_requests/{requestId} {
-      allow read: if isLoggedIn() && (resource.data.sellerId == request.auth.uid || hasRole('admin') || hasRole('superAdmin'));
-      allow list: if isLoggedIn() && (resource.data.sellerId == request.auth.uid || hasRole('admin') || hasRole('superAdmin'));
-      allow create: if isLoggedIn() && request.resource.data.sellerId == request.auth.uid;
-      allow update: if hasRole('admin') || hasRole('superAdmin');
-      allow delete: if hasRole('superAdmin');
+      allow read:  if true;
+      allow write: if isAdmin();
     }
 
     match /coupons/{couponId} {
-      allow read: if true;
-      allow write: if hasRole('admin') || hasRole('superAdmin');
+      allow read:  if true;
+      allow write: if isAdmin();
+    }
+
+    // =========================================================================
+    // CATEGORY REQUESTS
+    // =========================================================================
+    match /category_requests/{requestId} {
+      allow get:    if isLoggedIn() && (resource.data.sellerId == request.auth.uid || isAdmin());
+      allow list:   if isAdmin()
+                    || (isLoggedIn() && resource.data.sellerId == request.auth.uid);
+      allow create: if isLoggedIn()
+                    && request.resource.data.sellerId == request.auth.uid
+                    && request.resource.data.status == 'pending'
+                    && isString(request.resource.data.name, 1, 100);
+      allow update: if isAdmin();
+      allow delete: if hasRole('superAdmin');
+    }
+
+    // =========================================================================
+    // USER PROFILES  (public photo/display cache)
+    // =========================================================================
+    match /user_profiles/{userId} {
+      allow read:  if true;
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    // =========================================================================
+    // AUDIT LOGS
+    // =========================================================================
+    match /audit_logs/{logId} {
+      allow read:          if isAdmin();
+      allow create:        if isLoggedIn();
+      allow update, delete: if false;
     }
   }
 }

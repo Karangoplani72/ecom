@@ -1,13 +1,8 @@
 import 'dart:ui';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
-import 'package:ecom/core/theme/app_colors.dart';
 import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/core/services/razorpay_service.dart';
+import 'package:ecom/core/theme/app_colors.dart';
 import 'package:ecom/features/admin/domain/entities/platform_config.dart';
 import 'package:ecom/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:ecom/features/auth/domain/entities/user_address.dart';
@@ -16,6 +11,11 @@ import 'package:ecom/features/buyer/domain/entities/cart_item.dart';
 import 'package:ecom/features/buyer/presentation/controllers/cart_controller.dart';
 import 'package:ecom/features/buyer/presentation/widgets/buyer_anti_gravity_widgets.dart';
 import 'package:ecom/shared/presentation/navigation/router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({super.key});
@@ -31,6 +31,27 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   List<CartItem> _capturedCartItems = const [];
   String? _capturedRazorpayOrderId;
+
+  // Pre-warmed on screen open so the provider is alive when the user taps Pay.
+  // razorpayKeyProvider is NOT autoDispose — safe to ref.read inside async gap.
+  String? _cachedRazorpayKey;
+
+  @override
+  void initState() {
+    super.initState();
+    // Trigger key fetch eagerly; cache it so _handlePlaceOrder never
+    // races against provider disposal.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref
+          .read(razorpayKeyProvider.future)
+          .then((key) {
+            if (mounted) setState(() => _cachedRazorpayKey = key);
+          })
+          .catchError((_) {
+            /* error surfaced at pay-tap time */
+          });
+    });
+  }
 
   Future<void> _finalizePayment({
     required String paymentId,
@@ -53,7 +74,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         groupedBySeller.putIfAbsent(item.storeId, () => []).add(item);
       }
 
-      final platformConfig = ref.read(platformConfigProvider).value ??
+      final platformConfig =
+          ref.read(platformConfigProvider).value ??
           const PlatformConfig(
             defaultCommissionRate: 0.085,
             categoryCommissionOverrides: {},
@@ -164,7 +186,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     try {
       final amountInPaise = (total * 100).round();
-      final razorpayKey = await ref.read(razorpayKeyProvider.future);
+      // Use pre-warmed cached key; fall back to a fresh fetch only if
+      // initState's eager fetch hasn't resolved yet.
+      final razorpayKey =
+          _cachedRazorpayKey ?? await ref.read(razorpayKeyProvider.future);
       final idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
       if (idToken == null) {
         throw Exception('Authentication expired. Please sign in again.');
@@ -235,9 +260,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       }
     } catch (e) {
       if (mounted) {
-        final cleanMsg = e
-            .toString()
-            .replaceFirst(RegExp(r'^\w*(Exception|Error): '), '');
+        final cleanMsg = e.toString().replaceFirst(
+          RegExp(r'^\w*(Exception|Error): '),
+          '',
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(cleanMsg),
@@ -274,8 +300,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     if (cartItems.isEmpty) {
       return Scaffold(
-        backgroundColor:
-            isDark ? AppColors.darkBgPrimary : AppColors.lightBgPrimary,
+        backgroundColor: isDark
+            ? AppColors.darkBgPrimary
+            : AppColors.lightBgPrimary,
         appBar: AppBar(
           title: Text(
             'Checkout',
@@ -305,7 +332,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       (sum, item) => sum + (item.unitPrice * item.quantity),
     );
 
-    final platformConfig = ref.watch(platformConfigProvider).value ??
+    final platformConfig =
+        ref.watch(platformConfigProvider).value ??
         const PlatformConfig(
           defaultCommissionRate: 0.085,
           categoryCommissionOverrides: {},
@@ -331,8 +359,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final textColor = isDark ? Colors.white : AppColors.lightTextPrimary;
 
     return Scaffold(
-      backgroundColor:
-          isDark ? AppColors.darkBgPrimary : AppColors.lightBgPrimary,
+      backgroundColor: isDark
+          ? AppColors.darkBgPrimary
+          : AppColors.lightBgPrimary,
       body: Stack(
         children: [
           const IgnorePointer(child: OrbBackgroundWidget()),
@@ -377,15 +406,20 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           end: Alignment.bottomCenter,
                           colors: isDark
                               ? [
-                                  AppColors.darkBgPrimary
-                                      .withValues(alpha: 0.95),
-                                  AppColors.darkBgPrimary.withValues(alpha: 0.6)
+                                  AppColors.darkBgPrimary.withValues(
+                                    alpha: 0.95,
+                                  ),
+                                  AppColors.darkBgPrimary.withValues(
+                                    alpha: 0.6,
+                                  ),
                                 ]
                               : [
-                                  AppColors.lightBgPrimary
-                                      .withValues(alpha: 0.95),
-                                  AppColors.lightBgPrimary
-                                      .withValues(alpha: 0.6)
+                                  AppColors.lightBgPrimary.withValues(
+                                    alpha: 0.95,
+                                  ),
+                                  AppColors.lightBgPrimary.withValues(
+                                    alpha: 0.6,
+                                  ),
                                 ],
                         ),
                       ),
@@ -475,10 +509,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   child: Container(
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                     decoration: BoxDecoration(
-                      color: (isDark
-                              ? AppColors.darkBgSurface
-                              : AppColors.lightBgSurface)
-                          .withValues(alpha: 0.85),
+                      color:
+                          (isDark
+                                  ? AppColors.darkBgSurface
+                                  : AppColors.lightBgSurface)
+                              .withValues(alpha: 0.85),
                       border: Border(
                         top: BorderSide(
                           color: Colors.white.withValues(
@@ -647,8 +682,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               ),
               const SizedBox(height: 14),
               addressesAsync.when(
-                loading: () =>
-                    const Center(child: CircularProgressIndicator()),
+                loading: () => const Center(child: CircularProgressIndicator()),
                 error: (err, _) => Text('Error: $err'),
                 data: (addresses) {
                   if (addresses.isEmpty) {
@@ -662,7 +696,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 12),
                           child: GestureDetector(
-                            onTap: () => setState(() => _selectedAddress = addr),
+                            onTap: () =>
+                                setState(() => _selectedAddress = addr),
                             child: GlassCardWidget(
                               padding: const EdgeInsets.all(16),
                               borderRadius: 18,
@@ -798,7 +833,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
                 return Consumer(
                   builder: (context, ref, child) {
-                    final storeNameAsync = ref.watch(storeNameProvider(storeId));
+                    final storeNameAsync = ref.watch(
+                      storeNameProvider(storeId),
+                    );
                     final resolvedStoreName =
                         storeNameAsync.value ?? entry.value.first.storeName;
 
@@ -1008,7 +1045,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           label,
           style: GoogleFonts.inter(
             fontSize: 13,
-            color: isDark ? AppColors.darkTextSecond : AppColors.lightTextSecond,
+            color: isDark
+                ? AppColors.darkTextSecond
+                : AppColors.lightTextSecond,
           ),
         ),
         Text(

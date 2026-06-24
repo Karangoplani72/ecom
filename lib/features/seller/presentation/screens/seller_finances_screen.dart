@@ -236,15 +236,20 @@ class SellerFinancesScreen extends ConsumerWidget {
       error: (e, _) => Text('Error loading bank details: $e'),
       data: (bankAccount) {
         if (bankAccount == null) {
+          // Around line 240 in seller_finances_screen.dart
           return Card(
             child: ListTile(
               title: const Text('No Bank Account Configured'),
               subtitle: const Text(
                 'Add settlement details to request withdrawals.',
               ),
-              trailing: ElevatedButton(
-                onPressed: () => _showEditBankDialog(context, ref, null),
-                child: const Text('Configure'),
+              trailing: SizedBox(
+                // ← add this
+                width: 130, // ← constrain it
+                child: ElevatedButton(
+                  onPressed: () => _showEditBankDialog(context, ref, null),
+                  child: const Text('Configure'),
+                ),
               ),
             ),
           );

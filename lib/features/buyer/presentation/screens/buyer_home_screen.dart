@@ -429,9 +429,6 @@ class _BuyerHomeScreenState extends ConsumerState<BuyerHomeScreen> {
       floating: true,
       pinned: true,
       snap: true,
-      backgroundColor: Colors.transparent,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
       leading: Builder(
         builder: (context) {
           return IconButton(

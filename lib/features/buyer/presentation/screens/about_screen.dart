@@ -65,9 +65,6 @@ class AboutScreen extends StatelessWidget {
                 floating: true,
                 pinned: true,
                 snap: true,
-                backgroundColor: Colors.transparent,
-                surfaceTintColor: Colors.transparent,
-                elevation: 0,
                 leadingWidth: 70,
                 leading: Padding(
                   padding: const EdgeInsets.only(left: 16),

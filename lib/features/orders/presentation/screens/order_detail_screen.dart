@@ -2,9 +2,9 @@ import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/core/widgets/app_error_view.dart';
 import 'package:ecom/core/widgets/app_loading_view.dart';
 import 'package:ecom/core/widgets/app_price_text.dart';
+import 'package:ecom/core/widgets/cards/glass_card.dart';
 import 'package:ecom/core/widgets/responsive_layout.dart';
 import 'package:ecom/core/widgets/scaffolds/premium_25d_scaffold.dart';
-import 'package:ecom/core/widgets/cards/glass_card.dart';
 import 'package:ecom/features/orders/domain/entities/order.dart';
 import 'package:ecom/features/orders/domain/entities/order_status.dart';
 import 'package:ecom/features/orders/presentation/controllers/order_controller.dart';
@@ -33,7 +33,11 @@ class OrderDetailScreen extends ConsumerWidget {
             SnackBar(
               content: Row(
                 children: [
-                  const Icon(Icons.error_outline, color: Colors.white, size: 20),
+                  const Icon(
+                    Icons.error_outline,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -63,16 +67,30 @@ class OrderDetailScreen extends ConsumerWidget {
     return Premium25DScaffold(
       isDark: theme.brightness == Brightness.dark,
       particles: [
-        FloatingParticle(imagePath: 'assets/images/25d_sphere.svg', width: 40, height: 40, dx: -100, dy: 100, delay: 0.1, depth: 1.2),
-        FloatingParticle(imagePath: 'assets/images/25d_cube.svg', width: 30, height: 30, dx: 300, dy: 300, delay: 0.4, depth: 0.8),
+        FloatingParticle(
+          imagePath: 'assets/images/25d_sphere.svg',
+          width: 40,
+          height: 40,
+          dx: -100,
+          dy: 100,
+          delay: 0.1,
+          depth: 1.2,
+        ),
+        FloatingParticle(
+          imagePath: 'assets/images/25d_cube.svg',
+          width: 30,
+          height: 30,
+          dx: 300,
+          dy: 300,
+          delay: 0.4,
+          depth: 0.8,
+        ),
       ],
       appBar: AppBar(
         title: Text(
           'Order #${orderId.length >= 8 ? orderId.substring(0, 8).toUpperCase() : orderId.toUpperCase()}',
         ),
         centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
       ),
       body: orderAsync.when(
         loading: () => const AppLoadingView(),
@@ -108,7 +126,13 @@ class OrderDetailScreen extends ConsumerWidget {
                   _buildPaymentSection(order, theme, colorScheme),
                   if (isSeller) ...[
                     const SizedBox(height: 32),
-                    _buildSellerActions(context, ref, order, theme, colorScheme),
+                    _buildSellerActions(
+                      context,
+                      ref,
+                      order,
+                      theme,
+                      colorScheme,
+                    ),
                   ],
                   if (isBuyer && order.canCancel) ...[
                     const SizedBox(height: 32),
@@ -313,6 +337,9 @@ class OrderDetailScreen extends ConsumerWidget {
         return 'Return Rejected';
       case OrderStatus.refunded:
         return 'Refunded';
+      case OrderStatus.returned:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 
@@ -540,7 +567,8 @@ class OrderDetailScreen extends ConsumerWidget {
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: () => _updateStatus(context, ref, order.orderId, nextStatus),
+              onPressed: () =>
+                  _updateStatus(context, ref, order.orderId, nextStatus),
               icon: const Icon(Icons.arrow_forward),
               label: Text('Mark as ${nextStatus.name.toUpperCase()}'),
               style: FilledButton.styleFrom(
@@ -556,7 +584,12 @@ class OrderDetailScreen extends ConsumerWidget {
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: () => _updateStatus(context, ref, order.orderId, OrderStatus.returnRejected),
+              onPressed: () => _updateStatus(
+                context,
+                ref,
+                order.orderId,
+                OrderStatus.returnRejected,
+              ),
               icon: const Icon(Icons.close),
               label: const Text('REJECT RETURN'),
               style: FilledButton.styleFrom(
@@ -608,10 +641,9 @@ class OrderDetailScreen extends ConsumerWidget {
     String orderId,
     OrderStatus status,
   ) async {
-    await ref.read(orderControllerProvider.notifier).updateStatus(
-          orderId: orderId,
-          status: status,
-        );
+    await ref
+        .read(orderControllerProvider.notifier)
+        .updateStatus(orderId: orderId, status: status);
     ref.invalidate(orderByIdProvider(orderId));
   }
 
@@ -736,9 +768,7 @@ class OrderDetailScreen extends ConsumerWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Request Return'),
-        content: const Text(
-          'Are you sure you want to return this order?',
-        ),
+        content: const Text('Are you sure you want to return this order?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -749,10 +779,15 @@ class OrderDetailScreen extends ConsumerWidget {
               Navigator.pop(context);
               await ref
                   .read(orderControllerProvider.notifier)
-                  .updateStatus(orderId: order.orderId, status: OrderStatus.returnRequested);
+                  .updateStatus(
+                    orderId: order.orderId,
+                    status: OrderStatus.returnRequested,
+                  );
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Return requested successfully')),
+                  const SnackBar(
+                    content: Text('Return requested successfully'),
+                  ),
                 );
                 ref.invalidate(orderByIdProvider(order.orderId));
               }
@@ -828,6 +863,9 @@ class _StatusBadge extends StatelessWidget {
         return (Colors.redAccent, 'Return Rejected');
       case OrderStatus.refunded:
         return (Colors.grey, 'Refunded');
+      case OrderStatus.returned:
+        // TODO: Handle this case.
+        throw UnimplementedError();
     }
   }
 }

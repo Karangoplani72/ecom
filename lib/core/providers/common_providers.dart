@@ -23,6 +23,21 @@ const verifyAndFinalizePaymentUrl =
     'https://us-central1-ecom-750fc.cloudfunctions.net/verifyAndFinalizePayment';
 
 // ---------------------------------------------------------------------------
+// App Check token helper — never throws.
+// App Check is defence-in-depth; a missing/expired token must never block
+// payment flows. Rate-limit errors, "activate() not called", and any other
+// App Check failure are swallowed here and the caller simply omits the header.
+// ---------------------------------------------------------------------------
+Future<String?> _safeAppCheckToken() async {
+  try {
+    return await FirebaseAppCheck.instance.getToken();
+  } catch (e) {
+    debugPrint('[APP_CHECK] getToken() failed (non-fatal): $e');
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Core Firebase Providers
 // ---------------------------------------------------------------------------
 
@@ -100,12 +115,12 @@ final storeNameProvider = FutureProvider.family<String, String>((
 // Throws on failure so the UI shows an actionable error instead of silently
 // proceeding with a placeholder key (which causes Razorpay to reject the key).
 // ---------------------------------------------------------------------------
-final razorpayKeyProvider = FutureProvider.autoDispose<String>((ref) async {
+final razorpayKeyProvider = FutureProvider<String>((ref) async {
   final url = getRazorpayKeyUrl;
   debugPrint('[RAZORPAY] razorpayKeyProvider: Fetching key from $url');
 
   try {
-    final appCheckToken = await FirebaseAppCheck.instance.getToken();
+    final appCheckToken = await _safeAppCheckToken();
     final response = await http
         .get(Uri.parse(url), headers: {'X-Firebase-AppCheck': ?appCheckToken})
         .timeout(
@@ -181,7 +196,7 @@ Future<Map<String, dynamic>> createRazorpayOrder({
       bodyPayload['receipt'] = receipt;
     }
 
-    final appCheckToken = await FirebaseAppCheck.instance.getToken();
+    final appCheckToken = await _safeAppCheckToken();
     final response = await http
         .post(
           Uri.parse(url),
@@ -240,7 +255,7 @@ Future<Map<String, dynamic>> verifyAndFinalizePayment({
   );
 
   try {
-    final appCheckToken = await FirebaseAppCheck.instance.getToken();
+    final appCheckToken = await _safeAppCheckToken();
     final response = await http
         .post(
           Uri.parse(url),

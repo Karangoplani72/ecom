@@ -76,7 +76,11 @@ class _SellerOrdersScreenState extends ConsumerState<SellerOrdersScreen> {
             SnackBar(
               content: Row(
                 children: [
-                  const Icon(Icons.error_outline, color: Colors.white, size: 20),
+                  const Icon(
+                    Icons.error_outline,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -105,12 +109,11 @@ class _SellerOrdersScreenState extends ConsumerState<SellerOrdersScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        title: const Text('Store Orders'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/seller/dashboard'),
         ),
-        title: const Text('Store Orders'),
-        centerTitle: true,
       ),
       body: Column(
         children: [
@@ -128,7 +131,7 @@ class _SellerOrdersScreenState extends ConsumerState<SellerOrdersScreen> {
                   (status) => Padding(
                     padding: const EdgeInsets.only(left: 8),
                     child: _FilterChip(
-                      label: status.name.toUpperCase(),
+                      label: status.displayName,
                       isSelected: _selectedFilter == status.name,
                       onSelected: (val) =>
                           setState(() => _selectedFilter = status.name),

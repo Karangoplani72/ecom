@@ -25,7 +25,7 @@ final class AppTheme {
       centerTitle: true,
       elevation: 0,
       scrolledUnderElevation: 0,
-      backgroundColor: Colors.transparent,
+      backgroundColor: AppColors.backgroundLight,
       surfaceTintColor: Colors.transparent,
       foregroundColor: AppColors.textPrimaryLight,
       titleTextStyle: TextStyle(
@@ -150,7 +150,7 @@ final class AppTheme {
       centerTitle: true,
       elevation: 0,
       scrolledUnderElevation: 0,
-      backgroundColor: Colors.transparent,
+      backgroundColor: AppColors.backgroundDark,
       surfaceTintColor: Colors.transparent,
       foregroundColor: AppColors.textPrimaryDark,
       titleTextStyle: TextStyle(
