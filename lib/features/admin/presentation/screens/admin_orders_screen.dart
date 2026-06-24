@@ -163,10 +163,12 @@ class _OrderTile extends ConsumerWidget {
   };
 
   static const _nextStatuses = <String, List<String>>{
-    'pending': ['processing', 'cancelled'],
-    'processing': ['shipped', 'cancelled'],
-    'shipped': ['delivered'],
+    'pending': ['cancelled'],
+    'processing': ['cancelled'],
+    'shipped': ['cancelled'],
     'delivered': ['refunded'],
+    'cancelled': ['refunded'],
+    'returnApproved': ['refunded'],
   };
 
   @override
