@@ -19,24 +19,24 @@ class WishlistRepositoryImpl implements WishlistRepository {
         .collection('wishlist')
         .snapshots()
         .asyncMap((snapshot) async {
-      try {
-        final futures = snapshot.docs.map((doc) async {
-          final productId = doc.data()['productId'] as String?;
-          if (productId == null) return null;
-          final productDoc = await _firestore
-              .collection('catalog')
-              .doc(productId)
-              .get();
-          if (!productDoc.exists) return null;
-          return CatalogItemDto.fromFirestore(productDoc).toDomain();
+          try {
+            final futures = snapshot.docs.map((doc) async {
+              final productId = doc.data()['productId'] as String?;
+              if (productId == null) return null;
+              final productDoc = await _firestore
+                  .collection('catalog')
+                  .doc(productId)
+                  .get();
+              if (!productDoc.exists) return null;
+              return CatalogItemDto.fromFirestore(productDoc);
+            });
+            final results = await Future.wait(futures);
+            final items = results.whereType<CatalogItem>().toList();
+            return Right<String, List<CatalogItem>>(items);
+          } catch (e) {
+            return Left<String, List<CatalogItem>>(e.toString());
+          }
         });
-        final results = await Future.wait(futures);
-        final items = results.whereType<CatalogItem>().toList();
-        return Right<String, List<CatalogItem>>(items);
-      } catch (e) {
-        return Left<String, List<CatalogItem>>(e.toString());
-      }
-    });
   }
 
   @override

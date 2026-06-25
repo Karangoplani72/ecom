@@ -243,7 +243,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                                 const SizedBox(height: 28),
                                 GradientButton(
                                   label: 'Start Shopping',
-                                  onTap: () => context.go('/buyer/products'),
+                                  onTap: () => context.push('/buyer/products'),
                                 ),
                               ],
                             ),

@@ -154,7 +154,7 @@ class WishlistScreen extends ConsumerWidget {
                                 GradientButton(
                                   label: 'Browse Products',
                                   width: 200,
-                                  onTap: () => context.go('/buyer/products'),
+                                  onTap: () => context.push('/buyer/products'),
                                 ),
                               ],
                             ),

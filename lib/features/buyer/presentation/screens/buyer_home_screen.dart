@@ -1,20 +1,21 @@
 import 'dart:async';
 import 'dart:ui';
 
-import 'package:ecom/core/theme/app_colors.dart';
 import 'package:ecom/core/providers/categories_provider.dart';
+import 'package:ecom/core/theme/app_colors.dart';
+import 'package:ecom/core/utils/price_helper.dart';
 import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:ecom/features/buyer/domain/entities/cart_item.dart';
 import 'package:ecom/features/buyer/presentation/controllers/cart_controller.dart';
 import 'package:ecom/features/buyer/presentation/controllers/speech_recognition_controller.dart';
+import 'package:ecom/features/buyer/presentation/controllers/wishlist_controller.dart';
 import 'package:ecom/features/buyer/presentation/widgets/buyer_anti_gravity_widgets.dart';
 import 'package:ecom/features/buyer/presentation/widgets/buyer_side_drawer.dart';
 import 'package:ecom/features/marketplace/domain/entities/catalog_item.dart';
 import 'package:ecom/features/marketplace/presentation/controllers/marketplace_controller.dart';
+import 'package:ecom/features/seller/domain/entities/seller_product.dart';
 import 'package:ecom/shared/presentation/widgets/cart_icon_with_badge.dart';
 import 'package:ecom/shared/presentation/widgets/notification_bell.dart';
-import 'package:ecom/features/buyer/presentation/controllers/wishlist_controller.dart';
-import 'package:ecom/core/utils/price_helper.dart';
 import 'package:ecom/shared/presentation/widgets/wishlist_icon_with_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -535,7 +536,7 @@ class _BuyerHomeScreenState extends ConsumerState<BuyerHomeScreen> {
                 ),
               ),
               GestureDetector(
-                onTap: () => context.go('/buyer/products'),
+                onTap: () => context.push('/buyer/products'),
                 child: Text(
                   'See all →',
                   style: GoogleFonts.inter(
@@ -739,7 +740,7 @@ class _BuyerHomeScreenState extends ConsumerState<BuyerHomeScreen> {
                 ],
               ),
               GestureDetector(
-                onTap: () => context.go('/buyer/products'),
+                onTap: () => context.push('/buyer/products'),
                 child: Text(
                   'See all →',
                   style: GoogleFonts.inter(
@@ -1022,6 +1023,34 @@ class _ProductCardState extends ConsumerState<_ProductCard>
     super.dispose();
   }
 
+  /// Finds variant options to render as small color dots below the image,
+  /// if this product has a "Color"/"Colour" attribute (or any attribute
+  /// whose options carry a colorHex).
+  List<VariantOption> _colorOptionsFor(CatalogItem item) {
+    if (!item.hasVariants) return const [];
+    for (final attr in item.variantAttributes) {
+      final n = attr.name.toLowerCase();
+      final isColorAttr =
+          n.contains('color') ||
+          n.contains('colour') ||
+          attr.options.any((o) => o.colorHex != null);
+      if (isColorAttr) {
+        return attr.options.where((o) => o.colorHex != null).toList();
+      }
+    }
+    return const [];
+  }
+
+  Color _parseColorHex(String? hex) {
+    if (hex == null || hex.isEmpty) return Colors.grey;
+    final h = hex.replaceAll('#', '');
+    try {
+      return Color(int.parse('FF$h', radix: 16));
+    } catch (_) {
+      return Colors.grey;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1234,6 +1263,46 @@ class _ProductCardState extends ConsumerState<_ProductCard>
                   ],
                 ),
               ),
+              if (_colorOptionsFor(widget.product).isNotEmpty) ...[
+                const SizedBox(height: 6),
+                SizedBox(
+                  height: 14,
+                  child: Row(
+                    children: [
+                      ..._colorOptionsFor(widget.product).take(5).map((opt) {
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 5),
+                          child: Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _parseColorHex(opt.colorHex),
+                              border: Border.all(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.25)
+                                    : Colors.black.withValues(alpha: 0.15),
+                                width: 1,
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                      if (_colorOptionsFor(widget.product).length > 5)
+                        Text(
+                          '+${_colorOptionsFor(widget.product).length - 5}',
+                          style: GoogleFonts.inter(
+                            fontSize: 8,
+                            fontWeight: FontWeight.w600,
+                            color: isDark
+                                ? Colors.white70
+                                : AppColors.lightTextSecond,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
 
               // Title

@@ -1,10 +1,10 @@
+import 'package:ecom/core/providers/common_providers.dart';
+import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:ecom/shared/presentation/navigation/router.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
-import 'package:ecom/core/providers/common_providers.dart';
 
 // 1. Top-Level Background Handler
 @pragma('vm:entry-point')
@@ -13,7 +13,9 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 // 2. Riverpod Provider for the Notification Service
-final pushNotificationServiceProvider = Provider<PushNotificationService>((ref) {
+final pushNotificationServiceProvider = Provider<PushNotificationService>((
+  ref,
+) {
   return PushNotificationService(ref);
 });
 
@@ -26,64 +28,82 @@ class PushNotificationService {
     // Listen to user auth state to associate token once logged in
     _ref.listen(currentUserIdProvider, (previous, next) {
       if (next != null && _queuedToken != null) {
-         _saveTokenToBackend(next, _queuedToken!);
+        _saveTokenToBackend(next, _queuedToken!);
       }
     });
   }
 
   Future<void> initialize() async {
-    // 1. Request OS-level permissions
-    NotificationSettings settings = await _fcm.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    // 1. Request OS-level permissions only on mobile (skip web to avoid blocking prompt)
+    if (!kIsWeb) {
+      NotificationSettings settings = await _fcm.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
 
-    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      debugPrint('User granted push notification permissions.');
+      if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+        debugPrint('User granted push notification permissions.');
+
+        // 2. Fetch the unique device token only if permission is granted
+        final String? token = await _fcm.getToken();
+        if (token != null) {
+          debugPrint('FCM Device Token: $token');
+          _handleNewToken(token);
+        }
+
+        // 3. Listen for token refreshes
+        _fcm.onTokenRefresh.listen((newToken) {
+          debugPrint('FCM Token Refreshed: $newToken');
+          _handleNewToken(newToken);
+        });
+      } else {
+        debugPrint(
+          'User declined or has not accepted permissions. App will continue without push notifications.',
+        );
+      }
     } else {
-      debugPrint('User declined or has not accepted permissions.');
-      return;
+      debugPrint(
+        'Web platform: Skipping permission request to avoid blocking prompt.',
+      );
+      // On web, try to get token without requesting permission
+      final String? token = await _fcm.getToken();
+      if (token != null) {
+        debugPrint('FCM Device Token (web): $token');
+        _handleNewToken(token);
+      }
+      _fcm.onTokenRefresh.listen((newToken) {
+        debugPrint('FCM Token Refreshed (web): $newToken');
+        _handleNewToken(newToken);
+      });
     }
 
-    // 2. Fetch the unique device token
-    final String? token = await _fcm.getToken();
-    if (token != null) {
-      debugPrint('FCM Device Token: $token');
-      _handleNewToken(token);
-    }
-
-    // 3. Listen for token refreshes
-    _fcm.onTokenRefresh.listen((newToken) {
-      debugPrint('FCM Token Refreshed: $newToken');
-      _handleNewToken(newToken);
-    });
-
-    // 4. Handle Foreground Messages
+    // 4. Handle Foreground Messages (works even without permission)
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       debugPrint('Received foreground message: ${message.notification?.title}');
     });
 
-    // 5. Deep Linking setup
+    // 5. Deep Linking setup (always run regardless of permission)
     _setupDeepLinking();
   }
 
   void _handleNewToken(String token) {
-     final userId = _ref.read(currentUserIdProvider);
-     if (userId != null) {
-        _saveTokenToBackend(userId, token);
-     } else {
-        _queuedToken = token;
-     }
+    final userId = _ref.read(currentUserIdProvider);
+    if (userId != null) {
+      _saveTokenToBackend(userId, token);
+    } else {
+      _queuedToken = token;
+    }
   }
 
   void _saveTokenToBackend(String userId, String token) {
-     _ref.read(authRepositoryProvider).updateFCMToken(userId, token);
-     _queuedToken = null;
+    _ref.read(authRepositoryProvider).updateFCMToken(userId, token);
+    _queuedToken = null;
   }
 
   void _setupDeepLinking() async {
-    RemoteMessage? initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+    RemoteMessage? initialMessage = await FirebaseMessaging.instance
+        .getInitialMessage();
     if (initialMessage != null) {
       _handleNotificationRoute(initialMessage);
     }

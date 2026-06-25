@@ -23,21 +23,14 @@ Future<void> main() async {
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Initialize App Check
-  // Web: ReCaptchaV3Provider is required — without it activate() is a no-op
-  // and any getToken() call will throw "activate() must be called first".
-  // Android debug: AndroidDebugProvider avoids Play Integrity attestation in dev.
-  // The site key below is the PUBLIC reCAPTCHA v3 key from the Firebase console
-  // (Firebase > App Check > Apps > Web > reCAPTCHA v3 > Site key).
   await FirebaseAppCheck.instance.activate(
-    // ignore: avoid_redundant_argument_values
-    webProvider: ReCaptchaV3Provider(
-      '6LeXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
-    ), // TODO: replace with your reCAPTCHA v3 site key
-    androidProvider: kDebugMode
-        ? AndroidProvider.debug
-        : AndroidProvider.playIntegrity,
-    appleProvider: kDebugMode ? AppleProvider.debug : AppleProvider.deviceCheck,
+    providerWeb: ReCaptchaV3Provider(dotenv.env['RECAPTCHA_SITE_KEY']!),
+    providerAndroid: kDebugMode
+        ? const AndroidDebugProvider()
+        : const AndroidPlayIntegrityProvider(),
+    providerApple: kDebugMode
+        ? const AppleDebugProvider()
+        : const AppleDeviceCheckProvider(),
   );
 
   // Setup Global Error Handling with Crashlytics (not supported on web yet)

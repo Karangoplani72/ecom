@@ -1,10 +1,11 @@
-import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/core/widgets/app_error_view.dart';
 import 'package:ecom/core/widgets/app_loading_view.dart';
 import 'package:ecom/features/seller/domain/entities/merchant_wallet.dart';
 import 'package:ecom/features/seller/domain/entities/seller_transaction.dart';
 import 'package:ecom/features/seller/presentation/controllers/seller_finances_controller.dart';
+import 'package:ecom/services/ifsc_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -24,7 +25,7 @@ class SellerFinancesScreen extends ConsumerWidget {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/seller/dashboard'),
+          onPressed: () => context.pop(),
         ),
         title: const Text('Finances & Settlements'),
         centerTitle: true,
@@ -66,7 +67,7 @@ class SellerFinancesScreen extends ConsumerWidget {
                   const SizedBox(height: 20),
 
                   // Bank Account Section
-                  _buildBankAccountSection(context, ref, bankAccountAsync),
+                  _buildBankAccountSection(context, bankAccountAsync),
                   const SizedBox(height: 20),
 
                   // Transactions Section
@@ -226,7 +227,6 @@ class SellerFinancesScreen extends ConsumerWidget {
 
   Widget _buildBankAccountSection(
     BuildContext context,
-    WidgetRef ref,
     AsyncValue<Map<String, dynamic>?> bankAccountAsync,
   ) {
     final theme = Theme.of(context);
@@ -236,7 +236,6 @@ class SellerFinancesScreen extends ConsumerWidget {
       error: (e, _) => Text('Error loading bank details: $e'),
       data: (bankAccount) {
         if (bankAccount == null) {
-          // Around line 240 in seller_finances_screen.dart
           return Card(
             child: ListTile(
               title: const Text('No Bank Account Configured'),
@@ -244,10 +243,9 @@ class SellerFinancesScreen extends ConsumerWidget {
                 'Add settlement details to request withdrawals.',
               ),
               trailing: SizedBox(
-                // ← add this
-                width: 130, // ← constrain it
+                width: 130,
                 child: ElevatedButton(
-                  onPressed: () => _showEditBankDialog(context, ref, null),
+                  onPressed: () => _showEditBankDialog(context, null),
                   child: const Text('Configure'),
                 ),
               ),
@@ -255,7 +253,6 @@ class SellerFinancesScreen extends ConsumerWidget {
           );
         }
 
-        final isVerified = bankAccount['isVerified'] == true;
         return Card(
           elevation: 2,
           shape: RoundedRectangleBorder(
@@ -283,15 +280,13 @@ class SellerFinancesScreen extends ConsumerWidget {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: isVerified
-                                ? Colors.green.withValues(alpha: 0.1)
-                                : Colors.amber.withValues(alpha: 0.1),
+                            color: Colors.green.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Text(
-                            isVerified ? 'Verified' : 'Pending Verification',
+                          child: const Text(
+                            'IFSC Verified',
                             style: TextStyle(
-                              color: isVerified ? Colors.green : Colors.amber,
+                              color: Colors.green,
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),
@@ -301,7 +296,7 @@ class SellerFinancesScreen extends ConsumerWidget {
                         IconButton(
                           icon: const Icon(Icons.edit, size: 20),
                           onPressed: () =>
-                              _showEditBankDialog(context, ref, bankAccount),
+                              _showEditBankDialog(context, bankAccount),
                         ),
                       ],
                     ),
@@ -310,14 +305,20 @@ class SellerFinancesScreen extends ConsumerWidget {
                 const SizedBox(height: 12),
                 _buildBankDetailRow(
                   'Account Holder',
-                  bankAccount['accountHolderName'] ?? '',
+                  bankAccount['holderName'] as String? ?? '',
                 ),
-                _buildBankDetailRow('Bank Name', bankAccount['bankName'] ?? ''),
+                _buildBankDetailRow(
+                  'Bank Name',
+                  bankAccount['bankName'] as String? ?? '',
+                ),
                 _buildBankDetailRow(
                   'Account Number',
-                  bankAccount['accountNumber'] ?? '',
+                  bankAccount['maskedAccountNumber'] as String? ?? '',
                 ),
-                _buildBankDetailRow('IFSC Code', bankAccount['ifscCode'] ?? ''),
+                _buildBankDetailRow(
+                  'IFSC Code',
+                  bankAccount['ifsc'] as String? ?? '',
+                ),
               ],
             ),
           ),
@@ -590,95 +591,431 @@ class SellerFinancesScreen extends ConsumerWidget {
 
   void _showEditBankDialog(
     BuildContext context,
-    WidgetRef ref,
     Map<String, dynamic>? currentBank,
   ) {
-    final holderController = TextEditingController(
-      text: currentBank?['accountHolderName'] ?? '',
-    );
-    final bankNameController = TextEditingController(
-      text: currentBank?['bankName'] ?? '',
-    );
-    final accountNumController = TextEditingController(
-      text: currentBank?['accountNumber'] ?? '',
-    );
-    final ifscController = TextEditingController(
-      text: currentBank?['ifscCode'] ?? '',
-    );
-    final formKey = GlobalKey<FormState>();
-
-    showDialog(
+    showDialog<void>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(
-            currentBank == null
-                ? 'Configure Bank details'
-                : 'Edit Bank details',
-          ),
-          content: Form(
-            key: formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextFormField(
-                    controller: holderController,
-                    decoration: const InputDecoration(
-                      labelText: 'Account Holder Name',
-                    ),
-                    validator: (v) =>
-                        v == null || v.trim().isEmpty ? 'Required' : null,
-                  ),
-                  TextFormField(
-                    controller: bankNameController,
-                    decoration: const InputDecoration(labelText: 'Bank Name'),
-                    validator: (v) =>
-                        v == null || v.trim().isEmpty ? 'Required' : null,
-                  ),
-                  TextFormField(
-                    controller: accountNumController,
-                    decoration: const InputDecoration(
-                      labelText: 'Account Number',
-                    ),
-                    validator: (v) =>
-                        v == null || v.trim().isEmpty ? 'Required' : null,
-                  ),
-                  TextFormField(
-                    controller: ifscController,
-                    decoration: const InputDecoration(labelText: 'IFSC Code'),
-                    validator: (v) =>
-                        v == null || v.trim().isEmpty ? 'Required' : null,
-                  ),
-                ],
+      barrierDismissible: false,
+      builder: (dialogContext) => _BankAccountDialog(currentBank: currentBank),
+    );
+  }
+}
+
+class _BankAccountDialog extends ConsumerStatefulWidget {
+  final Map<String, dynamic>? currentBank;
+
+  const _BankAccountDialog({this.currentBank});
+
+  @override
+  ConsumerState<_BankAccountDialog> createState() => _BankAccountDialogState();
+}
+
+class _BankAccountDialogState extends ConsumerState<_BankAccountDialog> {
+  static final RegExp _ifscPattern = RegExp(r'^[A-Z]{4}0[A-Z0-9]{6}$');
+  static final RegExp _namePattern = RegExp(r"^[a-zA-Z\s.'-]+$");
+  static const int _ifscLength = 11;
+  static const int _minAccountNumberLength = 9;
+  static const int _maxAccountNumberLength = 18;
+
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _holderController;
+  late final TextEditingController _accountNumberController;
+  late final TextEditingController _confirmAccountNumberController;
+  late final TextEditingController _ifscController;
+
+  IfscBankDetails? _verifiedDetails;
+  String? _ifscError;
+  bool _isFetchingIfsc = false;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final bank = widget.currentBank;
+    final existingAccountNumber = bank?['accountNumber'] as String? ?? '';
+    final existingIfsc = (bank?['ifsc'] as String? ?? '').toUpperCase();
+
+    _holderController = TextEditingController(
+      text: bank?['holderName'] as String? ?? '',
+    );
+    _accountNumberController = TextEditingController(
+      text: existingAccountNumber,
+    );
+    _confirmAccountNumberController = TextEditingController(
+      text: existingAccountNumber,
+    );
+    _ifscController = TextEditingController(text: existingIfsc);
+
+    if (existingIfsc.length == _ifscLength &&
+        _ifscPattern.hasMatch(existingIfsc)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _verifyIfsc(existingIfsc);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _holderController.dispose();
+    _accountNumberController.dispose();
+    _confirmAccountNumberController.dispose();
+    _ifscController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _verifyIfsc(String code) async {
+    if (!mounted) return;
+    setState(() {
+      _isFetchingIfsc = true;
+      _ifscError = null;
+      _verifiedDetails = null;
+    });
+
+    try {
+      final details = await IfscService.fetchByIfsc(code);
+      if (!mounted) return;
+      setState(() {
+        _verifiedDetails = details;
+        _isFetchingIfsc = false;
+      });
+    } on IfscNotFoundException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _ifscError = e.toString();
+        _isFetchingIfsc = false;
+      });
+    } on IfscFetchException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _ifscError = e.toString();
+        _isFetchingIfsc = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _ifscError = 'Could not verify IFSC code. Please try again.';
+        _isFetchingIfsc = false;
+      });
+    }
+  }
+
+  void _onIfscChanged(String rawValue) {
+    final upper = rawValue.toUpperCase();
+    if (upper != rawValue) {
+      _ifscController.value = TextEditingValue(
+        text: upper,
+        selection: TextSelection.collapsed(offset: upper.length),
+      );
+    }
+
+    setState(() {
+      _verifiedDetails = null;
+      _ifscError = null;
+    });
+
+    if (upper.length == _ifscLength) {
+      if (_ifscPattern.hasMatch(upper)) {
+        _verifyIfsc(upper);
+      } else {
+        setState(() => _ifscError = 'Invalid IFSC code format.');
+      }
+    }
+  }
+
+  String? _validateIfsc(String? value) {
+    final v = (value ?? '').trim().toUpperCase();
+    if (v.isEmpty) return 'IFSC code is required';
+    if (v.length != _ifscLength) return 'IFSC code must be 11 characters';
+    if (!_ifscPattern.hasMatch(v)) return 'Invalid IFSC code format';
+    if (_isFetchingIfsc) return 'Verifying IFSC code…';
+    if (_verifiedDetails == null) return 'Please verify the IFSC code';
+    return null;
+  }
+
+  String? _validateHolderName(String? value) {
+    final v = (value ?? '').trim();
+    if (v.isEmpty) return 'Account holder name is required';
+    if (v.length < 3) return 'Enter a valid name';
+    if (!_namePattern.hasMatch(v)) {
+      return 'Name can only contain letters and spaces';
+    }
+    return null;
+  }
+
+  String? _validateAccountNumber(String? value) {
+    final v = (value ?? '').trim();
+    if (v.isEmpty) return 'Account number is required';
+    if (!RegExp(r'^\d+$').hasMatch(v)) return 'Digits only';
+    if (v.length < _minAccountNumberLength) {
+      return 'Account number is too short';
+    }
+    if (v.length > _maxAccountNumberLength) {
+      return 'Account number is too long';
+    }
+    return null;
+  }
+
+  String? _validateConfirmAccountNumber(String? value) {
+    final v = (value ?? '').trim();
+    if (v.isEmpty) return 'Please confirm the account number';
+    if (v != _accountNumberController.text.trim()) {
+      return 'Account numbers do not match';
+    }
+    return null;
+  }
+
+  bool get _isFormValid {
+    return _validateHolderName(_holderController.text) == null &&
+        _validateAccountNumber(_accountNumberController.text) == null &&
+        _validateConfirmAccountNumber(_confirmAccountNumberController.text) ==
+            null &&
+        _ifscPattern.hasMatch(_ifscController.text.trim().toUpperCase());
+  }
+
+  bool get _canSave =>
+      _verifiedDetails != null &&
+      _isFormValid &&
+      !_isSaving &&
+      !_isFetchingIfsc;
+
+  Future<void> _handleSave() async {
+    if (_isSaving) return;
+
+    final formState = _formKey.currentState;
+    if (formState == null || !formState.validate()) return;
+
+    final details = _verifiedDetails;
+    if (details == null) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      await ref
+          .read(sellerFinancesControllerProvider.notifier)
+          .updateBankAccount(
+            ifsc: _ifscController.text.trim().toUpperCase(),
+            accountNumber: _accountNumberController.text.trim(),
+            holderName: _holderController.text.trim(),
+            bankName: details.bankName,
+            branch: details.branch,
+            city: details.city,
+            bankState: details.state,
+            address: details.address,
+          );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save bank details: $e')),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+
+    final resultState = ref.read(sellerFinancesControllerProvider);
+    if (resultState.hasError) {
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to save bank details: ${resultState.error}'),
+        ),
+      );
+      return;
+    }
+
+    Navigator.of(context).pop();
+  }
+
+  Widget? _buildIfscSuffixIcon() {
+    if (_isFetchingIfsc) {
+      return const Padding(
+        padding: EdgeInsets.all(12.0),
+        child: SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    if (_verifiedDetails != null) {
+      return const Icon(Icons.check_circle, color: Colors.green);
+    }
+    if (_ifscError != null) {
+      return const Icon(Icons.error, color: Colors.red);
+    }
+    return null;
+  }
+
+  Widget _buildVerifiedBankCard(IfscBankDetails details) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.green.withValues(alpha: 0.08),
+        border: Border.all(color: Colors.green.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.verified, color: Colors.green, size: 18),
+              const SizedBox(width: 6),
+              const Text(
+                'Bank Verified',
+                style: TextStyle(
+                  color: Colors.green,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
               ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _verifiedRow('Bank', details.bankName),
+          _verifiedRow('Branch', details.branch),
+          _verifiedRow('City', details.city),
+          _verifiedRow('State', details.state),
+        ],
+      ),
+    );
+  }
+
+  Widget _verifiedRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 60,
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+          Expanded(
+            child: Text(
+              value.isEmpty ? '—' : value,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
             ),
-            ElevatedButton(
-              onPressed: () {
-                if (formKey.currentState!.validate()) {
-                  ref
-                      .read(sellerFinancesControllerProvider.notifier)
-                      .updateBankAccount(
-                        accountId: ref.read(currentUserIdProvider) ?? '',
-                        bankName: bankNameController.text.trim(),
-                        accountNumber: accountNumController.text.trim(),
-                        ifscCode: ifscController.text.trim().toUpperCase(),
-                        accountHolderName: holderController.text.trim(),
-                      );
-                  Navigator.pop(context);
-                }
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(
+        widget.currentBank == null
+            ? 'Configure Bank Details'
+            : 'Edit Bank Details',
+      ),
+      content: Form(
+        key: _formKey,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextFormField(
+                controller: _ifscController,
+                textCapitalization: TextCapitalization.characters,
+                maxLength: _ifscLength,
+                enabled: !_isSaving,
+                decoration: InputDecoration(
+                  labelText: 'IFSC Code',
+                  counterText: '',
+                  suffixIcon: _buildIfscSuffixIcon(),
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
+                  LengthLimitingTextInputFormatter(_ifscLength),
+                ],
+                onChanged: (value) {
+                  _onIfscChanged(value);
+                  setState(() {});
+                },
+                validator: _validateIfsc,
+              ),
+              if (_ifscError != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  _ifscError!,
+                  style: const TextStyle(color: Colors.red, fontSize: 12),
+                ),
+              ],
+              if (_verifiedDetails != null) ...[
+                const SizedBox(height: 12),
+                _buildVerifiedBankCard(_verifiedDetails!),
+              ],
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _holderController,
+                enabled: !_isSaving,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                  labelText: 'Account Holder Name',
+                ),
+                validator: _validateHolderName,
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _accountNumberController,
+                enabled: !_isSaving,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Account Number'),
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(_maxAccountNumberLength),
+                ],
+                validator: _validateAccountNumber,
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _confirmAccountNumberController,
+                enabled: !_isSaving,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Confirm Account Number',
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(_maxAccountNumberLength),
+                ],
+                validator: _validateConfirmAccountNumber,
+                onChanged: (_) => setState(() {}),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _canSave ? _handleSave : null,
+          child: _isSaving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text('Save'),
+        ),
+      ],
     );
   }
 }

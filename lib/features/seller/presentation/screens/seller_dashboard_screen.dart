@@ -13,8 +13,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../widgets/seller_navigation.dart';
-
 // ─────────────────────────────────────────────────────────────
 // Root screen
 // ─────────────────────────────────────────────────────────────
@@ -92,8 +90,7 @@ class _DashboardHeader extends ConsumerWidget {
           if (!isDesktop)
             IconButton(
               icon: const Icon(Icons.menu_rounded),
-              onPressed: () =>
-                  sellerShellScaffoldKey.currentState?.openDrawer(),
+              onPressed: () => Scaffold.of(context).openDrawer(),
               padding: EdgeInsets.zero,
               alignment: Alignment.centerLeft,
             ),
@@ -205,7 +202,11 @@ class _MetricsGrid extends StatelessWidget {
             crossAxisCount: crossAxisCount,
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
-            childAspectRatio: crossAxisCount == 4 ? 1.55 : 1.6,
+            // Slightly shorter cards (more height per cell) than before —
+            // the previous ratios (1.55 / 1.6) left no margin for the
+            // card's intrinsic content height at default text scale,
+            // which caused a "BOTTOM OVERFLOWED BY 3.4 PIXELS" error.
+            childAspectRatio: crossAxisCount == 4 ? 1.45 : 1.45,
           ),
           itemCount: metrics.length,
           itemBuilder: (_, i) => _MetricCard(config: metrics[i]),
@@ -263,40 +264,43 @@ class _MetricCard extends StatelessWidget {
           ),
         ],
       ),
+      // Content sizes itself (no fixed height) so it can never exceed the
+      // grid cell — mainAxisSize.min + mainAxisAlignment.start instead of
+      // spaceBetween, which previously stretched to the cell's exact
+      // height with zero tolerance for overflow at default text scale.
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisAlignment: MainAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 38,
-              height: 38,
+              width: 34,
+              height: 34,
               decoration: BoxDecoration(
                 color: config.bgColor,
                 borderRadius: AppRadius.borderSM,
               ),
-              child: Icon(config.icon, color: config.iconColor, size: 20),
+              child: Icon(config.icon, color: config.iconColor, size: 18),
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  config.value,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 22,
-                    color: textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  config.label,
-                  style: TextStyle(fontSize: 12, color: textSecondary),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+            const SizedBox(height: 10),
+            Text(
+              config.value,
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 20,
+                color: textPrimary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              config.label,
+              style: TextStyle(fontSize: 11, color: textSecondary),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -325,19 +329,19 @@ class _QuickActions extends StatelessWidget {
       _ActionConfig(
         label: 'View Orders',
         icon: Icons.receipt_long_outlined,
-        onTap: () => context.go('/seller/orders'),
+        onTap: () => context.push('/seller/orders'),
         isPrimary: false,
       ),
       _ActionConfig(
         label: 'Inventory',
         icon: Icons.inventory_2_outlined,
-        onTap: () => context.go('/seller/inventory'),
+        onTap: () => context.push('/seller/inventory'),
         isPrimary: false,
       ),
       _ActionConfig(
         label: 'Analytics',
         icon: Icons.analytics_outlined,
-        onTap: () => context.go('/seller/analytics'),
+        onTap: () => context.push('/seller/analytics'),
         isPrimary: false,
       ),
       _ActionConfig(
@@ -443,7 +447,7 @@ class _RecentOrdersCard extends StatelessWidget {
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
               ),
               TextButton(
-                onPressed: () => context.go('/seller/orders'),
+                onPressed: () => context.push('/seller/orders'),
                 child: const Text('See all'),
               ),
             ],
@@ -695,7 +699,7 @@ class _LowStockCard extends StatelessWidget {
                 ],
               ),
               TextButton(
-                onPressed: () => context.go('/seller/inventory'),
+                onPressed: () => context.push('/seller/inventory'),
                 child: const Text('Manage'),
               ),
             ],
@@ -785,7 +789,7 @@ class _LowStockRow extends StatelessWidget {
             ),
           ),
           GestureDetector(
-            onTap: () => context.go('/seller/inventory/edit/$productId'),
+            onTap: () => context.push('/seller/inventory/edit/$productId'),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(

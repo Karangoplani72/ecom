@@ -28,6 +28,10 @@ class CartRepositoryImpl implements CartRepository {
                 unitPrice: (data['unitPrice'] ?? 0).toDouble(),
                 imageUrl: data['imageUrl'] ?? '',
                 quantity: data['quantity'] ?? 1,
+                skuId: data['skuId'] as String?,
+                selectedCombination: (data['selectedCombination'] as Map?)?.map(
+                  (k, v) => MapEntry(k.toString(), v.toString()),
+                ),
               );
             }).toList();
             return Right(items);
@@ -43,7 +47,11 @@ class CartRepositoryImpl implements CartRepository {
     required CartItem item,
   }) async {
     try {
-      // Check if item already exists
+      // Check if this exact item (same product + same variant) already
+      // exists. `item.id` is variant-specific (a fresh doc id per SKU from
+      // product_detail_screen, or the bare productId from quick-add flows
+      // that don't support variants), so this correctly keeps different
+      // SKUs of the same product as separate cart lines.
       final existing = await _firestore
           .collection('users')
           .doc(userId)
@@ -72,6 +80,9 @@ class CartRepositoryImpl implements CartRepository {
               'unitPrice': item.unitPrice,
               'imageUrl': item.imageUrl,
               'quantity': item.quantity,
+              if (item.skuId != null) 'skuId': item.skuId,
+              if (item.selectedCombination != null)
+                'selectedCombination': item.selectedCombination,
               'createdAt': FieldValue.serverTimestamp(),
             });
       }

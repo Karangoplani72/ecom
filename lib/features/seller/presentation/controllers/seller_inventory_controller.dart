@@ -9,7 +9,7 @@ part 'seller_inventory_controller.g.dart';
 @riverpod
 SellerProductRepository sellerProductRepository(Ref ref) {
   return SellerProductRepositoryImpl(
-    firestore: ref.watch(firebaseFirestoreProvider),
+    ref.watch(firebaseFirestoreProvider),
   );
 }
 

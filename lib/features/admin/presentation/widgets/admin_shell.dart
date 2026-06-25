@@ -11,8 +11,6 @@
 // building its own `Scaffold`, so navigation stays consistent as more
 // screens are added.
 
-import 'dart:ui';
-
 import 'package:ecom/core/constants/app_radius.dart';
 import 'package:ecom/core/theme/app_colors.dart';
 import 'package:ecom/shared/presentation/widgets/notification_bell.dart';
@@ -42,18 +40,27 @@ class AdminScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.sizeOf(context).width >= 1024;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sidebarColor =
+        isDark ? AppColors.darkSurface : AppColors.lightSurface;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       drawer: isDesktop
           ? null
-          : const Drawer(width: 280, child: AdminSidebar()),
+          : Drawer(
+              width: 280,
+              backgroundColor: sidebarColor,
+              elevation: 0,
+              child: const AdminSidebar(inDrawer: true),
+            ),
       floatingActionButton: floatingActionButton,
-      body: SafeArea(
-        child: Row(
-          children: [
-            if (isDesktop) const AdminSidebar(),
-            Expanded(
+      body: Row(
+        children: [
+          if (isDesktop) const AdminSidebar(),
+          Expanded(
+            child: SafeArea(
+              left: false,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -65,7 +72,7 @@ class AdminScaffold extends StatelessWidget {
                   ),
                   Divider(
                     height: 1,
-                    color: Theme.of(context).brightness == Brightness.dark
+                    color: isDark
                         ? Colors.white.withValues(alpha: 0.08)
                         : AppColors.border,
                   ),
@@ -73,8 +80,8 @@ class AdminScaffold extends StatelessWidget {
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -95,25 +102,11 @@ class _AdminTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: Theme.of(context).brightness == Brightness.dark
-              ? [
-                  Colors.black.withValues(alpha: 0.6),
-                  Colors.black.withValues(alpha: 0.3),
-                ]
-              : [
-                  Colors.white.withValues(alpha: 0.8),
-                  Colors.white.withValues(alpha: 0.5),
-                ],
-        ),
-      ),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Padding(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return ColoredBox(
+      color: isDark ? AppColors.darkBgPrimary : AppColors.lightBgPrimary,
+      child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
           child: Row(
             children: [
@@ -141,7 +134,9 @@ class _AdminTopBar extends StatelessWidget {
                       Text(
                         subtitle!,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.lightTextSecondary,
+                          color: isDark
+                              ? AppColors.darkTextSecond
+                              : AppColors.lightTextSecondary,
                         ),
                       ),
                     ],
@@ -153,7 +148,6 @@ class _AdminTopBar extends StatelessWidget {
             ],
           ),
         ),
-      ),
     );
   }
 }
@@ -162,21 +156,31 @@ class _AdminTopBar extends StatelessWidget {
 // AdminSidebar (desktop) + Drawer content (mobile)
 // ─────────────────────────────────────────────────────────────
 class AdminSidebar extends StatelessWidget {
-  const AdminSidebar({super.key});
+  final bool inDrawer;
+
+  const AdminSidebar({super.key, this.inDrawer = false});
 
   @override
   Widget build(BuildContext context) {
     final currentPath = GoRouterState.of(context).uri.toString();
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sidebarColor =
+        isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : AppColors.border;
+    final mutedText =
+        isDark ? AppColors.darkTextSecond : AppColors.lightTextSecondary;
 
-    return Container(
-      width: 256,
+    return Material(
+      color: sidebarColor,
+      child: Container(
+      width: inDrawer ? null : 256,
       height: double.infinity,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border(
-          right: BorderSide(color: Theme.of(context).dividerColor),
-        ),
+        border: inDrawer
+            ? null
+            : Border(right: BorderSide(color: borderColor)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -212,7 +216,7 @@ class AdminSidebar extends StatelessWidget {
                     Text(
                       'Admin Console',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.lightTextSecondary,
+                        color: mutedText,
                       ),
                     ),
                   ],
@@ -304,6 +308,25 @@ class AdminSidebar extends StatelessWidget {
                     ],
                   ),
                   _SidebarSection(
+                    label: 'Finance',
+                    children: [
+                      _SidebarItem(
+                        icon: Icons.account_balance_wallet_outlined,
+                        activeIcon: Icons.account_balance_wallet_rounded,
+                        label: 'Settlements',
+                        route: '/admin/settlements',
+                        isActive: currentPath.startsWith('/admin/settlements'),
+                      ),
+                      _SidebarItem(
+                        icon: Icons.analytics_outlined,
+                        activeIcon: Icons.analytics_rounded,
+                        label: 'Analytics',
+                        route: '/admin/analytics',
+                        isActive: currentPath.startsWith('/admin/analytics'),
+                      ),
+                    ],
+                  ),
+                  _SidebarSection(
                     label: 'Trust & Safety',
                     children: [
                       _SidebarItem(
@@ -342,6 +365,7 @@ class AdminSidebar extends StatelessWidget {
           const SizedBox(height: 16),
         ],
       ),
+      ),
     );
   }
 }
@@ -355,6 +379,8 @@ class _SidebarSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sectionLabelColor =
+        isDark ? AppColors.darkTextSecond : AppColors.lightTextSecondary;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -363,7 +389,7 @@ class _SidebarSection extends StatelessWidget {
           child: Text(
             label.toUpperCase(),
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: isDark ? Colors.white38 : AppColors.lightTextSecondary,
+              color: sectionLabelColor,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.8,
               fontSize: 10,
@@ -395,7 +421,7 @@ class _SidebarItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final inactiveColor = isDark
-        ? Colors.white60
+        ? AppColors.darkTextSecond
         : AppColors.lightTextSecondary;
 
     return Padding(
@@ -411,7 +437,7 @@ class _SidebarItem extends StatelessWidget {
             if (Scaffold.maybeOf(context)?.isDrawerOpen ?? false) {
               Navigator.of(context).pop();
             }
-            context.go(route);
+            context.push(route);
           },
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

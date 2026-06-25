@@ -39,8 +39,10 @@ void main() {
         description: 'Test',
         basePrice: 100,
         currency: 'INR',
-        type: CatalogType.product,
-        status: ListingStatus.active,
+        type: 'product',
+        status: 'active',
+        isActive: true,
+        category: 'general',
         imageUrls: [],
         metadata: {},
       );

@@ -5,19 +5,17 @@ import 'package:ecom/features/admin/presentation/widgets/admin_common.dart';
 import 'package:ecom/features/admin/presentation/widgets/admin_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-final _adminOrdersProvider =
-    StreamProvider<List<Map<String, dynamic>>>((ref) {
+final _adminOrdersProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
   return ref
       .watch(firebaseFirestoreProvider)
       .collection('orders')
       .orderBy('createdAt', descending: true)
       .limit(200)
       .snapshots()
-      .map((s) => s.docs
-          .map((d) => {'id': d.id, ...d.data()})
-          .toList());
+      .map((s) => s.docs.map((d) => {'id': d.id, ...d.data()}).toList());
 });
 
 class AdminOrdersScreen extends ConsumerStatefulWidget {
@@ -35,8 +33,11 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
   Widget build(BuildContext context) {
     final ordersAsync = ref.watch(_adminOrdersProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final currencyFmt =
-        NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+    final currencyFmt = NumberFormat.currency(
+      locale: 'en_IN',
+      symbol: '₹',
+      decimalDigits: 0,
+    );
     final dateFmt = DateFormat('d MMM yyyy, h:mm a');
 
     return AdminScaffold(
@@ -53,10 +54,13 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
                   decoration: InputDecoration(
                     hintText: 'Search by order ID or buyer...',
                     prefixIcon: const Icon(Icons.search_rounded),
-                    border:
-                        OutlineInputBorder(borderRadius: AppRadius.borderLG),
+                    border: OutlineInputBorder(
+                      borderRadius: AppRadius.borderLG,
+                    ),
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                   ),
                   onChanged: (v) => setState(() => _search = v),
                 ),
@@ -90,8 +94,7 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
           ),
           Expanded(
             child: ordersAsync.when(
-              loading: () =>
-                  const Center(child: CircularProgressIndicator()),
+              loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(
                 child: AdminEmptyRow(
                   icon: Icons.cloud_off_rounded,
@@ -101,13 +104,14 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
               data: (orders) {
                 final filtered = orders.where((o) {
                   final id = (o['id'] as String).toLowerCase();
-                  final buyerId =
-                      (o['buyerId'] as String? ?? '').toLowerCase();
-                  final matchesSearch = _search.isEmpty ||
+                  final buyerId = (o['buyerId'] as String? ?? '').toLowerCase();
+                  final matchesSearch =
+                      _search.isEmpty ||
                       id.contains(_search.toLowerCase()) ||
                       buyerId.contains(_search.toLowerCase());
 
-                  final matchesStatus = _statusFilter == 'all' ||
+                  final matchesStatus =
+                      _statusFilter == 'all' ||
                       (o['status'] as String? ?? '') == _statusFilter;
 
                   return matchesSearch && matchesStatus;
@@ -127,10 +131,14 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
                   ),
                   itemCount: filtered.length,
                   separatorBuilder: (ctx, idx) => const SizedBox(height: 8),
-                  itemBuilder: (ctx, i) => _OrderTile(
-                    order: filtered[i],
-                    currencyFmt: currencyFmt,
-                    dateFmt: dateFmt,
+                  itemBuilder: (ctx, i) => InkWell(
+                    onTap: () =>
+                        context.push('/admin/orders/${filtered[i]['id']}'),
+                    child: _OrderTile(
+                      order: filtered[i],
+                      currencyFmt: currencyFmt,
+                      dateFmt: dateFmt,
+                    ),
                   ),
                 );
               },
@@ -175,8 +183,7 @@ class _OrderTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final status = order['status'] as String? ?? 'pending';
-    final total =
-        (order['totalAmount'] as num?)?.toDouble() ?? 0;
+    final total = (order['totalAmount'] as num?)?.toDouble() ?? 0;
     final buyerId = order['buyerId'] as String? ?? 'Unknown';
     final orderId = order['id'] as String;
     final shortId = orderId.length > 10
@@ -208,11 +215,11 @@ class _OrderTile extends ConsumerWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              Icon(Icons.person_outline_rounded,
-                  size: 14,
-                  color: isDark
-                      ? Colors.white38
-                      : AppColors.lightTextSecondary),
+              Icon(
+                Icons.person_outline_rounded,
+                size: 14,
+                color: isDark ? Colors.white38 : AppColors.lightTextSecondary,
+              ),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
@@ -264,7 +271,8 @@ class _OrderTile extends ConsumerWidget {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
-                              'Order status updated to ${next.toUpperCase()}'),
+                            'Order status updated to ${next.toUpperCase()}',
+                          ),
                         ),
                       );
                     }

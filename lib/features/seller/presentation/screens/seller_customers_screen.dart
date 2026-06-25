@@ -10,7 +10,7 @@ class SellerCustomersScreen extends StatelessWidget {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/seller/dashboard'),
+          onPressed: () => context.pop(),
         ),
         title: const Text('Customers'),
       ),

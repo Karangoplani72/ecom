@@ -33,11 +33,14 @@ abstract class SellerFinanceRepository {
 
   Future<Either<Exception, Unit>> updateBankAccount({
     required String sellerId,
-    required String accountId,
-    required String bankName,
+    required String ifsc,
     required String accountNumber,
-    required String ifscCode,
-    required String accountHolderName,
+    required String holderName,
+    required String bankName,
+    required String branch,
+    required String city,
+    required String state,
+    required String address,
   });
 
   Future<Either<Exception, Map<String, dynamic>>> getPayoutStatus({

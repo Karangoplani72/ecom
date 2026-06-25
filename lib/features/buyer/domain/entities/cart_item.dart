@@ -7,6 +7,8 @@ class CartItem {
   final double unitPrice;
   final String imageUrl;
   final int quantity;
+  final String? skuId;
+  final Map<String, String>? selectedCombination;
 
   const CartItem({
     required this.id,
@@ -17,6 +19,8 @@ class CartItem {
     required this.unitPrice,
     required this.imageUrl,
     required this.quantity,
+    this.skuId,
+    this.selectedCombination,
   });
 
   CartItem copyWith({
@@ -28,6 +32,8 @@ class CartItem {
     double? unitPrice,
     String? imageUrl,
     int? quantity,
+    String? skuId,
+    Map<String, String>? selectedCombination,
   }) {
     return CartItem(
       id: id ?? this.id,
@@ -38,6 +44,8 @@ class CartItem {
       unitPrice: unitPrice ?? this.unitPrice,
       imageUrl: imageUrl ?? this.imageUrl,
       quantity: quantity ?? this.quantity,
+      skuId: skuId ?? this.skuId,
+      selectedCombination: selectedCombination ?? this.selectedCombination,
     );
   }
 
@@ -51,6 +59,9 @@ class CartItem {
       'unitPrice': unitPrice,
       'imageUrl': imageUrl,
       'quantity': quantity,
+      if (skuId != null) 'skuId': skuId,
+      if (selectedCombination != null)
+        'selectedCombination': selectedCombination,
     };
   }
 
@@ -64,6 +75,10 @@ class CartItem {
       unitPrice: (map['unitPrice'] ?? 0.0).toDouble(),
       imageUrl: map['imageUrl'] ?? '',
       quantity: map['quantity']?.toInt() ?? 1,
+      skuId: map['skuId'] as String?,
+      selectedCombination: (map['selectedCombination'] as Map?)?.map(
+        (k, v) => MapEntry(k.toString(), v.toString()),
+      ),
     );
   }
 }

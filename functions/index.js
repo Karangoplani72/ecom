@@ -173,8 +173,9 @@ function isFlashSaleActive(itemData) {
   return now >= start && now <= end;
 }
 
-function getEffectivePrice(itemData) {
-  const basePrice = parseFloat(itemData.basePrice) || 0;
+function getEffectivePrice(itemData, skuPrice) {
+  const basePrice = (typeof skuPrice === 'number' && skuPrice > 0) ?
+    skuPrice : (parseFloat(itemData.basePrice) || 0);
   if (!isFlashSaleActive(itemData)) return basePrice;
   const metadata = itemData.metadata || {};
   const percent = parseFloat(metadata.flashSaleDiscountPercent) || 0;
@@ -286,24 +287,32 @@ exports.verifyAndFinalizePayment = onRequest(
           // writing once every read has completed.
           console.log('[FIRESTORE] Reading catalog docs for', orders.length, 'order(s)...');
 
-          const stockEntries = new Map(); // productId -> { catalogRef, storeProductRef, title, totalQty }
+          const stockEntries = new Map(); // productId -> { catalogRef, storeProductRef, title, totalQty, skuQty: Map<skuId, qty> }
 
           for (const order of orders) {
             for (const item of order.items) {
-              const existing = stockEntries.get(item.productId);
-              if (existing) {
-                existing.totalQty += item.quantity;
-                continue;
+              let existing = stockEntries.get(item.productId);
+              if (!existing) {
+                existing = {
+                  catalogRef: db.collection('catalog').doc(item.productId),
+                  storeProductRef: db.collection('stores')
+                      .doc(order.storeId)
+                      .collection('products')
+                      .doc(item.productId),
+                  title: item.title,
+                  totalQty: 0,
+                  skuQty: new Map(), // skuId -> requested qty (variant products only)
+                };
+                stockEntries.set(item.productId, existing);
               }
-              stockEntries.set(item.productId, {
-                catalogRef: db.collection('catalog').doc(item.productId),
-                storeProductRef: db.collection('stores')
-                    .doc(order.storeId)
-                    .collection('products')
-                    .doc(item.productId),
-                title: item.title,
-                totalQty: item.quantity,
-              });
+              existing.totalQty += item.quantity;
+
+              if (item.skuId) {
+                existing.skuQty.set(
+                    item.skuId,
+                    (existing.skuQty.get(item.skuId) || 0) + item.quantity,
+                );
+              }
             }
           }
 
@@ -315,22 +324,55 @@ exports.verifyAndFinalizePayment = onRequest(
             }
 
             const data = catalogDoc.data();
-            const metadata = data.metadata || {};
-            const currentStock = typeof metadata.stock === 'number' ? metadata.stock : 0;
+            const variantSkus = Array.isArray(data.variantSkus) ? data.variantSkus : [];
+            const hasVariants = variantSkus.length > 0;
 
-            console.log('[FIRESTORE] Stock check — productId:', productId,
-                '| currentStock:', currentStock, '| requested:', entry.totalQty);
-
-            if (currentStock < entry.totalQty) {
-              throw new Error(
-                  `Insufficient stock for "${entry.title}". ` +
-                  `Available: ${currentStock}, Requested: ${entry.totalQty}.`,
-              );
-            }
-
-            entry.currentStock = currentStock;
-            entry.status = data.status || 'active';
             entry.catalogData = data;
+            entry.hasVariants = hasVariants;
+
+            if (hasVariants) {
+              // Variant product: validate stock per-SKU, never against a
+              // flat product-level counter. A single SKU running out must
+              // never affect other SKUs of the same product.
+              const skuList = variantSkus.map((s) => ({...s}));
+              entry.skuList = skuList;
+
+              for (const [skuId, requestedQty] of entry.skuQty) {
+                const sku = skuList.find((s) => s.skuId === skuId);
+                if (!sku) {
+                  throw new Error(
+                      `Selected variant not found for "${entry.title}" (sku: ${skuId}).`,
+                  );
+                }
+                const skuStock = typeof sku.stock === 'number' ? sku.stock : 0;
+
+                console.log('[FIRESTORE] SKU stock check — productId:', productId,
+                    '| skuId:', skuId, '| skuStock:', skuStock, '| requested:', requestedQty);
+
+                if (skuStock < requestedQty) {
+                  throw new Error(
+                      `Insufficient stock for "${entry.title}" (${sku.combination ?
+                        JSON.stringify(sku.combination) : skuId}). ` +
+                      `Available: ${skuStock}, Requested: ${requestedQty}.`,
+                  );
+                }
+              }
+            } else {
+              // Simple (non-variant) product: single flat stock counter.
+              const metadata = data.metadata || {};
+              const currentStock = typeof metadata.stock === 'number' ? metadata.stock : 0;
+
+              console.log('[FIRESTORE] Stock check — productId:', productId,
+                  '| currentStock:', currentStock, '| requested:', entry.totalQty);
+
+              if (currentStock < entry.totalQty) {
+                throw new Error(
+                    `Insufficient stock for "${entry.title}". ` +
+                    `Available: ${currentStock}, Requested: ${entry.totalQty}.`,
+                );
+              }
+              entry.currentStock = currentStock;
+            }
           }
 
           // --- Load platform commission rate ---
@@ -346,18 +388,51 @@ exports.verifyAndFinalizePayment = onRequest(
           const serverNow = admin.firestore.FieldValue.serverTimestamp();
 
           for (const [productId, entry] of stockEntries) {
-            // Guard: never allow negative stock
-            const newStock = Math.max(0, entry.currentStock - entry.totalQty);
-            const newStatus = newStock <= 0 ? 'outOfStock' : entry.status;
+            let stockUpdate;
 
-            const stockUpdate = {
-              'metadata.stock': newStock,
-              'status': newStatus,
-              'updatedAt': serverNow,
-            };
+            if (entry.hasVariants) {
+              // Deduct each requested SKU's stock individually, then
+              // recompute the flat metadata.stock mirror as the SUM across
+              // ALL SKUs. The product remains available as long as ANY
+              // SKU still has stock — `status`/`isActive` are never
+              // touched here, because availability must be derived
+              // (totalStock > 0), not stored as a flag set from one SKU.
+              const skuList = entry.skuList;
 
-            console.log('[FIRESTORE] Deducting stock — productId:', productId,
-                '|', entry.currentStock, '→', newStock, '| newStatus:', newStatus);
+              for (const [skuId, requestedQty] of entry.skuQty) {
+                const idx = skuList.findIndex((s) => s.skuId === skuId);
+                const currentSkuStock = typeof skuList[idx].stock === 'number' ? skuList[idx].stock : 0;
+                const newSkuStock = Math.max(0, currentSkuStock - requestedQty);
+                skuList[idx] = {...skuList[idx], stock: newSkuStock};
+
+                console.log('[FIRESTORE] Deducting SKU stock — productId:', productId,
+                    '| skuId:', skuId, '|', currentSkuStock, '→', newSkuStock);
+              }
+
+              const newTotalStock = skuList.reduce(
+                  (sum, s) => sum + (typeof s.stock === 'number' ? s.stock : 0), 0,
+              );
+
+              console.log('[FIRESTORE] New total stock across all SKUs — productId:', productId,
+                  '| newTotalStock:', newTotalStock);
+
+              stockUpdate = {
+                'variantSkus': skuList,
+                'metadata.stock': newTotalStock,
+                'updatedAt': serverNow,
+              };
+            } else {
+              // Simple (non-variant) product: single flat stock counter.
+              const newStock = Math.max(0, entry.currentStock - entry.totalQty);
+
+              console.log('[FIRESTORE] Deducting stock — productId:', productId,
+                  '|', entry.currentStock, '→', newStock);
+
+              stockUpdate = {
+                'metadata.stock': newStock,
+                'updatedAt': serverNow,
+              };
+            }
 
             txn.update(entry.catalogRef, stockUpdate);
             txn.update(entry.storeProductRef, stockUpdate);
@@ -376,9 +451,18 @@ exports.verifyAndFinalizePayment = onRequest(
             const orderItems = order.items.map((item) => {
               const entry = stockEntries.get(item.productId);
               const catalogData = entry.catalogData;
-              const originalPrice = parseFloat(catalogData.basePrice) || 0;
-              const effectivePrice = getEffectivePrice(catalogData);
               const qty = parseInt(item.quantity) || 1;
+
+              let sku = null;
+              if (entry.hasVariants && item.skuId) {
+                sku = entry.skuList.find((s) => s.skuId === item.skuId);
+              }
+
+              const skuPrice = sku && typeof sku.price === 'number' && sku.price > 0 ?
+                sku.price : undefined;
+              const originalPrice = skuPrice !== undefined ?
+                skuPrice : (parseFloat(catalogData.basePrice) || 0);
+              const effectivePrice = getEffectivePrice(catalogData, skuPrice);
 
               const isSale = isFlashSaleActive(catalogData);
               const metadata = catalogData.metadata || {};
@@ -407,6 +491,8 @@ exports.verifyAndFinalizePayment = onRequest(
                 imageUrl: item.imageUrl,
                 quantity: qty,
                 unitPrice: effectivePrice,
+                ...(item.skuId ? {skuId: item.skuId} : {}),
+                ...(item.selectedCombination ? {selectedCombination: item.selectedCombination} : {}),
               };
             });
 
@@ -643,7 +729,7 @@ const { onDocumentWritten, onDocumentUpdated } = require('firebase-functions/v2/
 
 exports.aggregateProductReviews = onDocumentWritten('reviews/{reviewId}', async (event) => {
   const db = admin.firestore();
-  
+
   // Get the product ID from the review document
   const reviewData = event.data.after.exists ? event.data.after.data() : event.data.before.data();
   const productId = reviewData.productId;
@@ -657,7 +743,7 @@ exports.aggregateProductReviews = onDocumentWritten('reviews/{reviewId}', async 
 
   try {
     const reviewsSnap = await db.collection('reviews').where('productId', '==', productId).get();
-    
+
     let totalRating = 0;
     let reviewCount = 0;
 
@@ -719,7 +805,7 @@ exports.generateInvoicePDF = onRequest(
         const doc = new PDFDocument({ margin: 50 });
         const buffers = [];
         doc.on('data', buffers.push.bind(buffers));
-        
+
         // Build PDF
         doc.fontSize(20).text('INVOICE', { align: 'center' });
         doc.moveDown();
@@ -730,14 +816,14 @@ exports.generateInvoicePDF = onRequest(
         doc.text(`Billed To: ${order.buyerName}`);
         doc.text(`Address: ${order.deliveryAddress}`);
         doc.moveDown();
-        
+
         doc.fontSize(14).text('Items', { underline: true });
         doc.moveDown(0.5);
-        
+
         (order.items || []).forEach(item => {
           doc.fontSize(12).text(`${item.title} (x${item.quantity}) - Rs. ${(item.unitPrice * item.quantity).toFixed(2)}`);
         });
-        
+
         doc.moveDown();
         doc.fontSize(12).text(`Subtotal: Rs. ${order.subtotal.toFixed(2)}`);
         doc.text(`Delivery Fee: Rs. ${order.deliveryFee.toFixed(2)}`);
@@ -782,7 +868,7 @@ exports.checkLowStock = onDocumentUpdated(
         const title = after.title;
 
         const db = admin.firestore();
-        
+
         // Notify seller about low stock
         await db.collection('users').doc(storeId).collection('notifications').add({
           title: 'Low Stock Alert',
@@ -814,10 +900,10 @@ exports.updateSearchKeywords = onDocumentWritten(
       const title = data.title || '';
       const description = data.description || '';
       const category = (data.metadata && data.metadata.category) || '';
-      
+
       const text = `${title} ${description} ${category}`.toLowerCase();
       const keywords = [...new Set(text.split(/[^a-z0-9]/).filter(w => w.length > 2))].slice(0, 10);
-      
+
       const currentKeywords = data.searchKeywords || [];
       if (JSON.stringify(keywords) !== JSON.stringify(currentKeywords)) {
         await event.data.after.ref.update({ searchKeywords: keywords });

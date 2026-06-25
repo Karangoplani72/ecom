@@ -1,9 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:ecom/features/orders/data/dtos/order_dto.dart';
 import 'package:ecom/features/orders/domain/entities/order.dart';
 import 'package:ecom/features/orders/domain/entities/order_status.dart';
 import 'package:ecom/features/orders/domain/repositories/order_repository.dart';
+import 'package:flutter/foundation.dart';
 import 'package:fpdart/fpdart.dart';
 
 class OrderRepositoryImpl implements OrderRepository {
@@ -15,16 +15,22 @@ class OrderRepositoryImpl implements OrderRepository {
   Future<Either<String, List<String>>> checkout({
     required List<AppOrder> orders,
   }) async {
-    debugPrint('[CHECKOUT] OrderRepositoryImpl.checkout: Beginning Firestore Transaction...');
+    debugPrint(
+      '[CHECKOUT] OrderRepositoryImpl.checkout: Beginning Firestore Transaction...',
+    );
     try {
       return await firestore.runTransaction((transaction) async {
         final orderIds = <String>[];
 
         // 1. Validate Stock for all items in all orders
         for (final order in orders) {
-          debugPrint('[CHECKOUT] OrderRepositoryImpl.checkout: Validating items for order from buyer: ${order.buyerId}, storeId: ${order.storeId}');
+          debugPrint(
+            '[CHECKOUT] OrderRepositoryImpl.checkout: Validating items for order from buyer: ${order.buyerId}, storeId: ${order.storeId}',
+          );
           for (final item in order.items) {
-            debugPrint('[CHECKOUT] OrderRepositoryImpl.checkout: Validating stock for productId: ${item.productId}, requested qty: ${item.quantity}');
+            debugPrint(
+              '[CHECKOUT] OrderRepositoryImpl.checkout: Validating stock for productId: ${item.productId}, requested qty: ${item.quantity}',
+            );
             final productRef = firestore
                 .collection('catalog')
                 .doc(item.productId);
@@ -37,31 +43,109 @@ class OrderRepositoryImpl implements OrderRepository {
             final productDoc = await transaction.get(productRef);
 
             if (!productDoc.exists) {
-              debugPrint('[CHECKOUT] OrderRepositoryImpl.checkout Error: Product ${item.productId} not found in catalog');
+              debugPrint(
+                '[CHECKOUT] OrderRepositoryImpl.checkout Error: Product ${item.productId} not found in catalog',
+              );
               throw Exception('Product ${item.title} not found in catalog');
             }
 
             final data = productDoc.data() as Map<String, dynamic>;
             final metadata = data['metadata'] as Map<String, dynamic>? ?? {};
-            final currentStock = (metadata['stock'] as num?) ?? 0;
-            debugPrint('[CHECKOUT] OrderRepositoryImpl.checkout: Product stock in DB: $currentStock');
+            final variantSkusRaw = data['variantSkus'] as List<dynamic>? ?? [];
+            final hasVariants = variantSkusRaw.isNotEmpty;
 
-            if (currentStock < item.quantity) {
-              debugPrint('[CHECKOUT] OrderRepositoryImpl.checkout Error: Insufficient stock for ${item.title}');
-              throw Exception('Insufficient stock for ${item.title}');
+            Map<String, dynamic> stockUpdate;
+            int newTotalStock;
+
+            if (hasVariants) {
+              // Variant product: deduct stock only from the matching SKU,
+              // never from a flat product-level counter, and never derive
+              // `status`/`available` from a single SKU's stock.
+              final skuId = item.skuId;
+              if (skuId == null || skuId.isEmpty) {
+                debugPrint(
+                  '[CHECKOUT] OrderRepositoryImpl.checkout Error: Missing skuId for variant product ${item.title}',
+                );
+                throw Exception('Missing variant selection for ${item.title}');
+              }
+
+              final skuList = variantSkusRaw
+                  .map((e) => Map<String, dynamic>.from(e as Map))
+                  .toList();
+
+              final skuIndex = skuList.indexWhere((s) => s['skuId'] == skuId);
+              if (skuIndex == -1) {
+                debugPrint(
+                  '[CHECKOUT] OrderRepositoryImpl.checkout Error: SKU $skuId not found for ${item.title}',
+                );
+                throw Exception('Selected variant not found for ${item.title}');
+              }
+
+              final currentSkuStock = (skuList[skuIndex]['stock'] as num?) ?? 0;
+              debugPrint(
+                '[CHECKOUT] OrderRepositoryImpl.checkout: SKU $skuId stock in DB: $currentSkuStock',
+              );
+
+              if (currentSkuStock < item.quantity) {
+                debugPrint(
+                  '[CHECKOUT] OrderRepositoryImpl.checkout Error: Insufficient stock for ${item.title}',
+                );
+                throw Exception('Insufficient stock for ${item.title}');
+              }
+
+              skuList[skuIndex] = {
+                ...skuList[skuIndex],
+                'stock': currentSkuStock - item.quantity,
+              };
+
+              // Product stays available as long as ANY sku still has stock.
+              newTotalStock = skuList.fold<int>(
+                0,
+                (total, s) => total + ((s['stock'] as num?)?.toInt() ?? 0),
+              );
+
+              debugPrint(
+                '[CHECKOUT] OrderRepositoryImpl.checkout: Deducting SKU stock. '
+                'New SKU stock: ${currentSkuStock - item.quantity}, '
+                'New total stock across all SKUs: $newTotalStock',
+              );
+
+              stockUpdate = {
+                'variantSkus': skuList,
+                'metadata.stock': newTotalStock,
+                'updatedAt': FieldValue.serverTimestamp(),
+                // Intentionally NOT touching `status`/`isActive` here.
+                // Availability is derived (totalStock > 0), never written
+                // as a standalone flag based on a single SKU.
+              };
+            } else {
+              // Simple (non-variant) product: single flat stock counter.
+              final currentStock = (metadata['stock'] as num?) ?? 0;
+              debugPrint(
+                '[CHECKOUT] OrderRepositoryImpl.checkout: Product stock in DB: $currentStock',
+              );
+
+              if (currentStock < item.quantity) {
+                debugPrint(
+                  '[CHECKOUT] OrderRepositoryImpl.checkout Error: Insufficient stock for ${item.title}',
+                );
+                throw Exception('Insufficient stock for ${item.title}');
+              }
+
+              newTotalStock = (currentStock - item.quantity).toInt();
+
+              debugPrint(
+                '[CHECKOUT] OrderRepositoryImpl.checkout: Deducting stock. New stock: $newTotalStock',
+              );
+
+              stockUpdate = {
+                'metadata.stock': newTotalStock,
+                'updatedAt': FieldValue.serverTimestamp(),
+                // Intentionally NOT touching `status`/`isActive` here either.
+              };
             }
 
-            final newStock = currentStock - item.quantity;
-            final newStatus = newStock <= 0 ? 'outOfStock' : data['status'];
-
-            final stockUpdate = {
-              'metadata.stock': newStock,
-              'status': newStatus,
-              'updatedAt': FieldValue.serverTimestamp(),
-            };
-
             // 2. Deduct Stock in both collections
-            debugPrint('[CHECKOUT] OrderRepositoryImpl.checkout: Deducting stock. New stock: $newStock, new status: $newStatus');
             transaction.update(productRef, stockUpdate);
             transaction.update(storeProductRef, stockUpdate);
           }
@@ -71,7 +155,9 @@ class OrderRepositoryImpl implements OrderRepository {
         for (final order in orders) {
           final docRef = firestore.collection('orders').doc();
           orderIds.add(docRef.id);
-          debugPrint('[CHECKOUT] OrderRepositoryImpl.checkout: Creating order document with ID: ${docRef.id}');
+          debugPrint(
+            '[CHECKOUT] OrderRepositoryImpl.checkout: Creating order document with ID: ${docRef.id}',
+          );
 
           final dto = OrderDto(
             orderId: docRef.id,
@@ -88,6 +174,8 @@ class OrderRepositoryImpl implements OrderRepository {
                     imageUrl: item.imageUrl,
                     quantity: item.quantity,
                     unitPrice: item.unitPrice,
+                    skuId: item.skuId,
+                    selectedCombination: item.selectedCombination,
                   ),
                 )
                 .toList(),
@@ -105,7 +193,9 @@ class OrderRepositoryImpl implements OrderRepository {
           transaction.set(docRef, dto.toFirestore());
 
           // 4. Create Notifications (Atomic within transaction)
-          debugPrint('[CHECKOUT] OrderRepositoryImpl.checkout: Dispatching notifications for buyer and seller');
+          debugPrint(
+            '[CHECKOUT] OrderRepositoryImpl.checkout: Dispatching notifications for buyer and seller',
+          );
           _addNotification(
             transaction,
             order.buyerId,
@@ -123,11 +213,15 @@ class OrderRepositoryImpl implements OrderRepository {
           );
         }
 
-        debugPrint('[CHECKOUT] OrderRepositoryImpl.checkout: Transaction complete. Returning order IDs: $orderIds');
+        debugPrint(
+          '[CHECKOUT] OrderRepositoryImpl.checkout: Transaction complete. Returning order IDs: $orderIds',
+        );
         return Right(orderIds);
       });
     } catch (e) {
-      debugPrint('[CHECKOUT] OrderRepositoryImpl.checkout Exception caught: $e');
+      debugPrint(
+        '[CHECKOUT] OrderRepositoryImpl.checkout Exception caught: $e',
+      );
       return Left(e.toString().replaceAll('Exception: ', ''));
     }
   }

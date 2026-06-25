@@ -7,14 +7,18 @@ import 'package:ecom/core/theme/app_colors.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_category_requests_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_moderation_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_orders_screen.dart';
+import 'package:ecom/features/admin/presentation/screens/admin_order_detail_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_products_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_reports_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_sellers_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_settings_screen.dart';
+import 'package:ecom/features/admin/presentation/screens/admin_settlements_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_store_approvals_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_stores_screen.dart';
+import 'package:ecom/features/admin/presentation/screens/admin_store_detail_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_users_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_audit_logs_screen.dart';
+import 'package:ecom/features/admin/presentation/screens/admin_analytics_screen.dart';
 import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:ecom/features/admin/domain/entities/platform_config.dart';
 import 'package:ecom/features/admin/presentation/controllers/admin_controller.dart';
@@ -121,6 +125,10 @@ abstract class AppRoutes {
   static const adminSellers = '/admin/sellers';
   static const adminProducts = '/admin/products';
   static const adminOrders = '/admin/orders';
+  static const adminOrderDetail = '/admin/orders/:orderId';
+  static const adminStoreDetail = '/admin/stores/:storeId';
+  static const adminSettlements = '/admin/settlements';
+  static const adminAnalytics = '/admin/analytics';
   static const adminReports = '/admin/reports';
   static const adminSettings = '/admin/settings';
   static const adminAuditLogs = '/admin/audit-logs';
@@ -490,6 +498,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const AdminStoresScreen(),
       ),
       GoRoute(
+        path: AppRoutes.adminStoreDetail,
+        builder: (context, state) {
+          final storeId = state.pathParameters['storeId']!;
+          return AdminStoreDetailScreen(storeId: storeId);
+        },
+      ),
+      GoRoute(
         path: AppRoutes.adminSellers,
         builder: (context, state) => const AdminSellersScreen(),
       ),
@@ -502,8 +517,23 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const AdminOrdersScreen(),
       ),
       GoRoute(
+        path: AppRoutes.adminOrderDetail,
+        builder: (context, state) {
+          final orderId = state.pathParameters['orderId']!;
+          return AdminOrderDetailScreen(orderId: orderId);
+        },
+      ),
+      GoRoute(
         path: AppRoutes.adminReports,
         builder: (context, state) => const AdminReportsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminSettlements,
+        builder: (context, state) => const AdminSettlementsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminAnalytics,
+        builder: (context, state) => const AdminAnalyticsScreen(),
       ),
       GoRoute(
         path: AppRoutes.adminSettings,
@@ -537,17 +567,26 @@ class _BuyerShellState extends ConsumerState<_BuyerShell> {
   Future<bool> _onWillPop() async {
     final shell = widget.navigationShell;
 
+    // First, try to pop the nested navigator (pushed routes within the shell)
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+      return false;
+    }
+
+    // If not on home tab, switch to home tab
     if (shell.currentIndex != _homeIndex) {
       shell.goBranch(_homeIndex);
       return false;
     }
 
+    // Check if root navigator can pop (for routes outside the shell)
     final navigator = rootNavigatorKey.currentState;
     if (navigator != null && navigator.canPop()) {
       navigator.pop();
       return false;
     }
 
+    // Show exit confirmation on double press
     final now = DateTime.now();
     if (_lastBackPress == null ||
         now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
@@ -709,7 +748,6 @@ class _SellerShell extends StatelessWidget {
     final isDesktop = MediaQuery.sizeOf(context).width >= 1024;
 
     return Scaffold(
-      key: sellerShellScaffoldKey,
       drawer: isDesktop ? null : const SellerDrawer(),
       body: Row(
         children: [

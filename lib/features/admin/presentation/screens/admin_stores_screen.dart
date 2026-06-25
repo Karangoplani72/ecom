@@ -6,6 +6,7 @@ import 'package:ecom/features/admin/presentation/widgets/admin_shell.dart';
 import 'package:ecom/features/seller/domain/entities/store_profile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 class AdminStoresScreen extends ConsumerStatefulWidget {
@@ -32,8 +33,7 @@ class _AdminStoresScreenState extends ConsumerState<AdminStoresScreen> {
           _buildFilters(isDark),
           Expanded(
             child: storesAsync.when(
-              loading: () =>
-                  const Center(child: CircularProgressIndicator()),
+              loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(
                 child: AdminEmptyRow(
                   icon: Icons.cloud_off_rounded,
@@ -42,15 +42,17 @@ class _AdminStoresScreenState extends ConsumerState<AdminStoresScreen> {
               ),
               data: (stores) {
                 final filtered = stores.where((s) {
-                  final matchesSearch = _search.isEmpty ||
-                      s.storeName
-                          .toLowerCase()
-                          .contains(_search.toLowerCase()) ||
-                      (s.email ?? '')
-                          .toLowerCase()
-                          .contains(_search.toLowerCase());
+                  final matchesSearch =
+                      _search.isEmpty ||
+                      s.storeName.toLowerCase().contains(
+                        _search.toLowerCase(),
+                      ) ||
+                      (s.email ?? '').toLowerCase().contains(
+                        _search.toLowerCase(),
+                      );
 
-                  final matchesStatus = _statusFilter == 'all' ||
+                  final matchesStatus =
+                      _statusFilter == 'all' ||
                       (_statusFilter == 'active' && s.isActive) ||
                       (_statusFilter == 'suspended' && !s.isActive) ||
                       (_statusFilter == 'verified' && s.isVerified);
@@ -72,7 +74,11 @@ class _AdminStoresScreenState extends ConsumerState<AdminStoresScreen> {
                   ),
                   itemCount: filtered.length,
                   separatorBuilder: (ctx, idx) => const SizedBox(height: 8),
-                  itemBuilder: (ctx, i) => _StoreTile(store: filtered[i]),
+                  itemBuilder: (ctx, i) => InkWell(
+                    onTap: () =>
+                        context.push('/admin/stores/${filtered[i].id}'),
+                    child: _StoreTile(store: filtered[i]),
+                  ),
                 );
               },
             ),
@@ -93,8 +99,10 @@ class _AdminStoresScreenState extends ConsumerState<AdminStoresScreen> {
               hintText: 'Search stores...',
               prefixIcon: const Icon(Icons.search_rounded),
               border: OutlineInputBorder(borderRadius: AppRadius.borderLG),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
             ),
             onChanged: (v) => setState(() => _search = v),
           ),
@@ -114,8 +122,7 @@ class _AdminStoresScreenState extends ConsumerState<AdminStoresScreen> {
                     child: FilterChip(
                       label: Text(f.$2),
                       selected: _statusFilter == f.$1,
-                      onSelected: (_) =>
-                          setState(() => _statusFilter = f.$1),
+                      onSelected: (_) => setState(() => _statusFilter = f.$1),
                     ),
                   ),
               ],
@@ -129,6 +136,7 @@ class _AdminStoresScreenState extends ConsumerState<AdminStoresScreen> {
 
 class _StoreTile extends ConsumerWidget {
   final StoreProfile store;
+
   const _StoreTile({required this.store});
 
   @override
@@ -173,10 +181,7 @@ class _StoreTile extends ConsumerWidget {
                             ),
                           ),
                         ),
-                        AdminStatusPill(
-                          label: statusLabel,
-                          color: statusColor,
-                        ),
+                        AdminStatusPill(label: statusLabel, color: statusColor),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -252,18 +257,18 @@ class _StoreTile extends ConsumerWidget {
                   onPressed: () async {
                     final result = store.isActive
                         ? await ref
-                            .read(adminControllerProvider.notifier)
-                            .suspendStore(store.id)
+                              .read(adminControllerProvider.notifier)
+                              .suspendStore(store.id)
                         : await ref
-                            .read(adminControllerProvider.notifier)
-                            .activateStore(store.id);
+                              .read(adminControllerProvider.notifier)
+                              .activateStore(store.id);
 
                     result.fold(
                       (error) {
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(error)),
-                          );
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(SnackBar(content: Text(error)));
                         }
                       },
                       (_) {
@@ -285,10 +290,15 @@ class _StoreTile extends ConsumerWidget {
               ),
               const SizedBox(width: 8),
               OutlinedButton.icon(
-                icon: const Icon(Icons.delete_outline_rounded,
-                    size: 16, color: Colors.red),
-                label: const Text('Delete',
-                    style: TextStyle(color: Colors.red)),
+                icon: const Icon(
+                  Icons.delete_outline_rounded,
+                  size: 16,
+                  color: Colors.red,
+                ),
+                label: const Text(
+                  'Delete',
+                  style: TextStyle(color: Colors.red),
+                ),
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(0, 36),
                   side: const BorderSide(color: Colors.red),
@@ -299,7 +309,8 @@ class _StoreTile extends ConsumerWidget {
                     builder: (ctx) => AlertDialog(
                       title: const Text('Delete Store'),
                       content: Text(
-                          'This will permanently delete "${store.storeName}" and hide all its products. This cannot be undone.'),
+                        'This will permanently delete "${store.storeName}" and hide all its products. This cannot be undone.',
+                      ),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(ctx, false),
@@ -307,7 +318,8 @@ class _StoreTile extends ConsumerWidget {
                         ),
                         FilledButton(
                           style: FilledButton.styleFrom(
-                              backgroundColor: Colors.red),
+                            backgroundColor: Colors.red,
+                          ),
                           onPressed: () => Navigator.pop(ctx, true),
                           child: const Text('Delete'),
                         ),
@@ -321,9 +333,9 @@ class _StoreTile extends ConsumerWidget {
                   result.fold(
                     (err) {
                       if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(err)),
-                        );
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(SnackBar(content: Text(err)));
                       }
                     },
                     (_) {
@@ -346,6 +358,7 @@ class _StoreTile extends ConsumerWidget {
 
 class _StoreAvatar extends StatelessWidget {
   final StoreProfile store;
+
   const _StoreAvatar({required this.store});
 
   @override
@@ -373,10 +386,7 @@ class _StoreAvatar extends StatelessWidget {
         color: AppColors.primary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: const Icon(
-        Icons.storefront_outlined,
-        color: AppColors.primary,
-      ),
+      child: const Icon(Icons.storefront_outlined, color: AppColors.primary),
     );
   }
 }
@@ -386,19 +396,18 @@ class _Stat extends StatelessWidget {
   final String value;
   final IconData icon;
 
-  const _Stat({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
+  const _Stat({required this.label, required this.value, required this.icon});
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: [
-        Icon(icon, size: 14,
-            color: isDark ? Colors.white54 : AppColors.lightTextSecondary),
+        Icon(
+          icon,
+          size: 14,
+          color: isDark ? Colors.white54 : AppColors.lightTextSecondary,
+        ),
         const SizedBox(width: 4),
         Text(
           '$value $label',

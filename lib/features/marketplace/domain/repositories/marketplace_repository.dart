@@ -10,7 +10,7 @@ abstract class MarketplaceRepository {
 
   Future<Either<String, List<CatalogItem>>> fetchItemsByStore({
     required String storeId,
-    CatalogType? filterType,
+    String? filterType,
   });
 
   Future<Either<String, List<CatalogItem>>> searchLocalServices({

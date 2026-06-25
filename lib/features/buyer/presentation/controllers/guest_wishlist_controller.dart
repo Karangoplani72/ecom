@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/features/marketplace/data/dtos/catalog_item_dto.dart';
 import 'package:ecom/features/marketplace/domain/entities/catalog_item.dart';
@@ -18,7 +19,12 @@ class GuestWishlistController extends _$GuestWishlistController {
       try {
         final List<dynamic> decoded = jsonDecode(wishlistString);
         return decoded
-            .map((item) => CatalogItemDto.fromJson(item as Map<String, dynamic>).toDomain())
+            .map(
+              (item) => CatalogItemDto.fromMap(
+                '',
+                Map<String, dynamic>.from(item as Map),
+              ),
+            )
             .toList();
       } catch (_) {
         return [];
@@ -30,22 +36,27 @@ class GuestWishlistController extends _$GuestWishlistController {
   void _save(List<CatalogItem> newList) {
     state = newList;
     final prefs = ref.read(sharedPreferencesProvider);
-    final encoded = jsonEncode(newList.map((e) {
-      return CatalogItemDto(
-        id: e.id,
-        storeId: e.storeId,
-        title: e.title,
-        description: e.description,
-        type: e.type.name,
-        status: e.status.name,
-        basePrice: e.basePrice,
-        currency: e.currency,
-        imageUrls: e.imageUrls,
-        metadata: e.metadata,
-      ).toJson();
-    }).toList());
+    final encoded = jsonEncode(newList.map((e) => _toMap(e)).toList());
     prefs.setString(_guestWishlistKey, encoded);
   }
+
+  Map<String, dynamic> _toMap(CatalogItem e) => {
+    'id': e.id,
+    'storeId': e.storeId,
+    'title': e.title,
+    'description': e.description,
+    'type': e.type,
+    'status': e.status,
+    'isActive': e.isActive,
+    'basePrice': e.basePrice,
+    'compareAtPrice': e.compareAtPrice,
+    'currency': e.currency,
+    'imageUrls': e.imageUrls,
+    'category': e.category,
+    'metadata': e.metadata,
+    'avgRating': e.avgRating,
+    'reviewCount': e.reviewCount,
+  };
 
   void addItem(CatalogItem item) {
     final current = List<CatalogItem>.from(state);

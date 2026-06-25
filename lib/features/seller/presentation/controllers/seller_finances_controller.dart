@@ -3,10 +3,10 @@ import 'package:ecom/features/seller/data/repositories/seller_finance_repository
 import 'package:ecom/features/seller/domain/entities/merchant_wallet.dart';
 import 'package:ecom/features/seller/domain/entities/seller_transaction.dart';
 import 'package:ecom/features/seller/domain/repositories/seller_finance_repository.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'seller_finances_controller.g.dart';
 
@@ -38,8 +38,10 @@ Future<Map<String, dynamic>?> sellerBankAccount(Ref ref) async {
   if (sellerId == null || sellerId.isEmpty) return null;
   final doc = await ref
       .read(firebaseFirestoreProvider)
-      .collection('bankAccounts')
+      .collection('sellers')
       .doc(sellerId)
+      .collection('bankDetails')
+      .doc('primary')
       .get();
   return doc.data();
 }
@@ -67,13 +69,17 @@ class SellerFinancesController extends _$SellerFinancesController {
     try {
       final idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
       if (idToken != null) {
-        await http.post(
-          Uri.parse('https://us-central1-ecom-750fc.cloudfunctions.net/releaseMaturedEscrows'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $idToken',
-          },
-        ).timeout(const Duration(seconds: 10));
+        await http
+            .post(
+              Uri.parse(
+                'https://us-central1-ecom-750fc.cloudfunctions.net/releaseMaturedEscrows',
+              ),
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $idToken',
+              },
+            )
+            .timeout(const Duration(seconds: 10));
       }
     } catch (e) {
       debugPrint('Failed to release matured escrows: $e');
@@ -102,13 +108,17 @@ class SellerFinancesController extends _$SellerFinancesController {
     try {
       final idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
       if (idToken != null) {
-        await http.post(
-          Uri.parse('https://us-central1-ecom-750fc.cloudfunctions.net/releaseMaturedEscrows'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $idToken',
-          },
-        ).timeout(const Duration(seconds: 10));
+        await http
+            .post(
+              Uri.parse(
+                'https://us-central1-ecom-750fc.cloudfunctions.net/releaseMaturedEscrows',
+              ),
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $idToken',
+              },
+            )
+            .timeout(const Duration(seconds: 10));
       }
     } catch (e) {
       debugPrint('Failed to release matured escrows in refresh: $e');
@@ -179,15 +189,18 @@ class SellerFinancesController extends _$SellerFinancesController {
   }
 
   Future<void> updateBankAccount({
-    required String accountId,
-    required String bankName,
+    required String ifsc,
     required String accountNumber,
-    required String ifscCode,
-    required String accountHolderName,
+    required String holderName,
+    required String bankName,
+    required String branch,
+    required String city,
+    required String bankState,
+    required String address,
   }) async {
-    if (bankName.isEmpty) {
+    if (ifsc.isEmpty) {
       state = AsyncError(
-        Exception('Bank name cannot be empty'),
+        Exception('IFSC code cannot be empty'),
         StackTrace.current,
       );
       return;
@@ -201,17 +214,17 @@ class SellerFinancesController extends _$SellerFinancesController {
       return;
     }
 
-    if (ifscCode.isEmpty) {
+    if (holderName.isEmpty) {
       state = AsyncError(
-        Exception('IFSC code cannot be empty'),
+        Exception('Account holder name cannot be empty'),
         StackTrace.current,
       );
       return;
     }
 
-    if (accountHolderName.isEmpty) {
+    if (bankName.isEmpty) {
       state = AsyncError(
-        Exception('Account holder name cannot be empty'),
+        Exception('Bank name cannot be empty'),
         StackTrace.current,
       );
       return;
@@ -233,11 +246,14 @@ class SellerFinancesController extends _$SellerFinancesController {
         .read(sellerFinanceRepositoryProvider)
         .updateBankAccount(
           sellerId: sellerId,
-          accountId: accountId,
-          bankName: bankName,
+          ifsc: ifsc,
           accountNumber: accountNumber,
-          ifscCode: ifscCode,
-          accountHolderName: accountHolderName,
+          holderName: holderName,
+          bankName: bankName,
+          branch: branch,
+          city: city,
+          state: bankState,
+          address: address,
         );
 
     result.fold(

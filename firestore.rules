@@ -44,6 +44,8 @@ service cloud.firestore {
     match /users/{userId} {
       allow get:    if isOwner(userId) || isAdmin();
       allow list:   if isAdmin();
+      // Allow admin to query by roles for dashboard metrics
+      allow list:   if isAdmin();
 
       allow create: if isLoggedIn()
                     && isOwner(userId)
@@ -130,6 +132,8 @@ service cloud.firestore {
                  || isLoggedIn();
 
       allow list: if true;
+      // Allow admin to query by status/stock for dashboard metrics
+      allow list: if isAdmin();
 
       // Seller creates catalog items; storeId == sellerId (doc id)
       allow create: if isLoggedIn()
@@ -153,6 +157,8 @@ service cloud.firestore {
     match /orders/{orderId} {
       allow get:  if isLoggedIn() && (resource.data.buyerId == request.auth.uid || resource.data.storeId == request.auth.uid || isAdmin());
       allow list: if isLoggedIn() && (resource.data.buyerId == request.auth.uid || resource.data.storeId == request.auth.uid || isAdmin());
+      // Allow admin to query by status for dashboard metrics
+      allow list: if isAdmin();
 
       // Order creation: buyer client (COD/fallback) or Cloud Function (Admin SDK bypasses rules)
       allow create: if isLoggedIn()
@@ -259,10 +265,35 @@ service cloud.firestore {
     }
 
     // =========================================================================
+    // SELLERS  (sellerId == request.auth.uid; holds bank details used by the
+    // seller Finances page — SellerFinanceRepositoryImpl.updateBankAccount /
+    // sellerBankAccountProvider read+write /sellers/{sellerId}/bankDetails/primary)
+    // =========================================================================
+    match /sellers/{sellerId} {
+      allow get, list: if isOwner(sellerId) || isAdmin();
+      allow write:     if false; // no top-level seller doc is written by the app
+
+      match /bankDetails/{docId} {
+        allow get, list: if isOwner(sellerId) || isAdmin();
+        allow create, update: if isAdmin()
+                              || (isOwner(sellerId)
+                                  && isString(request.resource.data.ifsc, 4, 20)
+                                  && isString(request.resource.data.accountNumber, 5, 30)
+                                  && isString(request.resource.data.holderName, 2, 100)
+                                  && isString(request.resource.data.bankName, 1, 100)
+                                  // accountNumber must never be written back unmasked once stored,
+                                  // and the client must always supply a masked mirror of it
+                                  && isString(request.resource.data.maskedAccountNumber, 4, 30));
+        allow delete: if false;
+      }
+    }
+
+    // =========================================================================
     // CHATS & MESSAGES
     // =========================================================================
     match /chats/{roomId} {
       allow read:   if isLoggedIn() && request.auth.uid in resource.data.participants;
+      allow list:   if isAdmin();
       allow create: if isLoggedIn()
                     && isList(request.resource.data.participants, 10)
                     && request.auth.uid in request.resource.data.participants;
@@ -311,6 +342,8 @@ service cloud.firestore {
                     && isString(request.resource.data.reason, 1, 1000);
       allow get:    if isLoggedIn() && (resource.data.reporterId == request.auth.uid || isAdmin());
       allow list:   if isAdmin();
+      // Allow admin to query by status for dashboard metrics
+      allow list:   if isAdmin();
       allow update: if isAdmin();
       allow delete: if hasRole('superAdmin');
     }
@@ -357,6 +390,8 @@ service cloud.firestore {
       allow get:    if isLoggedIn() && (resource.data.sellerId == request.auth.uid || isAdmin());
       allow list:   if isAdmin()
                     || (isLoggedIn() && resource.data.sellerId == request.auth.uid);
+      // Allow admin to list all category requests without sellerId restriction
+      allow list:   if isAdmin();
       allow create: if isLoggedIn()
                     && request.resource.data.sellerId == request.auth.uid
                     && request.resource.data.status == 'pending'
@@ -371,6 +406,20 @@ service cloud.firestore {
     match /user_profiles/{userId} {
       allow read:  if true;
       allow write: if isOwner(userId) || isAdmin();
+    }
+
+    // =========================================================================
+    // SETTLEMENTS
+    // =========================================================================
+    match /settlements/{settlementId} {
+      allow get:    if isAdmin() || resource.data.sellerId == request.auth.uid;
+      allow list:   if isAdmin();
+      allow create: if false; // Created by Cloud Functions only
+      allow update: if isAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                         'status', 'processedAt', 'rejectedAt', 'updatedAt'
+                       ]);
+      allow delete: if hasRole('superAdmin');
     }
 
     // =========================================================================

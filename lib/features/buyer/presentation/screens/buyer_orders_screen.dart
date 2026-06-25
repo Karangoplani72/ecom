@@ -87,7 +87,7 @@ class BuyerOrdersScreen extends ConsumerWidget {
                         ),
                         centerTitle: true,
                         bottom: PreferredSize(
-                          preferredSize: const Size.fromHeight(48),
+                          preferredSize: const Size.fromHeight(50),
                           child: ClipRect(
                             child: BackdropFilter(
                               filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),

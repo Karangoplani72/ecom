@@ -107,7 +107,7 @@ class _SellerStoreProfileScreenState
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/seller/dashboard'),
+          onPressed: () => context.pop(),
         ),
         title: const Text('Store Profile & Branding'),
         centerTitle: true,

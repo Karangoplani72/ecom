@@ -5,8 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-final sellerShellScaffoldKey = GlobalKey<ScaffoldState>();
-
 class SellerSidebar extends StatelessWidget {
   const SellerSidebar({super.key});
 
@@ -213,10 +211,10 @@ class _SidebarItem extends StatelessWidget {
         child: InkWell(
           borderRadius: AppRadius.borderMD,
           onTap: () {
-            if (sellerShellScaffoldKey.currentState?.isDrawerOpen ?? false) {
+            if (Scaffold.of(context).isDrawerOpen) {
               Navigator.of(context).pop();
             }
-            context.go(route);
+            context.push(route);
           },
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

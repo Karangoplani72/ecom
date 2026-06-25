@@ -42,7 +42,7 @@ class _SellerSettingsScreenState extends ConsumerState<SellerSettingsScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/seller/dashboard'),
+          onPressed: () => context.pop(),
         ),
         title: const Text('Store Settings'),
         centerTitle: true,

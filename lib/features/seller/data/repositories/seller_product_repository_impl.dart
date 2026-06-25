@@ -7,112 +7,34 @@ import '../dtos/seller_product_dto.dart';
 
 class SellerProductRepositoryImpl implements SellerProductRepository {
   final FirebaseFirestore _firestore;
-  static const String _catalogCollection = 'catalog';
-  static const String _storesCollection = 'stores';
-  static const String _productsSubcollection = 'products';
+  static const _catalog = 'catalog';
+  static const _stores = 'stores';
+  static const _products = 'products';
 
-  SellerProductRepositoryImpl({required this._firestore});
+  SellerProductRepositoryImpl(this._firestore);
 
-  @override
-  Future<Either<Exception, List<SellerProduct>>> getProductsByCategory({
-    required String sellerId,
-    required String category,
-  }) async {
-    try {
-      if (sellerId.isEmpty) {
-        return Left(Exception('Invalid seller ID: seller ID cannot be empty'));
-      }
-
-      if (category.isEmpty) {
-        return Left(Exception('Invalid category: category cannot be empty'));
-      }
-
-      final snapshot = await _firestore
-          .collection(_storesCollection)
-          .doc(sellerId)
-          .collection(_productsSubcollection)
-          .where('metadata.category', isEqualTo: category)
-          .orderBy('createdAt', descending: true)
-          .get();
-
-      final products = snapshot.docs
-          .map((doc) => SellerProductDto.fromFirestore(doc).toDomain())
-          .toList();
-
-      return Right(products);
-    } on FirebaseException catch (e) {
-      return Left(Exception('Firestore error: ${e.message}'));
-    } catch (e) {
-      return Left(Exception('Failed to get products by category: $e'));
-    }
-  }
-
-  @override
-  Future<Either<Exception, List<SellerProduct>>> searchProducts({
-    required String sellerId,
-    required String query,
-  }) async {
-    try {
-      if (sellerId.isEmpty) {
-        return Left(Exception('Invalid seller ID: seller ID cannot be empty'));
-      }
-
-      if (query.trim().isEmpty) {
-        return const Right([]);
-      }
-
-      final snapshot = await _firestore
-          .collection(_storesCollection)
-          .doc(sellerId)
-          .collection(_productsSubcollection)
-          .get();
-
-      final lowerQuery = query.toLowerCase();
-
-      final products = snapshot.docs
-          .map((doc) => SellerProductDto.fromFirestore(doc).toDomain())
-          .where(
-            (product) =>
-                product.title.toLowerCase().contains(lowerQuery) ||
-                product.description.toLowerCase().contains(lowerQuery),
-          )
-          .toList();
-
-      return Right(products);
-    } on FirebaseException catch (e) {
-      return Left(Exception('Firestore error: ${e.message}'));
-    } catch (e) {
-      return Left(Exception('Failed to search products: $e'));
-    }
-  }
+  // ─── watch ────────────────────────────────────────────────────────────────
 
   @override
   Stream<List<SellerProduct>> watchProducts({required String sellerId}) {
-    try {
-      if (sellerId.isEmpty) {
-        return Stream.error(
-          Exception('Invalid seller ID: seller ID cannot be empty'),
-        );
-      }
-
-      return _firestore
-          .collection(_storesCollection)
-          .doc(sellerId)
-          .collection(_productsSubcollection)
-          .orderBy('createdAt', descending: true)
-          .snapshots()
-          .map(
-            (snapshot) => snapshot.docs
-                .map((doc) => SellerProductDto.fromFirestore(doc).toDomain())
-                .toList(),
-          )
-          .handleError(
-            (error) => throw Exception('Failed to watch products: $error'),
-          );
-    } catch (e) {
-      return Stream.error(Exception('Watch products error: $e'));
+    if (sellerId.isEmpty) {
+      return Stream.error(Exception('sellerId cannot be empty'));
     }
+    return _firestore
+        .collection(_stores)
+        .doc(sellerId)
+        .collection(_products)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map(
+          (snap) => snap.docs
+              .map((d) => SellerProductDto.fromFirestore(d).toDomain())
+              .toList(),
+        )
+        .handleError((e) => throw Exception('Watch products failed: $e'));
   }
+
+  // ─── get by id ────────────────────────────────────────────────────────────
 
   @override
   Future<Either<Exception, SellerProduct>> getProductById({
@@ -120,99 +42,76 @@ class SellerProductRepositoryImpl implements SellerProductRepository {
     required String productId,
   }) async {
     try {
-      if (sellerId.isEmpty) {
-        return Left(Exception('Invalid seller ID: seller ID cannot be empty'));
-      }
-
-      if (productId.isEmpty) {
-        return Left(
-          Exception('Invalid product ID: product ID cannot be empty'),
-        );
-      }
-
       final doc = await _firestore
-          .collection(_storesCollection)
+          .collection(_stores)
           .doc(sellerId)
-          .collection(_productsSubcollection)
+          .collection(_products)
           .doc(productId)
           .get();
-
-      if (!doc.exists) {
-        return Left(Exception('Product not found: $productId'));
-      }
-
-      final product = SellerProductDto.fromFirestore(doc).toDomain();
-      return Right(product);
+      if (!doc.exists) return Left(Exception('Product not found: $productId'));
+      return Right(SellerProductDto.fromFirestore(doc).toDomain());
     } on FirebaseException catch (e) {
-      return Left(Exception('Firestore error: ${e.message}'));
+      return Left(Exception('Firestore: ${e.message}'));
     } catch (e) {
-      return Left(Exception('Failed to get product: $e'));
+      return Left(Exception('getProductById: $e'));
     }
   }
+
+  // ─── create ───────────────────────────────────────────────────────────────
 
   @override
   Future<Either<Exception, Unit>> createProduct(SellerProduct product) async {
     try {
-      _validateProduct(product);
-
-      final data = _productToFirestore(product);
-
+      _validate(product);
+      final data = SellerProductDto.domainToFirestore(product)
+        ..['createdAt'] = FieldValue.serverTimestamp();
       final batch = _firestore.batch();
-
-      batch.set(
-        _firestore.collection(_catalogCollection).doc(product.id),
-        data,
-      );
-
+      batch.set(_firestore.collection(_catalog).doc(product.id), data);
       batch.set(
         _firestore
-            .collection(_storesCollection)
+            .collection(_stores)
             .doc(product.storeId)
-            .collection(_productsSubcollection)
+            .collection(_products)
             .doc(product.id),
         data,
       );
-
       await batch.commit();
       return const Right(unit);
     } on FirebaseException catch (e) {
-      return Left(Exception('Firestore error during create: ${e.message}'));
+      return Left(Exception('Firestore create: ${e.message}'));
     } catch (e) {
-      return Left(Exception('Failed to create product: $e'));
+      return Left(Exception('createProduct: $e'));
     }
   }
+
+  // ─── update ───────────────────────────────────────────────────────────────
 
   @override
   Future<Either<Exception, Unit>> updateProduct(SellerProduct product) async {
     try {
-      _validateProduct(product);
-
-      final data = _productToFirestore(product);
-
+      _validate(product);
+      final data = SellerProductDto.domainToFirestore(product);
       final batch = _firestore.batch();
-
-      batch.update(
-        _firestore.collection(_catalogCollection).doc(product.id),
-        data,
-      );
-
-      batch.update(
+      batch.update(_firestore.collection(_catalog).doc(product.id), data);
+      batch.set(
         _firestore
-            .collection(_storesCollection)
+            .collection(_stores)
             .doc(product.storeId)
-            .collection(_productsSubcollection)
+            .collection(_products)
             .doc(product.id),
         data,
+        SetOptions(merge: true),
       );
-
       await batch.commit();
       return const Right(unit);
     } on FirebaseException catch (e) {
-      return Left(Exception('Firestore error during update: ${e.message}'));
+      return Left(Exception('Firestore update: ${e.message}'));
     } catch (e) {
-      return Left(Exception('Failed to update product: $e'));
+      return Left(Exception('updateProduct: $e'));
     }
   }
+
+  // ─── delete ───────────────────────────────────────────────────────────────
 
   @override
   Future<Either<Exception, Unit>> deleteProduct({
@@ -220,36 +119,25 @@ class SellerProductRepositoryImpl implements SellerProductRepository {
     required String productId,
   }) async {
     try {
-      if (sellerId.isEmpty) {
-        return Left(Exception('Invalid seller ID: seller ID cannot be empty'));
-      }
-
-      if (productId.isEmpty) {
-        return Left(
-          Exception('Invalid product ID: product ID cannot be empty'),
-        );
-      }
-
       final batch = _firestore.batch();
-
-      batch.delete(_firestore.collection(_catalogCollection).doc(productId));
-
+      batch.delete(_firestore.collection(_catalog).doc(productId));
       batch.delete(
         _firestore
-            .collection(_storesCollection)
+            .collection(_stores)
             .doc(sellerId)
-            .collection(_productsSubcollection)
+            .collection(_products)
             .doc(productId),
       );
-
       await batch.commit();
       return const Right(unit);
     } on FirebaseException catch (e) {
-      return Left(Exception('Firestore error during delete: ${e.message}'));
+      return Left(Exception('Firestore delete: ${e.message}'));
     } catch (e) {
-      return Left(Exception('Failed to delete product: $e'));
+      return Left(Exception('deleteProduct: $e'));
     }
   }
+
+  // ─── update stock ─────────────────────────────────────────────────────────
 
   @override
   Future<Either<Exception, Unit>> updateStock({
@@ -258,51 +146,31 @@ class SellerProductRepositoryImpl implements SellerProductRepository {
     required int stock,
   }) async {
     try {
-      if (sellerId.isEmpty) {
-        return Left(Exception('Invalid seller ID: seller ID cannot be empty'));
-      }
-
-      if (productId.isEmpty) {
-        return Left(
-          Exception('Invalid product ID: product ID cannot be empty'),
-        );
-      }
-
-      if (stock < 0) {
-        return Left(Exception('Invalid stock: stock cannot be negative'));
-      }
-
-      final update = {
+      if (stock < 0) return Left(Exception('Stock cannot be negative'));
+      final upd = {
         'metadata.stock': stock,
         'updatedAt': FieldValue.serverTimestamp(),
       };
-
       final batch = _firestore.batch();
-
-      batch.update(
-        _firestore.collection(_catalogCollection).doc(productId),
-        update,
-      );
-
+      batch.update(_firestore.collection(_catalog).doc(productId), upd);
       batch.update(
         _firestore
-            .collection(_storesCollection)
+            .collection(_stores)
             .doc(sellerId)
-            .collection(_productsSubcollection)
+            .collection(_products)
             .doc(productId),
-        update,
+        upd,
       );
-
       await batch.commit();
       return const Right(unit);
     } on FirebaseException catch (e) {
-      return Left(
-        Exception('Firestore error during stock update: ${e.message}'),
-      );
+      return Left(Exception('Firestore updateStock: ${e.message}'));
     } catch (e) {
-      return Left(Exception('Failed to update stock: $e'));
+      return Left(Exception('updateStock: $e'));
     }
   }
+
+  // ─── update status ────────────────────────────────────────────────────────
 
   @override
   Future<Either<Exception, Unit>> updateStatus({
@@ -311,97 +179,99 @@ class SellerProductRepositoryImpl implements SellerProductRepository {
     required String status,
   }) async {
     try {
-      if (sellerId.isEmpty) {
-        return Left(Exception('Invalid seller ID: seller ID cannot be empty'));
-      }
-
-      if (productId.isEmpty) {
-        return Left(
-          Exception('Invalid product ID: product ID cannot be empty'),
-        );
-      }
-
-      if (status.isEmpty) {
-        return Left(Exception('Invalid status: status cannot be empty'));
-      }
-
-      final validStatuses = {'active', 'inactive', 'archived', 'deleted'};
+      const validStatuses = {'active', 'inactive', 'archived', 'draft'};
       if (!validStatuses.contains(status)) {
-        return Left(
-          Exception('Invalid status: $status is not a valid product status'),
-        );
+        return Left(Exception('Invalid status: $status'));
       }
-
-      final update = {
+      final upd = {
         'status': status,
+        'isActive': status == 'active',
         'updatedAt': FieldValue.serverTimestamp(),
       };
-
       final batch = _firestore.batch();
-
-      batch.update(
-        _firestore.collection(_catalogCollection).doc(productId),
-        update,
-      );
-
+      batch.update(_firestore.collection(_catalog).doc(productId), upd);
       batch.update(
         _firestore
-            .collection(_storesCollection)
+            .collection(_stores)
             .doc(sellerId)
-            .collection(_productsSubcollection)
+            .collection(_products)
             .doc(productId),
-        update,
+        upd,
       );
-
       await batch.commit();
       return const Right(unit);
     } on FirebaseException catch (e) {
-      return Left(
-        Exception('Firestore error during status update: ${e.message}'),
-      );
+      return Left(Exception('Firestore updateStatus: ${e.message}'));
     } catch (e) {
-      return Left(Exception('Failed to update status: $e'));
+      return Left(Exception('updateStatus: $e'));
     }
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // Private helper methods
-  // ─────────────────────────────────────────────────────────────
+  // ─── search ───────────────────────────────────────────────────────────────
 
-  void _validateProduct(SellerProduct product) {
-    if (product.id.isEmpty) {
-      throw ArgumentError('Product ID cannot be empty');
-    }
-    if (product.storeId.isEmpty) {
-      throw ArgumentError('Store ID cannot be empty');
-    }
-    if (product.title.isEmpty) {
-      throw ArgumentError('Product title cannot be empty');
-    }
-    if (product.basePrice < 0) {
-      throw ArgumentError('Product price cannot be negative');
-    }
-    if (product.stock < 0) {
-      throw ArgumentError('Product stock cannot be negative');
+  @override
+  Future<Either<Exception, List<SellerProduct>>> searchProducts({
+    required String sellerId,
+    required String query,
+  }) async {
+    try {
+      if (query.trim().isEmpty) return const Right([]);
+      final snap = await _firestore
+          .collection(_stores)
+          .doc(sellerId)
+          .collection(_products)
+          .get();
+      final lower = query.toLowerCase();
+      final results = snap.docs
+          .map((d) => SellerProductDto.fromFirestore(d).toDomain())
+          .where(
+            (p) =>
+                p.title.toLowerCase().contains(lower) ||
+                p.description.toLowerCase().contains(lower) ||
+                p.category.toLowerCase().contains(lower),
+          )
+          .toList();
+      return Right(results);
+    } on FirebaseException catch (e) {
+      return Left(Exception('Firestore search: ${e.message}'));
+    } catch (e) {
+      return Left(Exception('searchProducts: $e'));
     }
   }
 
-  Map<String, dynamic> _productToFirestore(SellerProduct product) {
-    return {
-      'id': product.id,
-      'storeId': product.storeId,
-      'title': product.title,
-      'description': product.description,
-      'type': product.type,
-      'status': product.status,
-      'basePrice': product.basePrice,
-      'currency': product.currency,
-      'imageUrls': product.imageUrls,
-      'metadata': {'category': product.category, 'stock': product.stock},
-      'createdAt': product.createdAt != null
-          ? Timestamp.fromDate(product.createdAt!)
-          : FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
+  // ─── get by category ──────────────────────────────────────────────────────
+
+  @override
+  Future<Either<Exception, List<SellerProduct>>> getProductsByCategory({
+    required String sellerId,
+    required String category,
+  }) async {
+    try {
+      final snap = await _firestore
+          .collection(_stores)
+          .doc(sellerId)
+          .collection(_products)
+          .where('metadata.category', isEqualTo: category)
+          .orderBy('createdAt', descending: true)
+          .get();
+      return Right(
+        snap.docs
+            .map((d) => SellerProductDto.fromFirestore(d).toDomain())
+            .toList(),
+      );
+    } on FirebaseException catch (e) {
+      return Left(Exception('Firestore getByCategory: ${e.message}'));
+    } catch (e) {
+      return Left(Exception('getProductsByCategory: $e'));
+    }
+  }
+
+  // ─── helpers ──────────────────────────────────────────────────────────────
+
+  void _validate(SellerProduct p) {
+    if (p.id.isEmpty) throw ArgumentError('Product ID cannot be empty');
+    if (p.storeId.isEmpty) throw ArgumentError('Store ID cannot be empty');
+    if (p.title.isEmpty) throw ArgumentError('Title cannot be empty');
+    if (p.basePrice < 0) throw ArgumentError('Price cannot be negative');
   }
 }

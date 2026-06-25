@@ -9,6 +9,8 @@ class OrderItemDto {
   final String imageUrl;
   final int quantity;
   final double unitPrice;
+  final String? skuId;
+  final Map<String, String>? selectedCombination;
 
   const OrderItemDto({
     required this.productId,
@@ -16,6 +18,8 @@ class OrderItemDto {
     required this.imageUrl,
     required this.quantity,
     required this.unitPrice,
+    this.skuId,
+    this.selectedCombination,
   });
 
   factory OrderItemDto.fromMap(Map<String, dynamic> map) {
@@ -25,6 +29,10 @@ class OrderItemDto {
       imageUrl: map['imageUrl'] as String? ?? '',
       quantity: (map['quantity'] as num?)?.toInt() ?? 0,
       unitPrice: (map['unitPrice'] as num?)?.toDouble() ?? 0.0,
+      skuId: map['skuId'] as String?,
+      selectedCombination: (map['selectedCombination'] as Map?)?.map(
+        (k, v) => MapEntry(k.toString(), v.toString()),
+      ),
     );
   }
 
@@ -35,6 +43,9 @@ class OrderItemDto {
       'imageUrl': imageUrl,
       'quantity': quantity,
       'unitPrice': unitPrice,
+      if (skuId != null) 'skuId': skuId,
+      if (selectedCombination != null)
+        'selectedCombination': selectedCombination,
     };
   }
 
@@ -45,6 +56,8 @@ class OrderItemDto {
       imageUrl: imageUrl,
       quantity: quantity,
       unitPrice: unitPrice,
+      skuId: skuId,
+      selectedCombination: selectedCombination,
     );
   }
 }

@@ -15,7 +15,7 @@ class SellerAnalyticsScreen extends ConsumerWidget {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/seller/dashboard'),
+          onPressed: () => context.pop(),
         ),
         title: const Text('Analytics'),
       ),
@@ -32,9 +32,9 @@ class SellerAnalyticsScreen extends ConsumerWidget {
                 : MediaQuery.of(context).size.width > 600
                 ? 4
                 : 2,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 2.2,
+            mainAxisSpacing: 18,
+            crossAxisSpacing: 18,
+            childAspectRatio: 1.7,
             children: [
               _AnalyticsCard(
                 title: 'Revenue',

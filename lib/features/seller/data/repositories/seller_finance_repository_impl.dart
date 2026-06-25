@@ -12,7 +12,9 @@ class SellerFinanceRepositoryImpl implements SellerFinanceRepository {
   static const String _walletsCollection = 'wallets';
   static const String _transactionsCollection = 'transactions';
   static const String _payoutsCollection = 'payouts';
-  static const String _bankAccountsCollection = 'bankAccounts';
+  static const String _sellersCollection = 'sellers';
+  static const String _bankDetailsSubcollection = 'bankDetails';
+  static const String _primaryBankDetailsDoc = 'primary';
 
   SellerFinanceRepositoryImpl({required this._firestore});
 
@@ -207,21 +209,22 @@ class SellerFinanceRepositoryImpl implements SellerFinanceRepository {
   @override
   Future<Either<Exception, Unit>> updateBankAccount({
     required String sellerId,
-    required String accountId,
-    required String bankName,
+    required String ifsc,
     required String accountNumber,
-    required String ifscCode,
-    required String accountHolderName,
+    required String holderName,
+    required String bankName,
+    required String branch,
+    required String city,
+    required String state,
+    required String address,
   }) async {
     try {
       if (sellerId.isEmpty) {
         return Left(Exception('Invalid seller ID: seller ID cannot be empty'));
       }
 
-      if (bankName.isEmpty) {
-        return Left(
-          Exception('Invalid bank name: bank name cannot be empty'),
-        );
+      if (ifsc.isEmpty) {
+        return Left(Exception('Invalid IFSC code: IFSC code cannot be empty'));
       }
 
       if (accountNumber.isEmpty) {
@@ -230,11 +233,7 @@ class SellerFinanceRepositoryImpl implements SellerFinanceRepository {
         );
       }
 
-      if (ifscCode.isEmpty) {
-        return Left(Exception('Invalid IFSC code: IFSC code cannot be empty'));
-      }
-
-      if (accountHolderName.isEmpty) {
+      if (holderName.isEmpty) {
         return Left(
           Exception(
             'Invalid account holder name: account holder name cannot be empty',
@@ -242,26 +241,29 @@ class SellerFinanceRepositoryImpl implements SellerFinanceRepository {
         );
       }
 
-      // Write to bankAccounts collection
-      await _firestore.collection(_bankAccountsCollection).doc(accountId).set({
-        'id': accountId,
-        'storeId': sellerId,
-        'bankName': bankName,
-        'accountNumber': accountNumber,
-        'ifscCode': ifscCode,
-        'accountHolderName': accountHolderName,
-        'isVerified': false,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      if (bankName.isEmpty) {
+        return Left(Exception('Invalid bank name: bank name cannot be empty'));
+      }
 
-      // Also update the store profile document
-      await _firestore.collection('stores').doc(sellerId).set({
-        'bankName': bankName,
-        'accountNumber': accountNumber,
-        'ifscCode': ifscCode,
-        'accountHolderName': accountHolderName,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      final maskedAccountNumber = _maskAccountNumber(accountNumber);
+
+      await _firestore
+          .collection(_sellersCollection)
+          .doc(sellerId)
+          .collection(_bankDetailsSubcollection)
+          .doc(_primaryBankDetailsDoc)
+          .set({
+            'ifsc': ifsc,
+            'accountNumber': accountNumber,
+            'maskedAccountNumber': maskedAccountNumber,
+            'holderName': holderName,
+            'bankName': bankName,
+            'branch': branch,
+            'city': city,
+            'state': state,
+            'address': address,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
 
       return const Right(unit);
     } on FirebaseException catch (e) {
@@ -269,6 +271,16 @@ class SellerFinanceRepositoryImpl implements SellerFinanceRepository {
     } catch (e) {
       return Left(Exception('Failed to update bank account: $e'));
     }
+  }
+
+  String _maskAccountNumber(String accountNumber) {
+    final digitsOnly = accountNumber.replaceAll(RegExp(r'\D'), '');
+    if (digitsOnly.length <= 4) {
+      return digitsOnly;
+    }
+    final visibleSuffix = digitsOnly.substring(digitsOnly.length - 4);
+    final maskedPrefix = 'X' * (digitsOnly.length - 4);
+    return '$maskedPrefix$visibleSuffix';
   }
 
   @override

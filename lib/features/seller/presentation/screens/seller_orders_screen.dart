@@ -112,7 +112,7 @@ class _SellerOrdersScreenState extends ConsumerState<SellerOrdersScreen> {
         title: const Text('Store Orders'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/seller/dashboard'),
+          onPressed: () => context.pop(),
         ),
       ),
       body: Column(

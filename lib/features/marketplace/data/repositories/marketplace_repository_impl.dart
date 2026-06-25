@@ -31,7 +31,12 @@ class MarketplaceRepositoryImpl implements MarketplaceRepository {
       final snapshot = await query.get();
 
       final items = snapshot.docs
-          .map((doc) => CatalogItemDto.fromFirestore(doc).toDomain())
+          .map(
+            (doc) => CatalogItemDto.fromMap(
+              doc.id,
+              doc.data() as Map<String, dynamic>,
+            ),
+          )
           .toList();
 
       return Right(items);
@@ -43,7 +48,7 @@ class MarketplaceRepositoryImpl implements MarketplaceRepository {
   @override
   Future<Either<String, List<CatalogItem>>> fetchItemsByStore({
     required String storeId,
-    CatalogType? filterType,
+    String? filterType,
   }) async {
     try {
       Query query = _firestore
@@ -51,13 +56,18 @@ class MarketplaceRepositoryImpl implements MarketplaceRepository {
           .where('storeId', isEqualTo: storeId);
 
       if (filterType != null) {
-        query = query.where('type', isEqualTo: filterType.name);
+        query = query.where('type', isEqualTo: filterType);
       }
 
       final snapshot = await query.get();
 
       final items = snapshot.docs
-          .map((doc) => CatalogItemDto.fromFirestore(doc).toDomain())
+          .map(
+            (doc) => CatalogItemDto.fromMap(
+              doc.id,
+              doc.data() as Map<String, dynamic>,
+            ),
+          )
           .toList();
 
       return Right(items);
@@ -77,7 +87,7 @@ class MarketplaceRepositoryImpl implements MarketplaceRepository {
           .get();
 
       final items = snapshot.docs
-          .map((doc) => CatalogItemDto.fromFirestore(doc).toDomain())
+          .map((doc) => CatalogItemDto.fromMap(doc.id, doc.data()))
           .toList();
 
       return Right(items);
@@ -97,7 +107,7 @@ class MarketplaceRepositoryImpl implements MarketplaceRepository {
         return Left('Product not found');
       }
 
-      return Right(CatalogItemDto.fromFirestore(doc).toDomain());
+      return Right(CatalogItemDto.fromFirestore(doc));
     } catch (e) {
       return Left(e.toString());
     }

@@ -26,8 +26,8 @@ class CloudinaryService {
               'https://api.cloudinary.com/v1_1/$_cloudName/image/upload',
             ),
           )
-          ..fields['upload_preset'] = _uploadPreset
-          ..fields['folder'] = 'luxemarket/products/$sellerId'
+          ..fields['upload_preset'] = 'luxemarket_products'
+          ..fields['folder'] = 'luxemarket'
           ..files.add(
             http.MultipartFile.fromBytes('file', bytes, filename: fileName),
           );

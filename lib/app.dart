@@ -3,6 +3,7 @@ import 'package:ecom/core/providers/theme_provider.dart';
 import 'package:ecom/core/theme/app_theme.dart';
 import 'package:ecom/shared/presentation/navigation/router.dart';
 import 'package:ecom/shared/presentation/widgets/offline_overlay.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -30,6 +31,13 @@ class EcomApp extends ConsumerWidget {
 
       routerConfig: router,
       builder: (context, child) {
+        // Disable animations on web to prevent disposal errors
+        if (kIsWeb) {
+          return MediaQuery(
+            data: MediaQuery.of(context).copyWith(disableAnimations: true),
+            child: child ?? const SizedBox.shrink(),
+          );
+        }
         if (!isConnected) {
           return const OfflineOverlay();
         }

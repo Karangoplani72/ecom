@@ -112,6 +112,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   'imageUrl': i.imageUrl,
                   'quantity': i.quantity,
                   'unitPrice': i.unitPrice,
+                  if (i.skuId != null) 'skuId': i.skuId,
+                  if (i.selectedCombination != null)
+                    'selectedCombination': i.selectedCombination,
                 },
               )
               .toList(),
@@ -144,7 +147,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
-      context.go('/buyer/orders');
+      context.push('/buyer/orders');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

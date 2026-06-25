@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -87,6 +88,7 @@ class _OrbBackgroundWidgetState extends State<OrbBackgroundWidget>
       )..forward();
 
       c.addStatusListener((status) {
+        if (!mounted) return;
         if (status == AnimationStatus.completed) {
           c.reverse();
         } else if (status == AnimationStatus.dismissed) {
@@ -104,6 +106,7 @@ class _OrbBackgroundWidgetState extends State<OrbBackgroundWidget>
   @override
   void dispose() {
     for (var c in _controllers) {
+      c.stop();
       c.dispose();
     }
     super.dispose();
@@ -111,7 +114,8 @@ class _OrbBackgroundWidgetState extends State<OrbBackgroundWidget>
 
   @override
   Widget build(BuildContext context) {
-    if (MediaQuery.of(context).disableAnimations) {
+    // Disable animations on web to prevent disposal errors
+    if (MediaQuery.of(context).disableAnimations || kIsWeb) {
       return const SizedBox.shrink();
     }
 
@@ -220,13 +224,15 @@ class _FloatingProductWidgetState extends State<FloatingProductWidget>
 
   @override
   void dispose() {
+    _controller.stop();
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (MediaQuery.of(context).disableAnimations) return widget.child;
+    // Disable animations on web to prevent disposal errors
+    if (MediaQuery.of(context).disableAnimations || kIsWeb) return widget.child;
 
     return RepaintBoundary(
       child: AnimatedBuilder(
@@ -294,13 +300,15 @@ class _GlowingPedestalWidgetState extends State<GlowingPedestalWidget>
 
   @override
   void dispose() {
+    _controller.stop();
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (MediaQuery.of(context).disableAnimations) {
+    // Disable animations on web to prevent disposal errors
+    if (MediaQuery.of(context).disableAnimations || kIsWeb) {
       return _buildPedestal(1.0);
     }
 
@@ -427,6 +435,17 @@ class _ShimmerBoxState extends State<ShimmerBox>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Disable animations on web to prevent disposal errors
+    if (MediaQuery.of(context).disableAnimations || kIsWeb) {
+      return Container(
+        width: widget.width,
+        height: widget.height,
+        decoration: BoxDecoration(
+          color: Colors.grey.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(widget.borderRadius),
+        ),
+      );
+    }
 
     return AnimatedBuilder(
       animation: _shimmerCtrl,
@@ -632,12 +651,25 @@ class _PulsingDotState extends State<PulsingDot>
 
   @override
   void dispose() {
+    _controller.stop();
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // Disable animations on web to prevent disposal errors
+    if (MediaQuery.of(context).disableAnimations || kIsWeb) {
+      return Container(
+        width: widget.size,
+        height: widget.size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: widget.color,
+        ),
+      );
+    }
+
     return Stack(
       alignment: Alignment.center,
       children: [

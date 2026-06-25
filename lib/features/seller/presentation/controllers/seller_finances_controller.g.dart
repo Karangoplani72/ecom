@@ -135,7 +135,7 @@ final class SellerBankAccountProvider
   }
 }
 
-String _$sellerBankAccountHash() => r'3ecd44dcd4bb4baf3e741da8f540f4bb80e29768';
+String _$sellerBankAccountHash() => r'482780cc7bf32952c5090ad2c4772b7ab20ffa55';
 
 @ProviderFor(sellerTransactions)
 final sellerTransactionsProvider = SellerTransactionsProvider._();
@@ -204,7 +204,7 @@ final class SellerFinancesControllerProvider
 }
 
 String _$sellerFinancesControllerHash() =>
-    r'4665e4915216c58699aadb161a31cbe176627e31';
+    r'fd33edd616fee6e1828aad99c52120b4dc6b5f43';
 
 abstract class _$SellerFinancesController
     extends $AsyncNotifier<MerchantWallet> {

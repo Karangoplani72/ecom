@@ -23,7 +23,7 @@ class SellerInventoryScreen extends ConsumerWidget {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/seller/dashboard'),
+          onPressed: () => context.pop(),
         ),
         title: const Text('Inventory Management'),
         actions: [
@@ -32,7 +32,7 @@ class SellerInventoryScreen extends ConsumerWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.go('/seller/inventory/add'),
+        onPressed: () => context.push('/seller/inventory/add'),
         icon: const Icon(Icons.add),
         label: const Text('Add New Product'),
         elevation: 4,
@@ -259,7 +259,7 @@ class SellerInventoryScreen extends ConsumerWidget {
                             Icons.edit_outlined,
                             color: colorScheme.primary,
                           ),
-                          onPressed: () => context.go(
+                          onPressed: () => context.push(
                             '/seller/inventory/edit/${product.id}',
                           ),
                         ),

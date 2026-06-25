@@ -71,7 +71,12 @@ class SearchRepositoryImpl implements SearchRepository {
 
       final snapshot = await q.get();
       final items = snapshot.docs
-          .map((doc) => CatalogItemDto.fromFirestore(doc).toDomain())
+          .map(
+            (doc) => CatalogItemDto.fromMap(
+              doc.id,
+              doc.data() as Map<String, dynamic>,
+            ),
+          )
           .toList();
 
       return Right(items);

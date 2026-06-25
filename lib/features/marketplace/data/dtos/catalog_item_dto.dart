@@ -1,59 +1,82 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:json_annotation/json_annotation.dart';
-import '../../domain/entities/catalog_item.dart';
+import 'package:ecom/features/marketplace/domain/entities/catalog_item.dart';
+import 'package:ecom/features/seller/domain/entities/seller_product.dart';
 
-part 'catalog_item_dto.g.dart';
+abstract final class CatalogItemDto {
+  CatalogItemDto._();
 
-@JsonSerializable()
-class CatalogItemDto {
-  final String id;
-  final String storeId;
-  final String title;
-  final String description;
-  final String type;
-  final String status;
-  final double basePrice;
-  final String currency;
-  final List<String> imageUrls;
-  final List<Map<String, dynamic>> variants;
-  final Map<String, dynamic> metadata;
-
-  CatalogItemDto({
-    required this.id,
-    required this.storeId,
-    required this.title,
-    required this.description,
-    required this.type,
-    required this.status,
-    required this.basePrice,
-    required this.currency,
-    required this.imageUrls,
-    this.variants = const [],
-    required this.metadata,
-  });
-
-  factory CatalogItemDto.fromJson(Map<String, dynamic> json) => _$CatalogItemDtoFromJson(json);
-  Map<String, dynamic> toJson() => _$CatalogItemDtoToJson(this);
-
-  factory CatalogItemDto.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    data['id'] = doc.id;
-    return CatalogItemDto.fromJson(data);
+  static CatalogItem fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final d = doc.data() ?? {};
+    return fromMap(doc.id, d);
   }
 
-  CatalogItem toDomain() {
+  static CatalogItem fromMap(String id, Map<String, dynamic> d) {
+    // variantAttributes — gracefully handle missing / malformed
+    final rawAttrs = d['variantAttributes'] as List<dynamic>?;
+    final variantAttributes = rawAttrs == null
+        ? <VariantAttribute>[]
+        : rawAttrs
+              .whereType<Map>()
+              .map(
+                (e) => VariantAttribute.fromMap(Map<String, dynamic>.from(e)),
+              )
+              .toList();
+
+    // variantSkus — gracefully handle missing / malformed
+    final rawSkus = d['variantSkus'] as List<dynamic>?;
+    final variantSkus = rawSkus == null
+        ? <VariantSku>[]
+        : rawSkus
+              .whereType<Map>()
+              .map((e) => VariantSku.fromMap(Map<String, dynamic>.from(e)))
+              .toList();
+
+    // metadata sub-map — may be absent in older docs
+    final meta = d['metadata'] is Map
+        ? Map<String, dynamic>.from(d['metadata'] as Map)
+        : <String, dynamic>{};
+
+    // Merge top-level convenience fields into metadata
+    if (d['brand'] != null && !meta.containsKey('brand')) {
+      meta['brand'] = d['brand'];
+    }
+    if (d['tags'] != null && !meta.containsKey('tags')) {
+      meta['tags'] = d['tags'];
+    }
+
     return CatalogItem(
       id: id,
-      storeId: storeId,
-      title: title,
-      description: description,
-      type: CatalogType.values.byName(type),
-      status: ListingStatus.values.byName(status),
-      basePrice: basePrice,
-      currency: currency,
-      imageUrls: imageUrls,
-      variants: variants,
-      metadata: metadata,
+      storeId: d['storeId'] as String? ?? '',
+      title: d['title'] as String? ?? '',
+      description: d['description'] as String? ?? '',
+      type: d['type'] as String? ?? 'physical',
+      status: d['status'] as String? ?? 'active',
+      isActive: d['isActive'] as bool? ?? true,
+      basePrice: (d['basePrice'] as num?)?.toDouble() ?? 0.0,
+      compareAtPrice: (d['compareAtPrice'] as num?)?.toDouble(),
+      currency: d['currency'] as String? ?? 'INR',
+      imageUrls: _parseStringList(d['imageUrls']),
+      category: d['category'] as String? ?? meta['category'] as String? ?? '',
+      metadata: meta,
+      avgRating: (d['avgRating'] as num?)?.toDouble() ?? 0.0,
+      reviewCount: d['reviewCount'] as int? ?? 0,
+      variantAttributes: variantAttributes,
+      variantSkus: variantSkus,
+      createdAt: _toDateTime(d['createdAt']),
+      updatedAt: _toDateTime(d['updatedAt']),
     );
+  }
+
+  static List<String> _parseStringList(dynamic raw) {
+    if (raw == null) return [];
+    if (raw is List) return raw.map((e) => e.toString()).toList();
+    return [];
+  }
+
+  static DateTime? _toDateTime(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is Timestamp) return raw.toDate();
+    if (raw is DateTime) return raw;
+    return null;
   }
 }
