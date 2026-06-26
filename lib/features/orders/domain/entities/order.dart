@@ -12,6 +12,8 @@ class AppOrder {
   final double subtotal;
   final double deliveryFee;
   final double platformFee;
+  final double discount;
+  final String? couponCode;
   final double totalAmount;
   final String paymentMethod;
   final String paymentStatus;
@@ -33,6 +35,8 @@ class AppOrder {
     required this.subtotal,
     required this.deliveryFee,
     required this.platformFee,
+    this.discount = 0.0,
+    this.couponCode,
     required this.totalAmount,
     required this.paymentMethod,
     required this.paymentStatus,

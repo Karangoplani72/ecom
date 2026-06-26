@@ -8,6 +8,8 @@ import 'package:ecom/features/admin/presentation/controllers/admin_controller.da
 import 'package:ecom/features/auth/domain/entities/user_address.dart';
 import 'package:ecom/features/auth/presentation/controllers/address_controller.dart';
 import 'package:ecom/features/buyer/domain/entities/cart_item.dart';
+import 'package:ecom/features/buyer/domain/entities/coupon.dart';
+import 'package:ecom/features/buyer/data/repositories/coupon_repository_impl.dart';
 import 'package:ecom/features/buyer/presentation/controllers/cart_controller.dart';
 import 'package:ecom/features/buyer/presentation/widgets/buyer_anti_gravity_widgets.dart';
 import 'package:ecom/shared/presentation/navigation/router.dart';
@@ -82,6 +84,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             maintenanceModeActive: false,
             globalRateLimitPerMinute: 600,
             razorpayKey: 'managed_via_functions',
+            announcementText: '',
+            featuredCategory: '',
           );
 
       final ordersPayload = <Map<String, dynamic>>[];
@@ -126,6 +130,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         });
       }
 
+      final appliedCoupon = ref.read(appliedCouponProvider);
+
       await verifyAndFinalizePayment(
         razorpayPaymentId: paymentId,
         razorpayOrderId: rzpOrderId,
@@ -135,9 +141,26 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         deliveryAddress: _selectedAddress!.fullAddress,
         orders: ordersPayload,
         idToken: idToken,
+        couponCode: appliedCoupon?.code,
       );
 
       await ref.read(cartControllerProvider.notifier).clearCart();
+
+      // Redeem the coupon atomically — fire and forget, do not block UX
+      if (appliedCoupon != null) {
+        // Find coupon id from the validated coupon
+        ref.read(couponRepositoryProvider).redeemCoupon(
+          appliedCoupon.id,
+          userId,
+        ).then((result) {
+          result.fold(
+            (err) => debugPrint('Coupon redemption failed (non-blocking): $err'),
+            (_) => debugPrint('Coupon redeemed successfully'),
+          );
+        });
+      }
+
+      ref.read(appliedCouponProvider.notifier).removeCoupon();
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -343,6 +366,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           maintenanceModeActive: false,
           globalRateLimitPerMinute: 600,
           razorpayKey: 'managed_via_functions',
+          announcementText: '',
+          featuredCategory: '',
         );
 
     final platformFee = subtotal * platformConfig.defaultCommissionRate;
@@ -353,11 +378,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         (sum, item) => sum + (item.unitPrice * item.quantity),
       );
       if (storeSub < 1000) {
-        deliveryFee += 80.0;
+        deliveryFee += 99.0;
       }
     });
 
-    final total = subtotal + platformFee + deliveryFee;
+    final appliedCoupon = ref.watch(appliedCouponProvider);
+    final discount = appliedCoupon?.calculateDiscount(subtotal) ?? 0.0;
+    final total = (subtotal + platformFee + deliveryFee - discount).clamp(0.0, double.infinity);
 
     final textColor = isDark ? Colors.white : AppColors.lightTextPrimary;
 
@@ -495,6 +522,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     isDark,
                     textColor,
                     platformConfig.defaultCommissionRate,
+                    appliedCoupon,
+                    discount,
                   ),
               ],
             ],
@@ -895,6 +924,24 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                               color: textColor,
                                             ),
                                           ),
+                                          if (item.selectedCombination !=
+                                                  null &&
+                                              item
+                                                  .selectedCombination!
+                                                  .isNotEmpty)
+                                            Text(
+                                              item.selectedCombination!.entries
+                                                  .map(
+                                                    (e) =>
+                                                        '${e.key}: ${e.value}',
+                                                  )
+                                                  .join(' · '),
+                                              style: GoogleFonts.inter(
+                                                color: Colors.purple,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
                                           Text(
                                             'Qty: ${item.quantity}',
                                             style: GoogleFonts.inter(
@@ -939,6 +986,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     bool isDark,
     Color textColor,
     double commissionRate,
+    Coupon? appliedCoupon,
+    double discount,
   ) {
     return SliverList(
       delegate: SliverChildListDelegate([
@@ -1008,6 +1057,29 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     ),
                     const SizedBox(height: 8),
                     _buildBillBreakdownRow('Delivery Fee', deliveryFee, isDark),
+                    if (appliedCoupon != null && discount > 0) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Coupon (${appliedCoupon.code})',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: const Color(0xFF10B981),
+                            ),
+                          ),
+                          Text(
+                            '-₹${discount.toStringAsFixed(0)}',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF10B981),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const Divider(height: 24),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,

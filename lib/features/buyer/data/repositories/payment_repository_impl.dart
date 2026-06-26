@@ -274,6 +274,8 @@ const _fallbackConfig = PlatformConfig(
   maintenanceModeActive: false,
   globalRateLimitPerMinute: 600,
   razorpayKey: 'managed_via_functions',
+  announcementText: '',
+  featuredCategory: '',
 );
 
 PlatformConfig get defaultPlatformConfig => _fallbackConfig;

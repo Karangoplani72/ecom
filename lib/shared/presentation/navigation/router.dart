@@ -18,6 +18,7 @@ import 'package:ecom/features/admin/presentation/screens/admin_stores_screen.dar
 import 'package:ecom/features/admin/presentation/screens/admin_store_detail_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_users_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_audit_logs_screen.dart';
+import 'package:ecom/features/admin/presentation/screens/admin_coupons_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_analytics_screen.dart';
 import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:ecom/features/admin/domain/entities/platform_config.dart';
@@ -132,6 +133,7 @@ abstract class AppRoutes {
   static const adminReports = '/admin/reports';
   static const adminSettings = '/admin/settings';
   static const adminAuditLogs = '/admin/audit-logs';
+  static const adminCoupons = '/admin/coupons';
   static const adminCategoryRequests = '/admin/category-requests';
 }
 
@@ -158,7 +160,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: authNotifier,
 
     redirect: (BuildContext context, GoRouterState state) {
-      final authState = ref.watch(currentUserProfileProvider);
+      final authState = ref.read(currentUserProfileProvider);
       final loc = state.matchedLocation;
 
       final isAuthRoute =
@@ -191,7 +193,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       final user = authState.value;
 
       // ── Maintenance Mode Check ──────────────────────────────────────
-      final configAsync = ref.watch(platformConfigProvider);
+      final configAsync = ref.read(platformConfigProvider);
       final platformConfig = configAsync.value;
       if (platformConfig != null && platformConfig.maintenanceModeActive) {
         final isAdmin = user != null && (
@@ -542,6 +544,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.adminAuditLogs,
         builder: (context, state) => const AdminAuditLogsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminCoupons,
+        builder: (context, state) => const AdminCouponsScreen(),
       ),
       GoRoute(
         path: AppRoutes.adminCategoryRequests,

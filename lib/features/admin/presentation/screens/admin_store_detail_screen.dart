@@ -3,6 +3,8 @@ import 'package:ecom/core/theme/app_colors.dart';
 import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/features/admin/presentation/widgets/admin_common.dart';
 import 'package:ecom/features/admin/presentation/widgets/admin_shell.dart';
+import 'package:ecom/features/admin/presentation/controllers/admin_controller.dart';
+import 'package:fpdart/fpdart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -340,21 +342,32 @@ class _StoreDetailView extends ConsumerWidget {
     );
   }
 
-  Future<void> _toggleStoreStatus(BuildContext context, WidgetRef ref, bool currentStatus) async {
-    final firestore = ref.read(firebaseFirestoreProvider);
-    await firestore.collection('stores').doc(store['id']).update({
-      'isActive': !currentStatus,
-      'status': !currentStatus ? 'verified' : 'suspended',
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+  Future<void> _toggleStoreStatus(
+    BuildContext context,
+    WidgetRef ref,
+    bool currentStatus,
+  ) async {
+    final storeId = store['sellerId'] as String? ?? store['id'] as String? ?? '';
+    final Either<String, Unit> result;
+    if (currentStatus) {
+      result = await ref
+          .read(adminControllerProvider.notifier)
+          .suspendStore(storeId);
+    } else {
+      result = await ref
+          .read(adminControllerProvider.notifier)
+          .activateStore(storeId);
+    }
+    if (!context.mounted) return;
+    result.fold(
+      (err) => ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(err))),
+      (_) => ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(currentStatus ? 'Store suspended' : 'Store activated'),
         ),
-      );
-    }
+      ),
+    );
   }
 
   Future<void> _deleteStore(BuildContext context, WidgetRef ref) async {
@@ -362,7 +375,9 @@ class _StoreDetailView extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Store'),
-        content: Text('This will permanently delete "${store['storeName']}" and all its products. This cannot be undone.'),
+        content: Text(
+          'This will permanently delete "${store['storeName']}" and all its products. This cannot be undone.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -379,40 +394,22 @@ class _StoreDetailView extends ConsumerWidget {
 
     if (confirmed != true) return;
 
-    final firestore = ref.read(firebaseFirestoreProvider);
-    final batch = firestore.batch();
+    final storeId = store['sellerId'] as String? ?? store['id'] as String? ?? '';
+    final result = await ref
+        .read(adminControllerProvider.notifier)
+        .deleteStore(storeId);
 
-    // Mark all products inactive
-    final productsSnapshot = await firestore
-        .collection('catalog')
-        .where('sellerId', isEqualTo: store['id'])
-        .get();
-
-    for (final doc in productsSnapshot.docs) {
-      batch.update(doc.reference, {
-        'isActive': false,
-        'deletedAt': FieldValue.serverTimestamp(),
-      });
-    }
-
-    // Remove seller role from user
-    final userRef = firestore.collection('users').doc(store['id']);
-    batch.update(userRef, {
-      'roles': FieldValue.arrayRemove(['seller']),
-      'sellerApproved': false,
-      'sellerApplicationStatus': 'none',
-    });
-
-    // Delete the store
-    final storeRef = firestore.collection('stores').doc(store['id']);
-    batch.delete(storeRef);
-
-    await batch.commit();
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Store deleted')));
-      Navigator.pop(context);
-    }
+    if (!context.mounted) return;
+    result.fold(
+      (err) => ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(err))),
+      (_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Store deleted')),
+        );
+        Navigator.pop(context);
+      },
+    );
   }
 
   Widget _fallbackLogo() {
@@ -470,22 +467,41 @@ class _StatItem extends StatelessWidget {
   }
 }
 
-class _ProductsPreview extends ConsumerWidget {
+class _ProductsPreview extends ConsumerStatefulWidget {
   final String storeId;
   const _ProductsPreview({required this.storeId});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final firestore = ref.watch(firebaseFirestoreProvider);
-    final productsAsync = firestore
-        .collection('catalog')
-        .where('sellerId', isEqualTo: storeId)
-        .orderBy('createdAt', descending: true)
-        .limit(5)
-        .get();
+  ConsumerState<_ProductsPreview> createState() => _ProductsPreviewState();
+}
 
-    return FutureBuilder(
-      future: productsAsync,
+class _ProductsPreviewState extends ConsumerState<_ProductsPreview> {
+  late Future<QuerySnapshot<Map<String, dynamic>>> _productsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _productsFuture = ref.read(firebaseFirestoreProvider)
+        .collection('catalog')
+        .where('sellerId', isEqualTo: widget.storeId)
+        .get();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ProductsPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.storeId != widget.storeId) {
+      _productsFuture = ref.read(firebaseFirestoreProvider)
+          .collection('catalog')
+          .where('sellerId', isEqualTo: widget.storeId)
+          .get();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      future: _productsFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -494,12 +510,26 @@ class _ProductsPreview extends ConsumerWidget {
           return AdminEmptyRow(icon: Icons.error_outline, message: snapshot.error.toString());
         }
 
-        final products = snapshot.data?.docs ?? [];
+        var products = snapshot.data?.docs ?? [];
         if (products.isEmpty) {
           return const AdminEmptyRow(
             icon: Icons.inventory_2_outlined,
             message: 'No products found',
           );
+        }
+
+        // Sort by createdAt descending client-side
+        products.sort((a, b) {
+          final dataA = a.data();
+          final dataB = b.data();
+          final dateA = (dataA['createdAt'] as Timestamp?)?.toDate() ?? DateTime(1970);
+          final dateB = (dataB['createdAt'] as Timestamp?)?.toDate() ?? DateTime(1970);
+          return dateB.compareTo(dateA);
+        });
+
+        // Limit to 5 products preview
+        if (products.length > 5) {
+          products = products.sublist(0, 5);
         }
 
         return Column(

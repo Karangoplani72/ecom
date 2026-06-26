@@ -218,7 +218,7 @@ class _DisputeCard extends ConsumerWidget {
           if (ticket.assignedAgentId != null)
             _InfoRow(label: 'Agent', value: ticket.assignedAgentId!),
           const SizedBox(height: 12),
-          if (ticket.status != TicketStatus.resolved)
+          if (ticket.status == TicketStatus.open || ticket.status == TicketStatus.underInvestigation)
             Row(
               children: [
                 if (ticket.status == TicketStatus.open) ...[
@@ -272,6 +272,67 @@ class _DisputeCard extends ConsumerWidget {
                             ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                     content: Text('Dispute resolved')));
+                          }
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.close_rounded, size: 16),
+                    label: const Text('Reject'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.error,
+                      side: const BorderSide(color: AppColors.error),
+                    ),
+                    onPressed: () async {
+                      final reasonController = TextEditingController();
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Reject Dispute Ticket'),
+                          content: TextField(
+                            controller: reasonController,
+                            decoration: const InputDecoration(
+                              hintText: 'Enter reason for rejection...',
+                              border: OutlineInputBorder(),
+                            ),
+                            maxLines: 3,
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('Cancel'),
+                            ),
+                            FilledButton(
+                              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: const Text('Reject'),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirmed != true || reasonController.text.trim().isEmpty) return;
+
+                      final result = await ref
+                          .read(adminControllerProvider.notifier)
+                          .rejectTicket(ticket.id, reasonController.text.trim());
+
+                      result.fold(
+                        (err) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context)
+                                .showSnackBar(SnackBar(content: Text(err)));
+                          }
+                        },
+                        (_) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text('Dispute ticket rejected')));
                           }
                         },
                       );

@@ -42,7 +42,7 @@ final class GuestWishlistControllerProvider
 }
 
 String _$guestWishlistControllerHash() =>
-    r'6839b4f13cae0b7e3de40b16f9a9c7d995bd3553';
+    r'a8acb1d4e35c416bae1dbb23cdfa8a264f25fc7e';
 
 abstract class _$GuestWishlistController extends $Notifier<List<CatalogItem>> {
   List<CatalogItem> build();

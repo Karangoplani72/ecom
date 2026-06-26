@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:ecom/features/admin/data/dtos/admin_user_dto.dart';
 import 'package:ecom/features/admin/data/dtos/dispute_ticket_dto.dart';
 import 'package:ecom/features/admin/domain/entities/admin_dashboard_metrics.dart';
@@ -63,7 +64,7 @@ class AdminRepositoryImpl implements AdminRepository {
             .get(),
         _firestore
             .collection('catalog')
-            .where('stockQuantity', isEqualTo: 0)
+            .where('metadata.stock', isEqualTo: 0)
             .count()
             .get(),
         _firestore.collection('orders').count().get(),
@@ -263,6 +264,8 @@ class AdminRepositoryImpl implements AdminRepository {
             maintenanceModeActive: false,
             globalRateLimitPerMinute: 600,
             razorpayKey: 'rzp_test_placeholder_key',
+            announcementText: '',
+            featuredCategory: '',
           ),
         );
       }
@@ -282,6 +285,8 @@ class AdminRepositoryImpl implements AdminRepository {
           globalRateLimitPerMinute:
               data['globalRateLimitPerMinute'] as int? ?? 600,
           razorpayKey: 'managed_via_functions',
+          announcementText: data['announcementText'] as String? ?? '',
+          featuredCategory: data['featuredCategory'] as String? ?? '',
         ),
       );
     } catch (e) {
@@ -316,6 +321,8 @@ class AdminRepositoryImpl implements AdminRepository {
             'categoryOverrides': config.categoryCommissionOverrides,
             'maintenanceModeActive': config.maintenanceModeActive,
             'globalRateLimitPerMinute': config.globalRateLimitPerMinute,
+            'announcementText': config.announcementText,
+            'featuredCategory': config.featuredCategory,
             'updatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
       return const Right(unit);
@@ -653,7 +660,15 @@ class AdminRepositoryImpl implements AdminRepository {
   @override
   Future<Either<String, Unit>> deleteUser(String uid) async {
     try {
-      await _firestore.collection('users').doc(uid).delete();
+      // Calls a Firebase Cloud Function that deletes the Firebase Auth user
+      // AND the Firestore document. Cloud Function signature:
+      //   exports.deleteUserAccount = functions.https.onCall(async (data, context) => {
+      //     if (!context.auth?.token.admin) throw new functions.https.HttpsError('permission-denied', '...');
+      //     await admin.auth().deleteUser(data.uid);
+      //     await admin.firestore().collection('users').doc(data.uid).delete();
+      //   });
+      final callable = FirebaseFunctions.instance.httpsCallable('deleteUserAccount');
+      await callable.call({'uid': uid});
       return const Right(unit);
     } catch (e) {
       return Left('Failed to delete user: ${e.toString()}');
@@ -688,6 +703,156 @@ class AdminRepositoryImpl implements AdminRepository {
     }
   }
 
+  // ─── Orders ─────────────────────────────────────────────────────────────────
+  @override
+  Future<Either<String, Unit>> updateOrderStatus(
+    String orderId,
+    String newStatus, {
+    String? trackingNumber,
+  }) async {
+    try {
+      final data = <String, dynamic>{
+        'status': newStatus,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      if (trackingNumber != null && trackingNumber.isNotEmpty) {
+        data['trackingNumber'] = trackingNumber;
+      }
+      await _firestore.collection('orders').doc(orderId).update(data);
+      return const Right(unit);
+    } catch (e) {
+      return Left('Failed to update order status: ${e.toString()}');
+    }
+  }
+
+  // ─── Settlements ─────────────────────────────────────────────────────────────
+  @override
+  Future<Either<String, Unit>> processSettlement(String settlementId) async {
+    try {
+      final payoutDoc = await _firestore.collection('payouts').doc(settlementId).get();
+      if (payoutDoc.exists) {
+        await _firestore.collection('payouts').doc(settlementId).update({
+          'status': 'processing',
+          'processedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        await _firestore.collection('settlements').doc(settlementId).update({
+          'status': 'processing',
+          'processedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      return const Right(unit);
+    } catch (e) {
+      return Left('Failed to process settlement: ${e.toString()}');
+    }
+  }
+
+  @override
+  Future<Either<String, Unit>> rejectSettlement(
+    String settlementId,
+    String reason,
+  ) async {
+    try {
+      final payoutDoc = await _firestore.collection('payouts').doc(settlementId).get();
+      if (payoutDoc.exists) {
+        await _firestore.collection('payouts').doc(settlementId).update({
+          'status': 'failed',
+          'rejectedAt': FieldValue.serverTimestamp(),
+          'rejectionReason': reason,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        await _firestore.collection('settlements').doc(settlementId).update({
+          'status': 'failed',
+          'rejectedAt': FieldValue.serverTimestamp(),
+          'rejectionReason': reason,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+      return const Right(unit);
+    } catch (e) {
+      return Left('Failed to reject settlement: ${e.toString()}');
+    }
+  }
+
+  @override
+  Future<Either<String, Unit>> completeSettlement(String settlementId) async {
+    try {
+      final payoutRef = _firestore.collection('payouts').doc(settlementId);
+      final settlementRef = _firestore.collection('settlements').doc(settlementId);
+      
+      final payoutSnap = await payoutRef.get();
+      final bool isPayout = payoutSnap.exists;
+      
+      final docSnap = isPayout ? payoutSnap : await settlementRef.get();
+      if (!docSnap.exists) {
+        return const Left('Settlement request not found');
+      }
+      
+      final data = docSnap.data() as Map<String, dynamic>;
+      final status = data['status'] as String? ?? 'pending';
+      if (status == 'completed') {
+        return const Left('Settlement is already completed');
+      }
+      
+      final amount = (data['amount'] as num?)?.toDouble() ?? 0.0;
+      final storeId = (data['storeId'] as String? ?? data['sellerId'] as String? ?? '');
+      
+      if (storeId.isEmpty) {
+        return const Left('Invalid merchant/seller ID in settlement');
+      }
+      
+      final walletRef = _firestore.collection('wallets').doc(storeId);
+      final transactionRef = _firestore.collection('transactions').doc();
+      
+      await _firestore.runTransaction((transaction) async {
+        final walletSnap = await transaction.get(walletRef);
+        final currentBalance = (walletSnap.data()?['balance'] as num? ?? 0.0).toDouble();
+        
+        if (currentBalance < amount) {
+          throw Exception('Insufficient merchant wallet balance (Current: $currentBalance, Payout: $amount)');
+        }
+        
+        // Update wallet balance
+        transaction.update(walletRef, {
+          'balance': currentBalance - amount,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        
+        // Create SellerTransaction
+        transaction.set(transactionRef, {
+          'storeId': storeId,
+          'type': 'payout_completed',
+          'status': 'completed',
+          'amount': amount,
+          'currency': data['currency'] as String? ?? 'INR',
+          'referenceId': settlementId,
+          'description': 'Payout request #${settlementId.substring(0, 8).toUpperCase()} completed',
+          'metadata': {
+            'bankAccountId': data['bankAccountId'] as String? ?? '',
+            'settlementId': settlementId,
+          },
+          'createdAt': FieldValue.serverTimestamp(),
+          'completedAt': FieldValue.serverTimestamp(),
+        });
+        
+        // Update settlement/payout doc
+        transaction.update(isPayout ? payoutRef : settlementRef, {
+          'status': 'completed',
+          'completedAt': FieldValue.serverTimestamp(),
+          'processedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      });
+      
+      return const Right(unit);
+    } catch (e) {
+      return Left('Failed to complete settlement: ${e.toString()}');
+    }
+  }
+
   // ─── Audit Logs ────────────────────────────────────────────────────────────
   @override
   Stream<List<AuditLog>> watchAuditLogs() {
@@ -703,10 +868,36 @@ class AdminRepositoryImpl implements AdminRepository {
   @override
   Future<Either<String, Unit>> createAuditLog(AuditLog log) async {
     try {
-      await _firestore.collection('audit_logs').doc(log.id).set(log.toJson());
+      final data = log.toJson()
+        ..['createdAt'] = FieldValue.serverTimestamp();
+      await _firestore.collection('audit_logs').doc(log.id).set(data);
       return const Right(unit);
     } catch (e) {
       return Left('Failed to create audit log: ${e.toString()}');
+    }
+  }
+
+  @override
+  Future<Either<String, Unit>> processRefund({
+    required String orderId,
+    required String adminId,
+    required String reason,
+    required String reasonCategory,
+    required double refundAmount,
+  }) async {
+    try {
+      await _firestore.collection('orders').doc(orderId).update({
+        'status': 'refunded',
+        'refundReason': reason,
+        'refundCategory': reasonCategory,
+        'refundAmount': refundAmount,
+        'refundedBy': adminId,
+        'refundedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return const Right(unit);
+    } catch (e) {
+      return Left('Failed to process refund: ${e.toString()}');
     }
   }
 }

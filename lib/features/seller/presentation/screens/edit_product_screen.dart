@@ -1063,6 +1063,15 @@ class _EditProductScreenState extends ConsumerState<EditProductScreen> {
             .collection('products')
             .doc(widget.productId),
       );
+      // Atomically decrement totalProducts on the store doc
+      batch.set(
+        fs.collection('stores').doc(storeId),
+        {
+          'totalProducts': FieldValue.increment(-1),
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
       await batch.commit();
       if (!mounted) return;
       ScaffoldMessenger.of(

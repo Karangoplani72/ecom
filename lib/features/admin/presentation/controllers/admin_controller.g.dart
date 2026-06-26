@@ -59,11 +59,11 @@ final class AdminDashboardMetricsProvider
         $FunctionalProvider<
           AsyncValue<AdminDashboardMetrics>,
           AdminDashboardMetrics,
-          FutureOr<AdminDashboardMetrics>
+          Stream<AdminDashboardMetrics>
         >
     with
         $FutureModifier<AdminDashboardMetrics>,
-        $FutureProvider<AdminDashboardMetrics> {
+        $StreamProvider<AdminDashboardMetrics> {
   AdminDashboardMetricsProvider._()
     : super(
         from: null,
@@ -80,18 +80,18 @@ final class AdminDashboardMetricsProvider
 
   @$internal
   @override
-  $FutureProviderElement<AdminDashboardMetrics> $createElement(
+  $StreamProviderElement<AdminDashboardMetrics> $createElement(
     $ProviderPointer pointer,
-  ) => $FutureProviderElement(pointer);
+  ) => $StreamProviderElement(pointer);
 
   @override
-  FutureOr<AdminDashboardMetrics> create(Ref ref) {
+  Stream<AdminDashboardMetrics> create(Ref ref) {
     return adminDashboardMetrics(ref);
   }
 }
 
 String _$adminDashboardMetricsHash() =>
-    r'ca38ad1b240940661f393828463351ae28b0b949';
+    r'3cff45ed6ec680e5eb2c9e2831d4f46dcbeb2f19';
 
 @ProviderFor(pendingSellerApplications)
 final pendingSellerApplicationsProvider = PendingSellerApplicationsProvider._();
@@ -319,7 +319,7 @@ final class AdminControllerProvider
   AdminController create() => AdminController();
 }
 
-String _$adminControllerHash() => r'f1282937b82ef105f5ee59f2da4bab57de04f74c';
+String _$adminControllerHash() => r'327c9c08215464e608704b25c962d2b3b82659a4';
 
 abstract class _$AdminController extends $AsyncNotifier<void> {
   FutureOr<void> build();

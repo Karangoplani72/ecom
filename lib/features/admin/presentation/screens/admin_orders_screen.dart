@@ -1,9 +1,13 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ecom/core/constants/app_radius.dart';
 import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/core/theme/app_colors.dart';
 import 'package:ecom/features/admin/presentation/widgets/admin_common.dart';
 import 'package:ecom/features/admin/presentation/widgets/admin_shell.dart';
+import 'package:ecom/features/admin/data/services/admin_name_resolver.dart';
+import 'package:ecom/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:flutter/material.dart';
+import 'package:ecom/features/admin/data/services/csv_export_helper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -28,6 +32,66 @@ class AdminOrdersScreen extends ConsumerStatefulWidget {
 class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
   String _search = '';
   String _statusFilter = 'all';
+  bool _isExporting = false;
+
+  Future<void> _exportOrders(List<Map<String, dynamic>> orders) async {
+    if (_isExporting) return;
+    setState(() => _isExporting = true);
+
+    try {
+      final nameResolver = ref.read(adminNameResolverProvider.notifier);
+      final rows = <List<dynamic>>[
+        ['Orders Export'],
+        ['Export Date', DateTime.now().toIso8601String()],
+        [],
+        ['Order ID', 'Buyer Name/Email', 'Store ID', 'Store Name', 'Total Amount', 'Status', 'Date'],
+      ];
+
+      for (final order in orders) {
+        final buyerId = order['buyerId'] as String? ?? '';
+        final sellerId = order['sellerId'] as String? ?? order['storeId'] as String? ?? '';
+        
+        final buyerName = await nameResolver.resolveUserName(buyerId);
+        final storeName = await nameResolver.resolveStoreName(sellerId);
+        
+        final createdAtTimestamp = order['createdAt'] as Timestamp?;
+        final dateStr = createdAtTimestamp != null
+            ? createdAtTimestamp.toDate().toIso8601String()
+            : 'Unknown';
+
+        rows.add([
+          order['id'] ?? '',
+          buyerName,
+          sellerId,
+          storeName,
+          (order['totalAmount'] as num?)?.toDouble() ?? 0.0,
+          order['status'] ?? '',
+          dateStr,
+        ]);
+      }
+
+      await CsvExportHelper.exportToCsv(
+        fileName: 'orders_export.csv',
+        rows: rows,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Orders exported successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to export CSV: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isExporting = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +107,29 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
     return AdminScaffold(
       title: 'Orders',
       subtitle: 'View and manage all marketplace orders',
+      actions: [
+        ordersAsync.maybeWhen(
+          data: (orders) {
+            return _isExporting
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  )
+                : IconButton(
+                    icon: const Icon(Icons.download_rounded),
+                    tooltip: 'Export CSV',
+                    onPressed: () => _exportOrders(orders),
+                  );
+          },
+          orElse: () => const SizedBox.shrink(),
+        ),
+      ],
       body: Column(
         children: [
           Container(
@@ -174,9 +261,6 @@ class _OrderTile extends ConsumerWidget {
     'pending': ['cancelled'],
     'processing': ['cancelled'],
     'shipped': ['cancelled'],
-    'delivered': ['refunded'],
-    'cancelled': ['refunded'],
-    'returnApproved': ['refunded'],
   };
 
   @override
@@ -222,15 +306,21 @@ class _OrderTile extends ConsumerWidget {
               ),
               const SizedBox(width: 4),
               Expanded(
-                child: Text(
-                  'Buyer: $buyerId',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isDark
-                        ? Colors.white54
-                        : AppColors.lightTextSecondary,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+                child: FutureBuilder<String>(
+                  future: ref.read(adminNameResolverProvider.notifier).resolveUserName(buyerId),
+                  builder: (context, snapshot) {
+                    final name = snapshot.data ?? 'Loading...';
+                    return Text(
+                      'Buyer: $name',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark
+                            ? Colors.white54
+                            : AppColors.lightTextSecondary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    );
+                  },
                 ),
               ),
               Text(
@@ -262,16 +352,19 @@ class _OrderTile extends ConsumerWidget {
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                   onPressed: () async {
-                    await ref
-                        .read(firebaseFirestoreProvider)
-                        .collection('orders')
-                        .doc(orderId)
-                        .update({'status': next});
+                    final result = await ref
+                        .read(adminControllerProvider.notifier)
+                        .updateOrderStatus(orderId, next);
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Order status updated to ${next.toUpperCase()}',
+                      result.fold(
+                        (err) => ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(err)),
+                        ),
+                        (_) => ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Order status updated to ${next.toUpperCase()}',
+                            ),
                           ),
                         ),
                       );

@@ -3,6 +3,8 @@ import 'package:ecom/core/theme/app_colors.dart';
 import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/features/admin/presentation/widgets/admin_common.dart';
 import 'package:ecom/features/admin/presentation/widgets/admin_shell.dart';
+import 'package:ecom/features/admin/presentation/controllers/admin_controller.dart';
+import 'package:ecom/features/admin/data/services/admin_name_resolver.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -143,6 +145,16 @@ class _OrderDetailView extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              FutureBuilder<String>(
+                future: ref.read(adminNameResolverProvider.notifier).resolveUserName(order['buyerId'] as String? ?? ''),
+                builder: (context, snapshot) {
+                  return _InfoRow(
+                    label: 'Customer Name',
+                    value: snapshot.data ?? 'Loading...',
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
               _InfoRow(
                 label: 'Customer ID',
                 value: order['buyerId'] as String? ?? 'Unknown',
@@ -374,20 +386,184 @@ class _OrderDetailView extends ConsumerWidget {
     WidgetRef ref,
     String newStatus,
   ) async {
-    await ref
-        .read(firebaseFirestoreProvider)
-        .collection('orders')
-        .doc(order['id'])
-        .update({
-      'status': newStatus,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Order status updated to $newStatus')),
-      );
+    // Intercept refund — requires reason modal
+    if (newStatus == 'refunded') {
+      await _showRefundModal(context, ref);
+      return;
     }
+    final result = await ref
+        .read(adminControllerProvider.notifier)
+        .updateOrderStatus(order['id'] as String, newStatus);
+
+    if (!context.mounted) return;
+    result.fold(
+      (err) => ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(err))),
+      (_) => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Order status updated to $newStatus')),
+      ),
+    );
+  }
+
+  Future<void> _showRefundModal(BuildContext context, WidgetRef ref) async {
+    final reasonController = TextEditingController();
+    String selectedCategory = 'Defective product';
+    final orderTotal = (order['totalAmount'] as num?)?.toDouble() ?? 0.0;
+    final amountController = TextEditingController(text: orderTotal.toStringAsFixed(2));
+    bool confirmed = false;
+
+    final categories = [
+      'Defective product',
+      'Item not received',
+      'Wrong item sent',
+      'Customer request',
+      'Fraud / Dispute resolution',
+      'Other',
+    ];
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setState) {
+            final isValid = reasonController.text.trim().length >= 10
+                && amountController.text.isNotEmpty
+                && double.tryParse(amountController.text) != null
+                && (double.tryParse(amountController.text) ?? 0) > 0
+                && confirmed;
+
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                24, 24, 24,
+                MediaQuery.of(ctx).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.assignment_return_outlined,
+                          color: Colors.red, size: 22),
+                      const SizedBox(width: 10),
+                      Text('Process Refund',
+                          style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          )),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.of(ctx).pop(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Reason category dropdown
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedCategory,
+                    decoration: const InputDecoration(
+                      labelText: 'Reason category *',
+                      border: OutlineInputBorder(),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                    ),
+                    items: categories
+                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) setState(() => selectedCategory = v);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  // Detailed reason text field
+                  TextFormField(
+                    controller: reasonController,
+                    maxLines: 3,
+                    maxLength: 500,
+                    decoration: const InputDecoration(
+                      labelText: 'Detailed reason * (min 10 characters)',
+                      border: OutlineInputBorder(),
+                      alignLabelWithHint: true,
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 12),
+                  // Refund amount
+                  TextFormField(
+                    controller: amountController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: 'Refund amount (₹) *',
+                      hintText: 'Order total: ₹${orderTotal.toStringAsFixed(2)}',
+                      border: const OutlineInputBorder(),
+                      prefixText: '₹ ',
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 12),
+                  // Confirmation checkbox
+                  CheckboxListTile(
+                    value: confirmed,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'I confirm this refund has been reviewed and approved',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                    onChanged: (v) => setState(() => confirmed = v ?? false),
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: isValid
+                          ? () async {
+                              Navigator.of(ctx).pop();
+                              final result = await ref
+                                  .read(adminControllerProvider.notifier)
+                                  .processRefund(
+                                    orderId: order['id'] as String,
+                                    reason: reasonController.text.trim(),
+                                    reasonCategory: selectedCategory,
+                                    refundAmount: double.parse(
+                                        amountController.text),
+                                  );
+                              if (!context.mounted) return;
+                              result.fold(
+                                (err) => ScaffoldMessenger.of(context)
+                                    .showSnackBar(
+                                        SnackBar(content: Text(err))),
+                                (_) => ScaffoldMessenger.of(context)
+                                    .showSnackBar(const SnackBar(
+                                  content: Text('Refund processed successfully'),
+                                  backgroundColor: Colors.red,
+                                )),
+                              );
+                            }
+                          : null,
+                      child: const Text('Confirm Refund',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Widget _fallbackImage() {

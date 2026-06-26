@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class AuditLog {
   final String id;
   final String action;
@@ -28,12 +30,27 @@ class AuditLog {
       targetId: json['targetId'] as String? ?? '',
       targetType: json['targetType'] as String? ?? '',
       metadata: json['metadata'] as Map<String, dynamic>? ?? {},
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'].toString())
-          : DateTime.now(),
+      createdAt: _parseDateTime(json['createdAt']),
     );
   }
 
+  /// Safely converts Firestore Timestamp, ISO String, or null → DateTime.
+  static DateTime _parseDateTime(dynamic value) {
+    if (value == null) return DateTime.now();
+    if (value is Timestamp) return value.toDate();
+    if (value is String) {
+      try {
+        return DateTime.parse(value);
+      } catch (_) {
+        return DateTime.now();
+      }
+    }
+    return DateTime.now();
+  }
+
+  /// toJson for Firestore writes.
+  /// NOTE: callers should merge {'createdAt': FieldValue.serverTimestamp()}
+  /// instead of relying on the ISO string in this map.
   Map<String, dynamic> toJson() {
     return {
       'action': action,
@@ -42,7 +59,7 @@ class AuditLog {
       'targetId': targetId,
       'targetType': targetType,
       'metadata': metadata,
-      'createdAt': createdAt.toIso8601String(),
+      // createdAt intentionally omitted — repository injects FieldValue.serverTimestamp()
     };
   }
 }

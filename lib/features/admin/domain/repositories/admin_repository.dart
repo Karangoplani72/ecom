@@ -89,4 +89,27 @@ abstract class AdminRepository {
   Stream<List<AuditLog>> watchAuditLogs();
 
   Future<Either<String, Unit>> createAuditLog(AuditLog log);
+
+  // Orders
+  Future<Either<String, Unit>> updateOrderStatus(
+    String orderId,
+    String newStatus, {
+    String? trackingNumber,
+  });
+
+  // Settlements
+  Future<Either<String, Unit>> processSettlement(String settlementId);
+  Future<Either<String, Unit>> rejectSettlement(
+    String settlementId,
+    String reason,
+  );
+  Future<Either<String, Unit>> completeSettlement(String settlementId);
+
+  Future<Either<String, Unit>> processRefund({
+    required String orderId,
+    required String adminId,
+    required String reason,
+    required String reasonCategory,
+    required double refundAmount,
+  });
 }

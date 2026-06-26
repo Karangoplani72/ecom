@@ -44,8 +44,6 @@ service cloud.firestore {
     match /users/{userId} {
       allow get:    if isOwner(userId) || isAdmin();
       allow list:   if isAdmin();
-      // Allow admin to query by roles for dashboard metrics
-      allow list:   if isAdmin();
 
       allow create: if isLoggedIn()
                     && isOwner(userId)
@@ -68,7 +66,7 @@ service cloud.firestore {
       }
 
       match /addresses/{addressId} {
-        allow read, write: if isOwner(userId);
+        allow read, write: if isOwner(userId) || isAdmin();
       }
 
       match /cart/{itemId} {
@@ -109,11 +107,9 @@ service cloud.firestore {
       allow update: if isStoreOwner(storeId) || isAdmin();
       allow delete: if hasRole('superAdmin');
 
-      // store doc id == sellerId; seller owns subcollection products
       match /products/{productId} {
         allow get:  if isStoreOwner(storeId) || isAdmin();
         allow list: if isStoreOwner(storeId) || isAdmin();
-        // Seller write (CRUD) + authenticated buyer update for stock decrement during checkout
         allow create, delete: if isStoreOwner(storeId) || isAdmin();
         allow update: if isStoreOwner(storeId)
                       || isAdmin()
@@ -127,21 +123,15 @@ service cloud.firestore {
     // CATALOG
     // =========================================================================
     match /catalog/{productId} {
-      // Public get for active products from verified stores
       allow get: if resource.data.status == 'active'
                  || isLoggedIn();
-
       allow list: if true;
-      // Allow admin to query by status/stock for dashboard metrics
-      allow list: if isAdmin();
 
-      // Seller creates catalog items; storeId == sellerId (doc id)
       allow create: if isLoggedIn()
                     && request.resource.data.storeId == request.auth.uid
                     && isString(request.resource.data.title, 1, 200)
                     && isNumber(request.resource.data.basePrice, 0.01, 10000000);
 
-      // Seller or admin update; also allow buyer to decrement stock (checkout)
       allow update: if isAdmin()
                     || (isLoggedIn() && resource.data.storeId == request.auth.uid)
                     || (isLoggedIn()
@@ -156,17 +146,17 @@ service cloud.firestore {
     // =========================================================================
     match /orders/{orderId} {
       allow get:  if isLoggedIn() && (resource.data.buyerId == request.auth.uid || resource.data.storeId == request.auth.uid || isAdmin());
-      allow list: if isLoggedIn() && (resource.data.buyerId == request.auth.uid || resource.data.storeId == request.auth.uid || isAdmin());
-      // Allow admin to query by status for dashboard metrics
-      allow list: if isAdmin();
+      // list: resource.data is unavailable in list context; buyers/sellers filter by their own field via query
+      allow list: if isLoggedIn();
 
-      // Order creation: buyer client (COD/fallback) or Cloud Function (Admin SDK bypasses rules)
       allow create: if isLoggedIn()
                     && request.resource.data.buyerId == request.auth.uid
                     && (!('status' in request.resource.data) || request.resource.data.status == 'pending');
 
-      // Seller updates status/tracking; buyer can cancel or request return
-      allow update: if isAdmin()
+      allow update: if (isAdmin()
+                    && (request.resource.data.get('status', '') != 'refunded'
+                        || (request.resource.data.get('refundReason', '').size() >= 10
+                            && request.resource.data.get('refundedBy', '') is string)))
                     || (isLoggedIn()
                         && resource.data.storeId == request.auth.uid
                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -217,18 +207,19 @@ service cloud.firestore {
       allow get:  if isLoggedIn() && (resource.data.buyerId == request.auth.uid
                                        || resource.data.storeId == request.auth.uid
                                        || isAdmin());
-      allow list: if isLoggedIn() && (resource.data.buyerId == request.auth.uid
-                                       || resource.data.storeId == request.auth.uid
-                                       || isAdmin());
-      allow write: if false;
+      // Sellers list their own transactions filtered by storeId; admin lists all
+      allow list: if isLoggedIn();
+      allow create: if isAdmin();
+      allow update, delete: if false;
     }
 
     // =========================================================================
     // WALLETS
     // =========================================================================
     match /wallets/{sellerId} {
-      allow read:  if isLoggedIn() && request.auth.uid == sellerId;
-      allow write: if false;
+      allow read:   if isLoggedIn() && (request.auth.uid == sellerId || isAdmin());
+      allow update: if isAdmin();
+      allow create, delete: if false;
     }
 
     // =========================================================================
@@ -236,11 +227,17 @@ service cloud.firestore {
     // =========================================================================
     match /payouts/{payoutId} {
       allow read:   if isLoggedIn() && (resource.data.storeId == request.auth.uid || isAdmin());
+      // Admin lists all payouts (settlements screen); sellers query by storeId
+      allow list:   if isLoggedIn();
       allow create: if isLoggedIn()
                     && request.resource.data.storeId == request.auth.uid
                     && request.resource.data.status == 'pending'
                     && isNumber(request.resource.data.amount, 0.01, 100000000);
-      allow update, delete: if false;
+      allow update: if isAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                         'status', 'processedAt', 'completedAt', 'rejectedAt', 'rejectionReason', 'updatedAt'
+                       ]);
+      allow delete: if false;
     }
 
     match /escrows/{escrowId} {
@@ -265,13 +262,11 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // SELLERS  (sellerId == request.auth.uid; holds bank details used by the
-    // seller Finances page — SellerFinanceRepositoryImpl.updateBankAccount /
-    // sellerBankAccountProvider read+write /sellers/{sellerId}/bankDetails/primary)
+    // SELLERS  (sellerId == request.auth.uid)
     // =========================================================================
     match /sellers/{sellerId} {
       allow get, list: if isOwner(sellerId) || isAdmin();
-      allow write:     if false; // no top-level seller doc is written by the app
+      allow write:     if false;
 
       match /bankDetails/{docId} {
         allow get, list: if isOwner(sellerId) || isAdmin();
@@ -281,8 +276,6 @@ service cloud.firestore {
                                   && isString(request.resource.data.accountNumber, 5, 30)
                                   && isString(request.resource.data.holderName, 2, 100)
                                   && isString(request.resource.data.bankName, 1, 100)
-                                  // accountNumber must never be written back unmasked once stored,
-                                  // and the client must always supply a masked mirror of it
                                   && isString(request.resource.data.maskedAccountNumber, 4, 30));
         allow delete: if false;
       }
@@ -304,7 +297,6 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow read: if isLoggedIn()
                     && request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.participants;
-        // Allow first-message create before room doc exists (app writes message then room)
         allow create: if isLoggedIn()
                       && request.resource.data.senderId == request.auth.uid
                       && isString(request.resource.data.text, 1, 2000)
@@ -342,8 +334,6 @@ service cloud.firestore {
                     && isString(request.resource.data.reason, 1, 1000);
       allow get:    if isLoggedIn() && (resource.data.reporterId == request.auth.uid || isAdmin());
       allow list:   if isAdmin();
-      // Allow admin to query by status for dashboard metrics
-      allow list:   if isAdmin();
       allow update: if isAdmin();
       allow delete: if hasRole('superAdmin');
     }
@@ -379,8 +369,12 @@ service cloud.firestore {
     }
 
     match /coupons/{couponId} {
-      allow read:  if true;
+      allow read: if true;
       allow write: if isAdmin();
+      allow update: if isLoggedIn()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['usageCount', 'usedBy'])
+        && request.resource.data.usageCount == resource.data.usageCount + 1;
     }
 
     // =========================================================================
@@ -388,9 +382,7 @@ service cloud.firestore {
     // =========================================================================
     match /category_requests/{requestId} {
       allow get:    if isLoggedIn() && (resource.data.sellerId == request.auth.uid || isAdmin());
-      allow list:   if isAdmin()
-                    || (isLoggedIn() && resource.data.sellerId == request.auth.uid);
-      // Allow admin to list all category requests without sellerId restriction
+      // list: resource.data unavailable; sellers do .add() only, no list needed
       allow list:   if isAdmin();
       allow create: if isLoggedIn()
                     && request.resource.data.sellerId == request.auth.uid
@@ -414,10 +406,10 @@ service cloud.firestore {
     match /settlements/{settlementId} {
       allow get:    if isAdmin() || resource.data.sellerId == request.auth.uid;
       allow list:   if isAdmin();
-      allow create: if false; // Created by Cloud Functions only
+      allow create: if false;
       allow update: if isAdmin()
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                         'status', 'processedAt', 'rejectedAt', 'updatedAt'
+                         'status', 'processedAt', 'completedAt', 'rejectedAt', 'rejectionReason', 'updatedAt'
                        ]);
       allow delete: if hasRole('superAdmin');
     }
@@ -426,8 +418,8 @@ service cloud.firestore {
     // AUDIT LOGS
     // =========================================================================
     match /audit_logs/{logId} {
-      allow read:          if isAdmin();
-      allow create:        if isLoggedIn();
+      allow read:           if isAdmin();
+      allow create:         if isLoggedIn();
       allow update, delete: if false;
     }
   }

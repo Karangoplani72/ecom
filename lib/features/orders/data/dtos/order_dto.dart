@@ -73,6 +73,8 @@ class OrderDto {
   final double subtotal;
   final double deliveryFee;
   final double platformFee;
+  final double discount;
+  final String? couponCode;
   final double totalAmount;
   final String paymentMethod;
   final String paymentStatus;
@@ -93,6 +95,8 @@ class OrderDto {
     required this.subtotal,
     required this.deliveryFee,
     required this.platformFee,
+    this.discount = 0.0,
+    this.couponCode,
     required this.totalAmount,
     required this.paymentMethod,
     required this.paymentStatus,
@@ -118,6 +122,8 @@ class OrderDto {
       subtotal: (data['subtotal'] as num?)?.toDouble() ?? 0.0,
       deliveryFee: (data['deliveryFee'] as num?)?.toDouble() ?? 0.0,
       platformFee: (data['platformFee'] as num?)?.toDouble() ?? 0.0,
+      discount: (data['discount'] as num?)?.toDouble() ?? 0.0,
+      couponCode: data['couponCode'] as String?,
       totalAmount: (data['totalAmount'] as num?)?.toDouble() ?? 0.0,
       paymentMethod: data['paymentMethod'] as String? ?? 'COD',
       paymentStatus: data['paymentStatus'] as String? ?? 'pending',
@@ -140,6 +146,8 @@ class OrderDto {
       'subtotal': subtotal,
       'deliveryFee': deliveryFee,
       'platformFee': platformFee,
+      'discount': discount,
+      if (couponCode != null) 'couponCode': couponCode,
       'totalAmount': totalAmount,
       'paymentMethod': paymentMethod,
       'paymentStatus': paymentStatus,
@@ -166,6 +174,8 @@ class OrderDto {
       subtotal: subtotal,
       deliveryFee: deliveryFee,
       platformFee: platformFee,
+      discount: discount,
+      couponCode: couponCode,
       totalAmount: totalAmount,
       paymentMethod: paymentMethod,
       paymentStatus: paymentStatus,

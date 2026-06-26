@@ -18,14 +18,11 @@ class GuestWishlistController extends _$GuestWishlistController {
     if (wishlistString != null) {
       try {
         final List<dynamic> decoded = jsonDecode(wishlistString);
-        return decoded
-            .map(
-              (item) => CatalogItemDto.fromMap(
-                '',
-                Map<String, dynamic>.from(item as Map),
-              ),
-            )
-            .toList();
+        return decoded.map((item) {
+          final map = Map<String, dynamic>.from(item as Map);
+          final id = map['id'] as String? ?? '';
+          return CatalogItemDto.fromMap(id, map);
+        }).toList();
       } catch (_) {
         return [];
       }

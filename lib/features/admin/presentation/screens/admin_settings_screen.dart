@@ -1,4 +1,5 @@
 import 'package:ecom/core/providers/theme_provider.dart';
+import 'package:ecom/core/providers/categories_provider.dart';
 import 'package:ecom/core/theme/app_colors.dart';
 import 'package:ecom/features/admin/domain/entities/platform_config.dart';
 import 'package:ecom/features/admin/presentation/controllers/admin_controller.dart';
@@ -17,10 +18,13 @@ class AdminSettingsScreen extends ConsumerStatefulWidget {
 
 class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
   double _commissionRate = 0.085;
+  Map<String, double> _categoryOverrides = {};
   bool _maintenanceMode = false;
   int _rateLimitPerMinute = 600;
   String _razorpayKey = 'rzp_test_placeholder_key';
   late TextEditingController _razorpayKeyController;
+  late TextEditingController _announcementController;
+  String _featuredCategory = '';
   bool _loading = true;
   bool _saving = false;
 
@@ -28,12 +32,14 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
   void initState() {
     super.initState();
     _razorpayKeyController = TextEditingController();
+    _announcementController = TextEditingController();
     _loadConfig();
   }
 
   @override
   void dispose() {
     _razorpayKeyController.dispose();
+    _announcementController.dispose();
     super.dispose();
   }
 
@@ -46,10 +52,13 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
       (err) => setState(() => _loading = false),
       (config) => setState(() {
         _commissionRate = config.defaultCommissionRate;
+        _categoryOverrides = Map<String, double>.from(config.categoryCommissionOverrides);
         _maintenanceMode = config.maintenanceModeActive;
         _rateLimitPerMinute = config.globalRateLimitPerMinute;
         _razorpayKey = config.razorpayKey;
         _razorpayKeyController.text = config.razorpayKey;
+        _announcementController.text = config.announcementText;
+        _featuredCategory = config.featuredCategory;
         _loading = false;
       }),
     );
@@ -62,10 +71,12 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
         .savePlatformConfig(
           PlatformConfig(
             defaultCommissionRate: _commissionRate,
-            categoryCommissionOverrides: const {},
+            categoryCommissionOverrides: _categoryOverrides,
             maintenanceModeActive: _maintenanceMode,
             globalRateLimitPerMinute: _rateLimitPerMinute,
             razorpayKey: _razorpayKey,
+            announcementText: _announcementController.text,
+            featuredCategory: _featuredCategory,
           ),
         );
     if (!mounted) return;
@@ -134,6 +145,50 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 20),
+
+          // ── Category Commission Overrides ────────────────────────────────
+          _SectionHeader('Category Commission Overrides'),
+          Consumer(
+            builder: (context, ref, _) {
+              final categoriesAsync = ref.watch(activeCategoriesStreamProvider);
+              return categoriesAsync.when(
+                data: (categories) {
+                  return AdminSectionCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Set custom commission rates for specific categories. If disabled, the default commission rate applies.',
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                        const SizedBox(height: 12),
+                        for (final category in categories) ...[
+                          _CategoryOverrideRow(
+                            category: category,
+                            rate: _categoryOverrides[category] ?? _commissionRate,
+                            isOverridden: _categoryOverrides.containsKey(category),
+                            onChanged: (double? newRate) {
+                              setState(() {
+                                if (newRate == null) {
+                                  _categoryOverrides.remove(category);
+                                } else {
+                                  _categoryOverrides[category] = newRate;
+                                }
+                              });
+                            },
+                          ),
+                          if (category != categories.last) const Divider(),
+                        ],
+                      ],
+                    ),
+                  );
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, _) => Text('Error loading categories: $e'),
+              );
+            },
           ),
           const SizedBox(height: 20),
 
@@ -215,6 +270,80 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
               ],
             ),
           ),
+          const SizedBox(height: 20),
+
+          // ── Announcement & Marketing ──────────────────────────
+          _SectionHeader('Announcement & Marketing'),
+          AdminSectionCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Global Announcement Banner Text',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _announcementController,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    hintText: 'e.g. Flash Sale Live! Use code FLASH50 for 50% off.',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    contentPadding: const EdgeInsets.all(12),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Featured Category ID/Name',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Consumer(
+                  builder: (context, ref, _) {
+                    final categoriesAsync = ref.watch(activeCategoriesStreamProvider);
+                    return categoriesAsync.maybeWhen(
+                      data: (categories) {
+                        return DropdownButtonFormField<String>(
+                          // ignore: deprecated_member_use
+                          value: categories.contains(_featuredCategory) ? _featuredCategory : null,
+                          hint: const Text('Select a category to feature'),
+                          decoration: InputDecoration(
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          ),
+                          items: [
+                            const DropdownMenuItem<String>(
+                              value: '',
+                              child: Text('None (Disable Feature)'),
+                            ),
+                            for (final category in categories)
+                              DropdownMenuItem<String>(
+                                value: category,
+                                child: Text(category),
+                              ),
+                          ],
+                          onChanged: (val) {
+                            setState(() => _featuredCategory = val ?? '');
+                          },
+                        );
+                      },
+                      orElse: () => const Center(child: CircularProgressIndicator()),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
           // ── Razorpay Configuration ──────────────────────────────────────
           _SectionHeader('Razorpay Configuration'),
           AdminSectionCard(
@@ -389,6 +518,77 @@ class _ThemeChip extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _CategoryOverrideRow extends StatelessWidget {
+  final String category;
+  final double rate;
+  final bool isOverridden;
+  final ValueChanged<double?> onChanged;
+
+  const _CategoryOverrideRow({
+    required this.category,
+    required this.rate,
+    required this.isOverridden,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  category,
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                ),
+              ),
+              if (isOverridden)
+                Text(
+                  '${(rate * 100).toStringAsFixed(1)}%',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+                )
+              else
+                const Text(
+                  'Default',
+                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+              const SizedBox(width: 12),
+              Switch(
+                value: isOverridden,
+                onChanged: (enabled) {
+                  if (enabled) {
+                    onChanged(0.085); // Set to default initial override
+                  } else {
+                    onChanged(null); // Clear override
+                  }
+                },
+              ),
+            ],
+          ),
+          if (isOverridden) ...[
+            const SizedBox(height: 4),
+            Slider(
+              value: rate,
+              min: 0.01,
+              max: 0.50,
+              divisions: 49,
+              label: '${(rate * 100).toStringAsFixed(1)}%',
+              onChanged: (v) => onChanged(v),
+            ),
+          ],
+        ],
       ),
     );
   }

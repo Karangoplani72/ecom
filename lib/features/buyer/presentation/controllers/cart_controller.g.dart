@@ -82,7 +82,7 @@ final class AppliedCouponProvider
   }
 }
 
-String _$appliedCouponHash() => r'427e4ded30da82b9f34566bd3956b4260658b0a8';
+String _$appliedCouponHash() => r'11d9a9ecc3f593162a6feb2385540e54fcb300c6';
 
 abstract class _$AppliedCoupon extends $Notifier<Coupon?> {
   Coupon? build();

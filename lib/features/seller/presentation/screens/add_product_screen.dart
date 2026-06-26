@@ -900,6 +900,15 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             .doc(docRef.id),
         data,
       );
+      // Atomically increment totalProducts on the store doc
+      batch.set(
+        FirebaseFirestore.instance.collection('stores').doc(sellerId),
+        {
+          'totalProducts': FieldValue.increment(1),
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
       await batch.commit();
 
       if (!mounted) return;

@@ -104,6 +104,11 @@ class BulkUploadController {
 
       if (successCount > 0) {
         await batch.commit();
+        // Atomically increment totalProducts on the store doc
+        await firestore.collection('stores').doc(sellerId).set({
+          'totalProducts': FieldValue.increment(successCount),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
       }
 
       return right(successCount);

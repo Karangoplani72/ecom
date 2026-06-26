@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ecom/core/constants/app_radius.dart';
 import 'package:ecom/core/theme/app_colors.dart';
 import 'package:ecom/features/admin/domain/entities/admin_user.dart';
@@ -6,6 +7,7 @@ import 'package:ecom/features/admin/presentation/widgets/admin_common.dart';
 import 'package:ecom/features/admin/presentation/widgets/admin_shell.dart';
 import 'package:ecom/features/auth/domain/entities/app_user.dart';
 import 'package:flutter/material.dart';
+import 'package:ecom/features/admin/data/services/csv_export_helper.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class AdminUsersScreen extends ConsumerStatefulWidget {
@@ -18,6 +20,52 @@ class AdminUsersScreen extends ConsumerStatefulWidget {
 class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
   String _search = '';
   String _roleFilter = 'all';
+  bool _isExporting = false;
+
+  Future<void> _exportUsers(List<AdminUser> users) async {
+    if (_isExporting) return;
+    setState(() => _isExporting = true);
+
+    try {
+      final rows = <List<dynamic>>[
+        ['Users Export'],
+        ['Export Date', DateTime.now().toIso8601String()],
+        [],
+        ['UID', 'Email', 'Phone Number', 'Roles', 'Status'],
+      ];
+
+      for (final user in users) {
+        rows.add([
+          user.uid,
+          user.email,
+          user.phoneNumber,
+          user.roles.map((r) => r.name).join(', '),
+          user.isActive ? 'Active' : 'Suspended',
+        ]);
+      }
+
+      await CsvExportHelper.exportToCsv(
+        fileName: 'users_export.csv',
+        rows: rows,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Users exported successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to export CSV: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isExporting = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +75,29 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
     return AdminScaffold(
       title: 'User Management',
       subtitle: 'Assign roles and manage account status',
+      actions: [
+        usersAsync.maybeWhen(
+          data: (users) {
+            return _isExporting
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  )
+                : IconButton(
+                    icon: const Icon(Icons.download_rounded),
+                    tooltip: 'Export CSV',
+                    onPressed: () => _exportUsers(users),
+                  );
+          },
+          orElse: () => const SizedBox.shrink(),
+        ),
+      ],
       body: Column(
         children: [
           _buildFilters(isDark),
@@ -208,6 +279,129 @@ class _UserTile extends ConsumerWidget {
                       },
                     );
                   }).toList(),
+                ),
+                const Divider(),
+                const SizedBox(height: 8),
+                Text(
+                  'Saved Addresses',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                FutureBuilder<QuerySnapshot>(
+                  future: FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(user.uid)
+                      .collection('addresses')
+                      .get(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                      );
+                    }
+                    if (snapshot.hasError) {
+                      return Text(
+                        'Failed to load addresses: ${snapshot.error}',
+                        style: const TextStyle(color: Colors.red, fontSize: 12),
+                      );
+                    }
+                    final docs = snapshot.data?.docs ?? [];
+                    if (docs.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 4),
+                        child: Text(
+                          'No saved addresses',
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                      );
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: docs.map((doc) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        final fullName = data['fullName'] as String? ?? '';
+                        final phone = data['phone'] as String? ?? '';
+                        final addressLine1 = data['addressLine1'] as String? ?? '';
+                        final addressLine2 = data['addressLine2'] as String? ?? '';
+                        final city = data['city'] as String? ?? '';
+                        final state = data['state'] as String? ?? '';
+                        final pincode = data['pincode'] as String? ?? '';
+                        final isDefault = data['isDefault'] as bool? ?? false;
+
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      fullName,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    if (isDefault) ...[
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primary.withValues(
+                                            alpha: 0.1,
+                                          ),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: const Text(
+                                          'Default',
+                                          style: TextStyle(
+                                            color: AppColors.primary,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Phone: $phone',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  addressLine2.isNotEmpty
+                                      ? '$addressLine1, $addressLine2'
+                                      : addressLine1,
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                                Text(
+                                  '$city, $state - $pincode',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    );
+                  },
                 ),
                 const SizedBox(height: 12),
                 Row(

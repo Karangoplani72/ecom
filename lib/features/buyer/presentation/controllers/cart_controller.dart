@@ -24,7 +24,8 @@ class AppliedCoupon extends _$AppliedCoupon {
 
   Future<void> applyCoupon(String code) async {
     final repo = ref.read(couponRepositoryProvider);
-    final result = await repo.validateCoupon(code);
+    final userId = ref.read(currentUserIdProvider);
+    final result = await repo.validateCoupon(code, userId: userId);
     result.fold(
       (failure) => throw Exception(failure),
       (coupon) => state = coupon,

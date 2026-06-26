@@ -420,6 +420,27 @@ class OrderDetailScreen extends ConsumerWidget {
           _priceRow('Delivery Fee', order.deliveryFee, theme),
           const SizedBox(height: 8),
           _priceRow('Platform Fee', order.platformFee, theme),
+          if (order.couponCode != null && order.discount > 0) ...[
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Coupon Discount (${order.couponCode})',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: const Color(0xFF10B981),
+                  ),
+                ),
+                Text(
+                  '-₹${order.discount.toStringAsFixed(2)}',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF10B981),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const Divider(height: 32),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -654,30 +675,32 @@ class OrderDetailScreen extends ConsumerWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(20),
-              child: Text(
-                'Select Order Status',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(20),
+                child: Text(
+                  'Select Order Status',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
               ),
-            ),
-            ...OrderStatus.values.map(
-              (s) => ListTile(
-                title: Text(s.name.toUpperCase()),
-                trailing: order.status == s
-                    ? const Icon(Icons.check, color: Colors.green)
-                    : null,
-                onTap: () {
-                  Navigator.pop(context);
-                  _updateStatus(context, ref, order.orderId, s);
-                },
+              ...OrderStatus.values.map(
+                (s) => ListTile(
+                  title: Text(s.name.toUpperCase()),
+                  trailing: order.status == s
+                      ? const Icon(Icons.check, color: Colors.green)
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _updateStatus(context, ref, order.orderId, s);
+                  },
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-          ],
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );

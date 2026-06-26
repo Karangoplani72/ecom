@@ -4,6 +4,8 @@ class PlatformConfig {
   final bool maintenanceModeActive;
   final int globalRateLimitPerMinute;
   final String razorpayKey;
+  final String announcementText;
+  final String featuredCategory;
 
   const PlatformConfig({
     required this.defaultCommissionRate,
@@ -11,5 +13,7 @@ class PlatformConfig {
     required this.maintenanceModeActive,
     required this.globalRateLimitPerMinute,
     required this.razorpayKey,
+    required this.announcementText,
+    required this.featuredCategory,
   });
 }

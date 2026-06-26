@@ -16,6 +16,7 @@ import 'package:ecom/features/buyer/presentation/controllers/profile_image_state
 import 'package:ecom/features/buyer/presentation/controllers/wishlist_controller.dart';
 import 'package:ecom/features/buyer/presentation/widgets/profile_avatar.dart';
 import 'package:ecom/features/orders/presentation/controllers/order_controller.dart';
+import 'package:ecom/features/buyer/presentation/widgets/buyer_side_drawer.dart';
 import 'package:ecom/shared/presentation/navigation/router.dart';
 import 'package:ecom/features/buyer/presentation/widgets/buyer_anti_gravity_widgets.dart';
 import 'package:ecom/shared/presentation/widgets/blur_app_bar.dart';
@@ -139,6 +140,7 @@ class ProfileScreen extends ConsumerWidget {
     });
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBgPrimary : AppColors.lightBgPrimary,
+      drawer: const BuyerSideDrawer(),
       body: Stack(
         children: [
           const IgnorePointer(child: OrbBackgroundWidget()),
@@ -173,7 +175,7 @@ class ProfileScreen extends ConsumerWidget {
                   return [
                     BlurAppBar(
                       title: 'My Account',
-                      showLeading: false,
+                      showLeading: true,
                       actions: [
                         if (firebaseUser != null)
                           Padding(

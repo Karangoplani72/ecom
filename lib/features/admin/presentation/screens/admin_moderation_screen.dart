@@ -1,4 +1,8 @@
+import 'package:ecom/features/admin/domain/entities/audit_log.dart';
 import 'package:ecom/core/theme/app_colors.dart';
+import 'package:ecom/core/providers/common_providers.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:ecom/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:ecom/features/admin/presentation/widgets/admin_common.dart';
 import 'package:ecom/features/admin/presentation/widgets/admin_shell.dart';
@@ -57,24 +61,28 @@ class AdminModerationScreen extends ConsumerWidget {
                     value: numFmt.format(metrics.totalUsers),
                     icon: Icons.people_outline_rounded,
                     color: const Color(0xFF2563EB),
+                    onTap: () => context.push('/admin/users'),
                   ),
                   AdminMetricCard(
                     label: 'Buyers',
                     value: numFmt.format(metrics.totalBuyers),
                     icon: Icons.shopping_bag_outlined,
                     color: const Color(0xFF7C3AED),
+                    onTap: () => context.push('/admin/users'),
                   ),
                   AdminMetricCard(
                     label: 'Sellers',
                     value: numFmt.format(metrics.totalSellers),
                     icon: Icons.storefront_outlined,
                     color: const Color(0xFF16A34A),
+                    onTap: () => context.push('/admin/stores'),
                   ),
                   AdminMetricCard(
                     label: 'Pending Applications',
                     value: metrics.pendingApplications.toString(),
                     icon: Icons.hourglass_empty_rounded,
                     color: const Color(0xFFF59E0B),
+                    onTap: () => context.push('/admin/store-approvals'),
                   ),
                 ],
               ),
@@ -90,24 +98,28 @@ class AdminModerationScreen extends ConsumerWidget {
                     value: numFmt.format(metrics.totalProducts),
                     icon: Icons.inventory_2_outlined,
                     color: const Color(0xFF0891B2),
+                    onTap: () => context.push('/admin/products'),
                   ),
                   AdminMetricCard(
                     label: 'Active',
                     value: numFmt.format(metrics.activeProducts),
                     icon: Icons.check_circle_outline_rounded,
                     color: const Color(0xFF16A34A),
+                    onTap: () => context.push('/admin/products'),
                   ),
                   AdminMetricCard(
                     label: 'Inactive',
                     value: numFmt.format(metrics.inactiveProducts),
                     icon: Icons.visibility_off_outlined,
                     color: const Color(0xFF6B7280),
+                    onTap: () => context.push('/admin/products'),
                   ),
                   AdminMetricCard(
                     label: 'Out of Stock',
                     value: numFmt.format(metrics.outOfStockProducts),
                     icon: Icons.remove_shopping_cart_outlined,
                     color: const Color(0xFFDC2626),
+                    onTap: () => context.push('/admin/products'),
                   ),
                 ],
               ),
@@ -123,24 +135,28 @@ class AdminModerationScreen extends ConsumerWidget {
                     value: numFmt.format(metrics.totalOrders),
                     icon: Icons.receipt_long_outlined,
                     color: const Color(0xFF2563EB),
+                    onTap: () => context.push('/admin/orders'),
                   ),
                   AdminMetricCard(
                     label: 'Pending',
                     value: numFmt.format(metrics.pendingOrders),
                     icon: Icons.pending_outlined,
                     color: const Color(0xFFF59E0B),
+                    onTap: () => context.push('/admin/orders'),
                   ),
                   AdminMetricCard(
                     label: 'Delivered',
                     value: numFmt.format(metrics.deliveredOrders),
                     icon: Icons.local_shipping_outlined,
                     color: const Color(0xFF16A34A),
+                    onTap: () => context.push('/admin/orders'),
                   ),
                   AdminMetricCard(
                     label: 'Cancelled',
                     value: numFmt.format(metrics.cancelledOrders),
                     icon: Icons.cancel_outlined,
                     color: const Color(0xFFDC2626),
+                    onTap: () => context.push('/admin/orders'),
                   ),
                 ],
               ),
@@ -156,12 +172,14 @@ class AdminModerationScreen extends ConsumerWidget {
                     value: metrics.totalDisputes.toString(),
                     icon: Icons.report_problem_outlined,
                     color: const Color(0xFFDC2626),
+                    onTap: () => context.push('/admin/reports'),
                   ),
                   AdminMetricCard(
                     label: 'Open Disputes',
                     value: metrics.openDisputes.toString(),
                     icon: Icons.gavel_outlined,
                     color: const Color(0xFFF59E0B),
+                    onTap: () => context.push('/admin/reports'),
                   ),
                   AdminMetricCard(
                     label: 'Active Chats',
@@ -174,10 +192,55 @@ class AdminModerationScreen extends ConsumerWidget {
                     value: metrics.approvedSellers.toString(),
                     icon: Icons.verified_outlined,
                     color: const Color(0xFF16A34A),
+                    onTap: () => context.push('/admin/stores'),
                   ),
                 ],
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
+
+              // ── Recent Activity Timeline ──────────────────────────────
+              _SectionLabel('Recent System Activity'),
+              const SizedBox(height: 10),
+              Consumer(
+                builder: (context, ref, _) {
+                  final auditLogsAsync = ref.watch(adminAuditLogsProvider);
+                  return auditLogsAsync.when(
+                    data: (logs) {
+                      final recent = logs.take(5).toList();
+                      if (recent.isEmpty) {
+                        return const AdminSectionCard(
+                          child: Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Text('No recent activity'),
+                            ),
+                          ),
+                        );
+                      }
+                      return AdminSectionCard(
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                        child: Column(
+                          children: [
+                            for (int i = 0; i < recent.length; i++) ...[
+                              _ActivityTimelineTile(log: recent[i]),
+                              if (i != recent.length - 1) const Divider(),
+                            ],
+                          ],
+                        ),
+                      );
+                    },
+                    loading: () => const SizedBox(
+                      height: 100,
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                    error: (e, _) => Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text('Error loading activity: $e', style: const TextStyle(color: Colors.red)),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 24),
 
               // ── Quick navigation ───────────────────────────────────────
               _SectionLabel('Management'),
@@ -316,8 +379,104 @@ class _RevenueCard extends StatelessWidget {
             'from ${currencyFmt.format(totalRevenue)} GMV',
             style: const TextStyle(color: Colors.white60, fontSize: 13),
           ),
+          const SizedBox(height: 12),
+          Consumer(
+            builder: (context, ref, _) {
+              final firestore = ref.watch(firebaseFirestoreProvider);
+              return _RevenueSparkline(
+                firestore: firestore,
+                lineColor: Colors.white.withValues(alpha: 0.8),
+              );
+            },
+          ),
         ],
       ),
+    );
+  }
+}
+
+class _RevenueSparkline extends StatelessWidget {
+  final FirebaseFirestore firestore;
+  final Color lineColor;
+
+  const _RevenueSparkline({required this.firestore, required this.lineColor});
+
+  @override
+  Widget build(BuildContext context) {
+    final startDate = DateTime.now().subtract(const Duration(days: 7));
+    return FutureBuilder<QuerySnapshot>(
+      future: firestore
+          .collection('orders')
+          .where('status', isEqualTo: 'delivered')
+          .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
+          .get(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(
+            height: 40,
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+          );
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+        final Map<DateTime, double> dailyRevenue = {};
+        for (int i = 0; i < 7; i++) {
+          final date = DateUtils.dateOnly(startDate.add(Duration(days: i)));
+          dailyRevenue[date] = 0;
+        }
+
+        for (final doc in docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final amount = (data['totalAmount'] as num?)?.toDouble() ?? 0;
+          final timestamp = data['createdAt'] as Timestamp?;
+          if (timestamp != null) {
+            final date = DateUtils.dateOnly(timestamp.toDate());
+            if (dailyRevenue.containsKey(date)) {
+              dailyRevenue[date] = (dailyRevenue[date] ?? 0) + amount;
+            }
+          }
+        }
+
+        final chartPoints = <FlSpot>[];
+        final dates = dailyRevenue.keys.toList()..sort();
+        for (int i = 0; i < dates.length; i++) {
+          chartPoints.add(FlSpot(i.toDouble(), dailyRevenue[dates[i]] ?? 0));
+        }
+
+        if (chartPoints.length < 2) {
+          return const SizedBox.shrink();
+        }
+
+        return SizedBox(
+          height: 45,
+          child: LineChart(
+            LineChartData(
+              gridData: const FlGridData(show: false),
+              titlesData: const FlTitlesData(
+                leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              ),
+              borderData: FlBorderData(show: false),
+              lineBarsData: [
+                LineChartBarData(
+                  spots: chartPoints,
+                  isCurved: true,
+                  color: lineColor,
+                  barWidth: 2,
+                  isStrokeCapRound: true,
+                  dotData: const FlDotData(show: false),
+                  belowBarData: BarAreaData(
+                    show: true,
+                    color: lineColor.withValues(alpha: 0.15),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -389,6 +548,61 @@ class _QuickNavTile extends StatelessWidget {
           ),
           onTap: onTap,
         ),
+      ),
+    );
+  }
+}
+
+class _ActivityTimelineTile extends StatelessWidget {
+  final AuditLog log;
+
+  const _ActivityTimelineTile({required this.log});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.history_toggle_off_rounded,
+              color: AppColors.primary,
+              size: 14,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  log.action.replaceAll('_', ' ').toUpperCase(),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'By ${log.userEmail} on ${log.targetType} (${log.targetId})',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isDark ? AppColors.darkTextSecond : AppColors.lightTextSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            DateFormat('h:mm a').format(log.createdAt),
+            style: const TextStyle(fontSize: 10, color: Colors.grey),
+          ),
+        ],
       ),
     );
   }

@@ -14,6 +14,8 @@
 import 'package:ecom/core/constants/app_radius.dart';
 import 'package:ecom/core/theme/app_colors.dart';
 import 'package:ecom/shared/presentation/widgets/notification_bell.dart';
+import 'package:ecom/features/admin/presentation/controllers/admin_controller.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -155,13 +157,18 @@ class _AdminTopBar extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────
 // AdminSidebar (desktop) + Drawer content (mobile)
 // ─────────────────────────────────────────────────────────────
-class AdminSidebar extends StatelessWidget {
+class AdminSidebar extends ConsumerWidget {
   final bool inDrawer;
 
   const AdminSidebar({super.key, this.inDrawer = false});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final metricsAsync = ref.watch(adminDashboardMetricsProvider);
+    final metrics = metricsAsync.asData?.value;
+    final pendingApprovals = metrics?.pendingApplications ?? 0;
+    final openDisputes = metrics?.openDisputes ?? 0;
+
     final currentPath = GoRouterState.of(context).uri.toString();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final sidebarColor =
@@ -255,6 +262,7 @@ class AdminSidebar extends StatelessWidget {
                         isActive: currentPath.startsWith(
                           '/admin/store-approvals',
                         ),
+                        badgeCount: pendingApprovals,
                       ),
                       _SidebarItem(
                         icon: Icons.category_outlined,
@@ -292,6 +300,13 @@ class AdminSidebar extends StatelessWidget {
                         label: 'Orders',
                         route: '/admin/orders',
                         isActive: currentPath.startsWith('/admin/orders'),
+                      ),
+                      _SidebarItem(
+                        icon: Icons.local_offer_outlined,
+                        activeIcon: Icons.local_offer,
+                        label: 'Coupons',
+                        route: '/admin/coupons',
+                        isActive: currentPath.startsWith('/admin/coupons'),
                       ),
                     ],
                   ),
@@ -335,6 +350,7 @@ class AdminSidebar extends StatelessWidget {
                         label: 'Reports & Disputes',
                         route: '/admin/reports',
                         isActive: currentPath.startsWith('/admin/reports'),
+                        badgeCount: openDisputes,
                       ),
                     ],
                   ),
@@ -347,6 +363,13 @@ class AdminSidebar extends StatelessWidget {
                         label: 'Platform Settings',
                         route: '/admin/settings',
                         isActive: currentPath.startsWith('/admin/settings'),
+                      ),
+                      _SidebarItem(
+                        icon: Icons.history_toggle_off_outlined,
+                        activeIcon: Icons.history_rounded,
+                        label: 'Audit Logs',
+                        route: '/admin/audit-logs',
+                        isActive: currentPath.startsWith('/admin/audit-logs'),
                       ),
                     ],
                   ),
@@ -408,6 +431,7 @@ class _SidebarItem extends StatelessWidget {
   final String label;
   final String route;
   final bool isActive;
+  final int? badgeCount;
 
   const _SidebarItem({
     required this.icon,
@@ -415,6 +439,7 @@ class _SidebarItem extends StatelessWidget {
     required this.label,
     required this.route,
     required this.isActive,
+    this.badgeCount,
   });
 
   @override
@@ -437,7 +462,7 @@ class _SidebarItem extends StatelessWidget {
             if (Scaffold.maybeOf(context)?.isDrawerOpen ?? false) {
               Navigator.of(context).pop();
             }
-            context.push(route);
+            context.go(route);
           },
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -461,6 +486,22 @@ class _SidebarItem extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (badgeCount != null && badgeCount! > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.error,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      badgeCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),

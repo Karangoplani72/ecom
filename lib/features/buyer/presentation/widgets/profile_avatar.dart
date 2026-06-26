@@ -149,7 +149,12 @@ class ProfileAvatar extends StatelessWidget {
     String initials,
     Color primaryColor,
   ) {
-    if (fallbackAsset != null) {
+    final nameLower = userName.toLowerCase().trim();
+    final isGuest = nameLower.isEmpty ||
+        nameLower == 'guest user' ||
+        nameLower == 'guest' ||
+        nameLower == 'user';
+    if (fallbackAsset != null && isGuest) {
       return Image.asset(
         fallbackAsset!,
         width: radius * 2,

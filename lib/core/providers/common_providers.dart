@@ -247,11 +247,12 @@ Future<Map<String, dynamic>> verifyAndFinalizePayment({
   required String deliveryAddress,
   required List<Map<String, dynamic>> orders,
   required String idToken,
+  String? couponCode,
 }) async {
   final url = verifyAndFinalizePaymentUrl;
   debugPrint(
     '[PAYMENT] verifyAndFinalizePayment: POST $url'
-    ' | paymentId=$razorpayPaymentId | buyerId=$buyerId',
+    ' | paymentId=$razorpayPaymentId | buyerId=$buyerId | coupon=$couponCode',
   );
 
   try {
@@ -272,6 +273,7 @@ Future<Map<String, dynamic>> verifyAndFinalizePayment({
             'buyerName': buyerName,
             'deliveryAddress': deliveryAddress,
             'orders': orders,
+            'couponCode': ?couponCode,
           }),
         )
         .timeout(const Duration(seconds: 60));

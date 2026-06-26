@@ -4,6 +4,8 @@ import 'package:ecom/core/theme/app_colors.dart';
 import 'package:ecom/core/widgets/app_network_image.dart';
 import 'package:ecom/core/widgets/app_primary_button.dart';
 import 'package:ecom/core/widgets/app_scaffold.dart';
+import 'package:ecom/features/buyer/domain/entities/cart_item.dart';
+import 'package:ecom/features/buyer/presentation/controllers/cart_controller.dart';
 import 'package:ecom/features/marketplace/data/dtos/catalog_item_dto.dart';
 import 'package:ecom/features/marketplace/domain/entities/catalog_item.dart';
 import 'package:ecom/features/seller/domain/entities/seller_product.dart';
@@ -11,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:ecom/features/buyer/presentation/widgets/buyer_side_drawer.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'product_detail_screen.g.dart';
@@ -66,6 +69,27 @@ class ProductDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
+  Widget _buildGlassIcon(IconData icon, bool isDark) {
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.07)
+            : Colors.black.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: isDark ? 0.1 : 0.15),
+        ),
+      ),
+      child: Icon(
+        icon,
+        size: 18,
+        color: isDark ? Colors.white : AppColors.lightTextPrimary,
+      ),
+    );
+  }
+
   final PageController _pageController = PageController();
   int _currentPage = 0;
   Map<String, String> _selectedCombination = {};
@@ -137,33 +161,37 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   }
 
   Future<void> _addToCart(CatalogItem item, {bool buyNow = false}) async {
-    final uid = ref.read(currentUserIdProvider);
-    if (uid == null) return;
     if (_isOutOfStock(item)) return;
 
     setState(() => _addingToCart = true);
     try {
       final sku = _currentSku(item);
-      final firestore = ref.read(firebaseFirestoreProvider);
-      final cartRef = firestore
-          .collection('users')
-          .doc(uid)
-          .collection('cart')
-          .doc();
+      // Use a deterministic id so repeated adds merge quantity instead of
+      // creating duplicate cart lines:
+      //   • variant product  → "<productId>__<skuId>"
+      //   • simple product   → "<productId>"
+      final cartId = sku != null ? '${item.id}__${sku.skuId}' : item.id;
 
-      await cartRef.set({
-        'productId': item.id,
-        'storeId': item.storeId,
-        'title': item.title,
-        'imageUrl': item.coverImage,
-        'basePrice': item.basePrice,
-        'compareAtPrice': item.compareAtPrice,
-        'selectedCombination': _selectedCombination,
-        'skuId': sku?.skuId,
-        'unitPrice': _unitPrice(item),
-        'quantity': _quantity,
-        'addedAt': FieldValue.serverTimestamp(),
-      });
+      final cartItem = CartItem(
+        id: cartId,
+        productId: item.id,
+        title: item.title,
+        storeId: item.storeId,
+        storeName: item.metadata['storeName'] as String? ?? 'Seller Store',
+        unitPrice: _unitPrice(item),
+        imageUrl: item.coverImageForCombination(_selectedCombination).isNotEmpty
+            ? item.coverImageForCombination(_selectedCombination)
+            : item.coverImage,
+        quantity: _quantity,
+        skuId: sku?.skuId,
+        selectedCombination: _selectedCombination.isNotEmpty
+            ? Map<String, String>.from(_selectedCombination)
+            : null,
+      );
+
+      // Routes through CartController which handles both signed-in (Firestore)
+      // and guest (local state) carts automatically.
+      await ref.read(cartControllerProvider.notifier).addItem(cartItem);
 
       if (!mounted) return;
       if (buyNow) {
@@ -254,15 +282,18 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
     return Scaffold(
       backgroundColor: bgColor,
+      drawer: const BuyerSideDrawer(),
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
             expandedHeight: 380,
             pinned: true,
             backgroundColor: surface,
-            leading: IconButton(
-              icon: Icon(Icons.arrow_back_ios_new, color: textPrimary),
-              onPressed: () => context.pop(),
+            leading: Builder(
+              builder: (context) => IconButton(
+                icon: _buildGlassIcon(Icons.menu_rounded, isDark),
+                onPressed: () => Scaffold.of(context).openDrawer(),
+              ),
             ),
             actions: [
               IconButton(

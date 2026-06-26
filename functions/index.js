@@ -217,6 +217,7 @@ exports.verifyAndFinalizePayment = onRequest(
         buyerName,
         deliveryAddress,
         orders,
+        couponCode,
       } = req.body;
 
       // --- Validate caller is the actual buyer ---
@@ -270,21 +271,46 @@ exports.verifyAndFinalizePayment = onRequest(
       console.log('[PAYMENT][SUCCESS] Signature verified.',
           '| paymentId:', paymentId, '| rzpOrderId:', rzpOrderId, '| buyerId:', buyerId);
 
-      // ─── STEP 2: Atomic Firestore Transaction ──────────────────────────────
       const db = admin.firestore();
+
+      // --- Fetch coupon details if couponCode is provided ---
+      let couponRef = null;
+      if (couponCode && typeof couponCode === 'string' && couponCode.trim().length > 0) {
+        const couponQuery = await db.collection('coupons')
+            .where('code', '==', couponCode.toUpperCase().trim())
+            .limit(1)
+            .get();
+        if (!couponQuery.empty) {
+          couponRef = couponQuery.docs[0].ref;
+        } else {
+          console.warn('[PAYMENT] Coupon code not found:', couponCode);
+          return res.status(400).json({error: 'Invalid or expired coupon code.'});
+        }
+      }
+
+      // ─── STEP 2: Atomic Firestore Transaction ──────────────────────────────
       const orderIds = [];
 
       try {
         await db.runTransaction(async (txn) => {
           // ── 2a. PHASE 1 — ALL READS FIRST ──
-          // Firestore transactions require every txn.get() to happen before
-          // any txn.set()/txn.update()/txn.delete(). The previous version
-          // interleaved a get() + two update()s per item inside one loop,
-          // so the *second* item's read ran after the *first* item's write
-          // and Firestore rejected the whole transaction. We now do a single
-          // read pass — deduplicating by productId in case the same product
-          // appears more than once across the order list — and only start
-          // writing once every read has completed.
+          let couponDoc = null;
+          let couponDetail = null;
+          if (couponRef) {
+            couponDoc = await txn.get(couponRef);
+            if (!couponDoc.exists) {
+              throw new Error('Coupon no longer exists.');
+            }
+            couponDetail = couponDoc.data();
+            if (!couponDetail.isActive) {
+              throw new Error('This coupon is no longer active.');
+            }
+            const expiry = couponDetail.expiryDate.toDate ? couponDetail.expiryDate.toDate() : (couponDetail.expiryDate._seconds ? new Date(couponDetail.expiryDate._seconds * 1000) : new Date(couponDetail.expiryDate));
+            if (expiry < new Date()) {
+              throw new Error('This coupon has expired.');
+            }
+          }
+
           console.log('[FIRESTORE] Reading catalog docs for', orders.length, 'order(s)...');
 
           const stockEntries = new Map(); // productId -> { catalogRef, storeProductRef, title, totalQty, skuQty: Map<skuId, qty> }
@@ -438,13 +464,58 @@ exports.verifyAndFinalizePayment = onRequest(
             txn.update(entry.storeProductRef, stockUpdate);
           }
 
+          // --- First pass: Calculate order subtotals and overall subtotal ---
+          let totalSubtotal = 0;
+          const orderSubtotals = [];
+
+          for (const order of orders) {
+            let sub = 0;
+            for (const item of order.items) {
+              const entry = stockEntries.get(item.productId);
+              const catalogData = entry.catalogData;
+
+              let sku = null;
+              if (entry.hasVariants && item.skuId) {
+                sku = entry.skuList.find((s) => s.skuId === item.skuId);
+              }
+              const skuPrice = sku && typeof sku.price === 'number' && sku.price > 0 ?
+                sku.price : undefined;
+              const effectivePrice = getEffectivePrice(catalogData, skuPrice);
+              const qty = parseInt(item.quantity) || 1;
+              sub += effectivePrice * qty;
+            }
+            orderSubtotals.push(sub);
+            totalSubtotal += sub;
+          }
+
+          let overallDiscount = 0;
+          if (couponDetail) {
+            const minOrder = parseFloat(couponDetail.minOrderValue) || 0.0;
+            if (totalSubtotal < minOrder) {
+              throw new Error(`Order subtotal (₹${totalSubtotal}) is less than the coupon's minimum order value (₹${minOrder}).`);
+            }
+            if (couponDetail.discountType === 'percentage') {
+              overallDiscount = totalSubtotal * (parseFloat(couponDetail.value) / 100);
+            } else {
+              overallDiscount = Math.min(parseFloat(couponDetail.value) || 0.0, totalSubtotal);
+            }
+          }
+
           // ── 2c. Create order documents, transaction logs & update wallets ──
 
+          let orderIndex = 0;
           for (const order of orders) {
             const orderRef = db.collection('orders').doc();
             orderIds.push(orderRef.id);
 
-            let orderSubtotal = 0;
+            const orderSubtotal = orderSubtotals[orderIndex];
+
+            // Proportional discount
+            let orderDiscount = 0;
+            if (overallDiscount > 0 && totalSubtotal > 0) {
+              orderDiscount = overallDiscount * (orderSubtotal / totalSubtotal);
+            }
+
             let orderPlatformFee = 0;
             let orderVendorPayout = 0;
 
@@ -481,7 +552,6 @@ exports.verifyAndFinalizePayment = onRequest(
                 itemPayout = effectivePrice * (1.0 - defaultCommissionRate);
               }
 
-              orderSubtotal += effectivePrice * qty;
               orderPlatformFee += itemPlatformFee * qty;
               orderVendorPayout += itemPayout * qty;
 
@@ -497,7 +567,7 @@ exports.verifyAndFinalizePayment = onRequest(
             });
 
             const orderDeliveryFee = orderSubtotal < 1000 ? 99.0 : 0.0;
-            const orderTotalAmount = orderSubtotal + orderDeliveryFee + orderPlatformFee;
+            const orderTotalAmount = Math.max(0, orderSubtotal + orderDeliveryFee + orderPlatformFee - orderDiscount);
 
             const orderDoc = {
               orderId: orderRef.id,
@@ -510,6 +580,8 @@ exports.verifyAndFinalizePayment = onRequest(
               subtotal: orderSubtotal,
               deliveryFee: orderDeliveryFee,
               platformFee: orderPlatformFee,
+              discount: orderDiscount,
+              couponCode: couponCode || null,
               totalAmount: orderTotalAmount,
               paymentMethod: order.paymentMethod || 'Online (Razorpay)',
               paymentStatus: 'completed',
@@ -544,6 +616,7 @@ exports.verifyAndFinalizePayment = onRequest(
               externalTransactionId: paymentId,
               grossAmount: orderSubtotal,
               platformCommission: orderPlatformFee,
+              discount: orderDiscount,
               netVendorPayout: orderVendorPayout,
               amount: orderVendorPayout,
               currency: 'INR',
@@ -563,6 +636,16 @@ exports.verifyAndFinalizePayment = onRequest(
               currency: 'INR',
               updatedAt: serverNow
             }, { merge: true });
+
+            // Atomically increment the store's totalOrders counter so the
+            // admin Sellers screen always reflects live order counts.
+            const storeRef = db.collection('stores').doc(order.storeId);
+            txn.set(storeRef, {
+              totalOrders: admin.firestore.FieldValue.increment(1),
+              updatedAt: serverNow,
+            }, { merge: true });
+
+            orderIndex++;
 
             // Create escrow document for 10 days auto-release
             const escrowRef = db.collection('escrows').doc();
@@ -723,9 +806,155 @@ exports.releaseMaturedEscrows = onRequest(
 );
 
 // ---------------------------------------------------------------------------
-// 4. aggregateProductReviews — updates avgRating and reviewCount on product
+// 3b. onOrderStatusUpdate — Release escrow immediately when order is delivered
 // ---------------------------------------------------------------------------
 const { onDocumentWritten, onDocumentUpdated } = require('firebase-functions/v2/firestore');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
+
+exports.onOrderStatusUpdate = onDocumentUpdated('orders/{orderId}', async (event) => {
+  const before = event.data.before.data();
+  const after = event.data.after.data();
+
+  // Only trigger when status changes TO 'delivered'
+  if (before.status === after.status || after.status !== 'delivered') {
+    return null;
+  }
+
+  const orderId = event.params.orderId;
+  const db = admin.firestore();
+  const serverNow = admin.firestore.FieldValue.serverTimestamp();
+
+  console.log('[ESCROW] Order delivered, releasing escrow for orderId:', orderId);
+
+  try {
+    // Find the escrow doc for this order
+    const escrowSnap = await db.collection('escrows')
+        .where('orderId', '==', orderId)
+        .where('status', '==', 'pending')
+        .limit(1)
+        .get();
+
+    if (escrowSnap.empty) {
+      console.log('[ESCROW] No pending escrow found for orderId:', orderId);
+      return null;
+    }
+
+    const escrowDoc = escrowSnap.docs[0];
+    const escrow = escrowDoc.data();
+    const storeId = escrow.storeId;
+    const amount = escrow.amount;
+
+    await db.runTransaction(async (txn) => {
+      // Move funds from pendingEscrowBalance to balance
+      const walletRef = db.collection('wallets').doc(storeId);
+      txn.set(walletRef, {
+        balance: admin.firestore.FieldValue.increment(amount),
+        pendingEscrowBalance: admin.firestore.FieldValue.increment(-amount),
+        updatedAt: serverNow
+      }, { merge: true });
+
+      // Update escrow doc
+      txn.update(escrowDoc.ref, {
+        status: 'released',
+        releasedReason: 'order_delivered',
+        updatedAt: serverNow
+      });
+
+      // Log transaction
+      const transactionRef = db.collection('transactions').doc();
+      txn.set(transactionRef, {
+        id: transactionRef.id,
+        orderId: orderId,
+        referenceId: escrowDoc.id,
+        storeId: storeId,
+        type: 'adjustment',
+        status: 'completed',
+        amount: amount,
+        currency: 'INR',
+        description: `Escrow released — order ${orderId} delivered`,
+        createdAt: serverNow,
+        completedAt: serverNow
+      });
+    });
+
+    console.log('[ESCROW][SUCCESS] Released escrow for delivered order:', orderId,
+        '| storeId:', storeId, '| amount:', amount);
+    return null;
+  } catch (error) {
+    console.error('[ESCROW][ERROR] Failed to release escrow for delivered order:', orderId, error);
+    return null;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 3c. scheduledEscrowRelease — Auto-release matured escrows every hour
+// ---------------------------------------------------------------------------
+exports.scheduledEscrowRelease = onSchedule('every 1 hours', async (event) => {
+  const db = admin.firestore();
+  const now = new Date();
+  const serverNow = admin.firestore.FieldValue.serverTimestamp();
+
+  try {
+    const maturedEscrowsSnap = await db.collection('escrows')
+        .where('status', '==', 'pending')
+        .where('releaseAt', '<=', now)
+        .get();
+
+    if (maturedEscrowsSnap.empty) {
+      console.log('[ESCROW][SCHEDULED] No matured escrows to release.');
+      return null;
+    }
+
+    const releasedIds = [];
+    await db.runTransaction(async (txn) => {
+      for (const doc of maturedEscrowsSnap.docs) {
+        const escrow = doc.data();
+        const storeId = escrow.storeId;
+        const amount = escrow.amount;
+
+        const walletRef = db.collection('wallets').doc(storeId);
+        txn.set(walletRef, {
+          balance: admin.firestore.FieldValue.increment(amount),
+          pendingEscrowBalance: admin.firestore.FieldValue.increment(-amount),
+          updatedAt: serverNow
+        }, { merge: true });
+
+        txn.update(doc.ref, {
+          status: 'released',
+          releasedReason: 'matured',
+          updatedAt: serverNow
+        });
+
+        const transactionRef = db.collection('transactions').doc();
+        txn.set(transactionRef, {
+          id: transactionRef.id,
+          orderId: escrow.orderId,
+          referenceId: escrow.id,
+          storeId: storeId,
+          type: 'adjustment',
+          status: 'completed',
+          amount: amount,
+          currency: 'INR',
+          description: `Escrow release for order ${escrow.orderId}`,
+          createdAt: serverNow,
+          completedAt: serverNow
+        });
+
+        releasedIds.push(doc.id);
+      }
+    });
+
+    console.log('[ESCROW][SCHEDULED] Released', releasedIds.length, 'matured escrows.');
+    return null;
+  } catch (error) {
+    console.error('[ESCROW][SCHEDULED][ERROR] Failed to release matured escrows:', error);
+    return null;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 4. aggregateProductReviews — updates avgRating and reviewCount on product
+// ---------------------------------------------------------------------------
 
 exports.aggregateProductReviews = onDocumentWritten('reviews/{reviewId}', async (event) => {
   const db = admin.firestore();
@@ -765,6 +994,41 @@ exports.aggregateProductReviews = onDocumentWritten('reviews/{reviewId}', async 
     }, { merge: true });
 
     console.log('[REVIEWS][SUCCESS] Aggregated rating for product:', productId, '| avgRating:', avgRating, '| count:', reviewCount);
+
+    // Also update the store-level rating and totalReviews
+    const catalogDoc = await db.collection('catalog').doc(productId).get();
+    if (catalogDoc.exists) {
+      const storeId = catalogDoc.data().storeId;
+      if (storeId) {
+        // Get all products for this store and compute store-level stats
+        const storeProducts = await db.collection('catalog').where('storeId', '==', storeId).get();
+        let storeRatingSum = 0;
+        let storeTotalReviews = 0;
+        let ratedProductCount = 0;
+
+        storeProducts.forEach(pDoc => {
+          const pData = pDoc.data();
+          const rc = pData.reviewCount || 0;
+          const ar = pData.avgRating || 0;
+          if (rc > 0) {
+            storeRatingSum += ar * rc;
+            storeTotalReviews += rc;
+            ratedProductCount++;
+          }
+        });
+
+        const storeAvgRating = storeTotalReviews > 0 ? (storeRatingSum / storeTotalReviews) : 0;
+
+        await db.collection('stores').doc(storeId).set({
+          rating: storeAvgRating,
+          totalReviews: storeTotalReviews,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        console.log('[REVIEWS][SUCCESS] Updated store:', storeId, '| storeRating:', storeAvgRating.toFixed(2), '| totalReviews:', storeTotalReviews);
+      }
+    }
+
     return null;
   } catch (error) {
     console.error('[REVIEWS][ERROR] Failed to aggregate reviews:', error);

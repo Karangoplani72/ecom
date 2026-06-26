@@ -137,7 +137,9 @@ class AuthController extends _$AuthController {
 
   Future<void> executeLogoutSequence() async {
     await ref.read(authRepositoryProvider).signOut();
-    state = const AsyncValue.data(null);
+    if (ref.mounted) {
+      state = const AsyncValue.data(null);
+    }
   }
 
   Future<void> registerWithCredentials({

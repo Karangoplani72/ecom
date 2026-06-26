@@ -18,6 +18,7 @@ class AdminMetricCard extends StatelessWidget {
   final IconData icon;
   final Color color;
   final String? trend;
+  final VoidCallback? onTap;
 
   const AdminMetricCard({
     super.key,
@@ -26,13 +27,14 @@ class AdminMetricCard extends StatelessWidget {
     required this.icon,
     required this.color,
     this.trend,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Container(
+    Widget card = Container(
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkCard : AppColors.lightCard,
         borderRadius: AppRadius.borderLG,
@@ -99,6 +101,18 @@ class AdminMetricCard extends StatelessWidget {
         ),
       ),
     );
+
+    if (onTap != null) {
+      card = MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: onTap,
+          child: card,
+        ),
+      );
+    }
+
+    return card;
   }
 }
 
