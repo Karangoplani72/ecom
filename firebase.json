@@ -1,6 +1,7 @@
 {
   "firestore": {
     "database": "(default)",
+    "location": "us-central1",
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
@@ -14,8 +15,36 @@
         "firebase-debug.*.log",
         "*.local"
       ],
-      "predeploy": [],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run lint"
+      ],
       "source": "functions"
     }
-  ]
+  ],
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "ecom-skill-karan-2026",
+          "appId": "1:928528421197:android:f17578f99ae0a39a3a2704",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "ecom-skill-karan-2026",
+          "configurations": {
+            "android": "1:928528421197:android:f17578f99ae0a39a3a2704",
+            "ios": "1:928528421197:ios:d1e78f4347ea137a3a2704",
+            "macos": "1:928528421197:ios:d1e78f4347ea137a3a2704",
+            "web": "1:928528421197:web:9c8b4a65ea0fd1353a2704",
+            "windows": "1:928528421197:web:a5991e4851d4d2b03a2704"
+          }
+        }
+      }
+    }
+  },
+  "storage": {
+    "rules": "storage.rules"
+  }
 }

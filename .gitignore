@@ -49,3 +49,35 @@ functions/serviceAccountKey.json
 .env.*
 private/
 *.json
+
+
+
+# Firebase
+.firebase/
+.firebaserc
+
+# Firebase Functions
+functions/node_modules/
+functions/.runtimeconfig.json
+
+# Additional Node.js projects
+uid-migration/node_modules/
+uid-migration/package-lock.json
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Flutter
+.flutter-plugins
+.packages
+
+# VS Code (optional)
+.vscode/
+
+# Secrets
+functions/serviceAccountKey.json
+google-services.json.bak
+GoogleService-Info.plist.bak

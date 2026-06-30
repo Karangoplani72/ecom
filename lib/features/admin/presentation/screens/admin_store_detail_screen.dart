@@ -4,7 +4,8 @@ import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/features/admin/presentation/widgets/admin_common.dart';
 import 'package:ecom/features/admin/presentation/widgets/admin_shell.dart';
 import 'package:ecom/features/admin/presentation/controllers/admin_controller.dart';
-import 'package:fpdart/fpdart.dart';
+import 'package:ecom/features/admin/presentation/providers/store_live_stats_provider.dart';
+import 'package:fpdart/fpdart.dart' hide State;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -58,6 +59,10 @@ class _StoreDetailView extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final dateFmt = DateFormat('d MMM yyyy');
 
+    // The store document ID is the seller UID; products use storeId == seller UID
+    final storeId = store['id'] as String? ?? '';
+    final sellerId = store['sellerId'] as String? ?? storeId;
+
     final isActive = store['isActive'] as bool? ?? true;
     final isVerified = store['isVerified'] as bool? ?? false;
 
@@ -77,7 +82,7 @@ class _StoreDetailView extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        // Store Header
+        // ── Store Header ──────────────────────────────────────────────────────
         AdminSectionCard(
           padding: const EdgeInsets.all(20),
           child: Row(
@@ -115,33 +120,14 @@ class _StoreDetailView extends ConsumerWidget {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    if (store['category'] != null)
+                    if ((store['businessCategory'] ?? store['category']) != null)
                       Text(
-                        store['category'] as String,
+                        (store['businessCategory'] ?? store['category']) as String,
                         style: TextStyle(
                           fontSize: 13,
                           color: isDark ? Colors.white54 : AppColors.lightTextSecondary,
                         ),
                       ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          (store['rating'] as num?)?.toStringAsFixed(1) ?? '0.0',
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '(${store['totalReviews'] ?? 0} reviews)',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isDark ? Colors.white54 : AppColors.lightTextSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
@@ -150,34 +136,12 @@ class _StoreDetailView extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
 
-        // Store Stats
+        // ── Live Store Statistics (computed from Firestore, cached) ───────────
         _SectionHeader('Store Statistics'),
-        AdminSectionCard(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _StatItem(
-                label: 'Products',
-                value: (store['totalProducts'] ?? 0).toString(),
-                icon: Icons.inventory_2_outlined,
-              ),
-              _StatItem(
-                label: 'Orders',
-                value: (store['totalOrders'] ?? 0).toString(),
-                icon: Icons.receipt_long_outlined,
-              ),
-              _StatItem(
-                label: 'Rating',
-                value: ((store['rating'] as num?)?.toStringAsFixed(1) ?? '0.0'),
-                icon: Icons.star_outline_rounded,
-              ),
-            ],
-          ),
-        ),
+        _LiveStoreStats(storeId: storeId, ref: ref),
         const SizedBox(height: 16),
 
-        // Store Information
+        // ── Store Information ─────────────────────────────────────────────────
         _SectionHeader('Store Information'),
         AdminSectionCard(
           padding: const EdgeInsets.all(16),
@@ -186,12 +150,12 @@ class _StoreDetailView extends ConsumerWidget {
             children: [
               _InfoRow(
                 label: 'Store ID',
-                value: store['storeId'] as String? ?? store['id'] as String? ?? 'Unknown',
+                value: storeId.isNotEmpty ? storeId : 'Unknown',
               ),
               const SizedBox(height: 8),
               _InfoRow(
                 label: 'Seller ID',
-                value: store['sellerId'] as String? ?? 'Unknown',
+                value: sellerId.isNotEmpty ? sellerId : 'Unknown',
               ),
               const SizedBox(height: 8),
               _InfoRow(
@@ -210,7 +174,7 @@ class _StoreDetailView extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
 
-        // Contact Information
+        // ── Contact Information ───────────────────────────────────────────────
         _SectionHeader('Contact Information'),
         AdminSectionCard(
           padding: const EdgeInsets.all(16),
@@ -236,7 +200,7 @@ class _StoreDetailView extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
 
-        // Business Details
+        // ── Business Details ──────────────────────────────────────────────────
         _SectionHeader('Business Details'),
         AdminSectionCard(
           padding: const EdgeInsets.all(16),
@@ -245,12 +209,14 @@ class _StoreDetailView extends ConsumerWidget {
             children: [
               _InfoRow(
                 label: 'Business Category',
-                value: store['businessCategory'] as String? ?? 'Unknown',
+                value: store['businessCategory'] as String? ?? store['category'] as String? ?? 'Unknown',
               ),
               const SizedBox(height: 8),
               _InfoRow(
                 label: 'Description',
-                value: store['storeDescription'] as String? ?? 'No description',
+                value: store['storeDescription'] as String? ??
+                    store['description'] as String? ??
+                    'No description',
               ),
               const SizedBox(height: 8),
               _InfoRow(
@@ -262,7 +228,7 @@ class _StoreDetailView extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
 
-        // Bank Details
+        // ── Bank Details ──────────────────────────────────────────────────────
         _SectionHeader('Bank Details'),
         AdminSectionCard(
           padding: const EdgeInsets.all(16),
@@ -277,7 +243,7 @@ class _StoreDetailView extends ConsumerWidget {
               _InfoRow(
                 label: 'Account Number',
                 value: store['accountNumber'] != null
-                    ? 'XXXX${(store['accountNumber'] as String).substring((store['accountNumber'] as String).length - 4)}'
+                    ? 'XXXX${(store['accountNumber'] as String).substring((store['accountNumber'] as String).length.clamp(4, 999) - 4)}'
                     : 'Not provided',
               ),
               const SizedBox(height: 8),
@@ -295,12 +261,12 @@ class _StoreDetailView extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
 
-        // Store Products Preview
-        _SectionHeader('Recent Products'),
-        _ProductsPreview(storeId: store['id'] as String),
+        // ── Recent Products (live from catalog, shares the cached fetch) ──────
+        _SectionHeader('Products'),
+        _ProductsPreview(storeId: storeId),
         const SizedBox(height: 16),
 
-        // Store Actions
+        // ── Store Actions ─────────────────────────────────────────────────────
         _SectionHeader('Store Actions'),
         AdminSectionCard(
           padding: const EdgeInsets.all(16),
@@ -347,16 +313,16 @@ class _StoreDetailView extends ConsumerWidget {
     WidgetRef ref,
     bool currentStatus,
   ) async {
-    final storeId = store['sellerId'] as String? ?? store['id'] as String? ?? '';
+    final storeDocId = store['id'] as String? ?? '';
     final Either<String, Unit> result;
     if (currentStatus) {
       result = await ref
           .read(adminControllerProvider.notifier)
-          .suspendStore(storeId);
+          .suspendStore(storeDocId);
     } else {
       result = await ref
           .read(adminControllerProvider.notifier)
-          .activateStore(storeId);
+          .activateStore(storeDocId);
     }
     if (!context.mounted) return;
     result.fold(
@@ -394,16 +360,17 @@ class _StoreDetailView extends ConsumerWidget {
 
     if (confirmed != true) return;
 
-    final storeId = store['sellerId'] as String? ?? store['id'] as String? ?? '';
+    final storeDocId = store['id'] as String? ?? '';
     final result = await ref
         .read(adminControllerProvider.notifier)
-        .deleteStore(storeId);
+        .deleteStore(storeDocId);
 
     if (!context.mounted) return;
     result.fold(
       (err) => ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(err))),
       (_) {
+        ref.invalidate(storeLiveStatsProvider(storeDocId));
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Store deleted')),
         );
@@ -424,6 +391,73 @@ class _StoreDetailView extends ConsumerWidget {
         Icons.storefront_outlined,
         color: AppColors.primary,
         size: 40,
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Live stats widget — backed by storeLiveStatsProvider, which is cached
+// (keepAlive) per storeId. Riverpod shares this single fetch with
+// _ProductsPreview below, so scrolling/rebuilding this screen never
+// re-triggers Firestore reads after the first successful load.
+// ─────────────────────────────────────────────────────────────────────────────
+class _LiveStoreStats extends ConsumerWidget {
+  final String storeId;
+  final WidgetRef ref;
+
+  const _LiveStoreStats({required this.storeId, required this.ref});
+
+  @override
+  Widget build(BuildContext context, WidgetRef _) {
+    final statsAsync = ref.watch(storeLiveStatsProvider(storeId));
+
+    return statsAsync.when(
+      loading: () => _buildCard(context, isLoading: true, stats: null),
+      error: (e, _) => AdminEmptyRow(
+        icon: Icons.cloud_off_rounded,
+        message: 'Failed to load stats: $e',
+      ),
+      data: (stats) => _buildCard(context, isLoading: false, stats: stats),
+    );
+  }
+
+  Widget _buildCard(
+    BuildContext context, {
+    required bool isLoading,
+    required StoreLiveStats? stats,
+  }) {
+    final productCount = stats?.totalProducts ?? 0;
+    final orderCount = stats?.totalOrders ?? 0;
+    final rating = stats?.rating ?? 0.0;
+    final reviewCount = stats?.totalReviews ?? 0;
+
+    return AdminSectionCard(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _StatItem(
+            label: 'Products',
+            value: isLoading ? '…' : productCount.toString(),
+            icon: Icons.inventory_2_outlined,
+          ),
+          _StatItem(
+            label: 'Orders',
+            value: isLoading ? '…' : orderCount.toString(),
+            icon: Icons.receipt_long_outlined,
+          ),
+          _StatItem(
+            label: 'Rating',
+            value: isLoading ? '…' : rating.toStringAsFixed(1),
+            icon: Icons.star_outline_rounded,
+          ),
+          _StatItem(
+            label: 'Reviews',
+            value: isLoading ? '…' : reviewCount.toString(),
+            icon: Icons.reviews_outlined,
+          ),
+        ],
       ),
     );
   }
@@ -467,50 +501,29 @@ class _StatItem extends StatelessWidget {
   }
 }
 
-class _ProductsPreview extends ConsumerStatefulWidget {
+// ─────────────────────────────────────────────────────────────────────────────
+// Products preview — queries catalog by storeId, shows variant count
+// ─────────────────────────────────────────────────────────────────────────────
+class _ProductsPreview extends ConsumerWidget {
   final String storeId;
   const _ProductsPreview({required this.storeId});
 
   @override
-  ConsumerState<_ProductsPreview> createState() => _ProductsPreviewState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Shares the same cached fetch as _LiveStoreStats — Riverpod dedupes
+    // identical family-provider reads, so this does not trigger a second
+    // Firestore query.
+    final statsAsync = ref.watch(storeLiveStatsProvider(storeId));
 
-class _ProductsPreviewState extends ConsumerState<_ProductsPreview> {
-  late Future<QuerySnapshot<Map<String, dynamic>>> _productsFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _productsFuture = ref.read(firebaseFirestoreProvider)
-        .collection('catalog')
-        .where('sellerId', isEqualTo: widget.storeId)
-        .get();
-  }
-
-  @override
-  void didUpdateWidget(covariant _ProductsPreview oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.storeId != widget.storeId) {
-      _productsFuture = ref.read(firebaseFirestoreProvider)
-          .collection('catalog')
-          .where('sellerId', isEqualTo: widget.storeId)
-          .get();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      future: _productsFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return AdminEmptyRow(icon: Icons.error_outline, message: snapshot.error.toString());
-        }
-
-        var products = snapshot.data?.docs ?? [];
+    return statsAsync.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 24),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, _) =>
+          AdminEmptyRow(icon: Icons.error_outline, message: e.toString()),
+      data: (stats) {
+        var products = stats.products;
         if (products.isEmpty) {
           return const AdminEmptyRow(
             icon: Icons.inventory_2_outlined,
@@ -519,22 +532,31 @@ class _ProductsPreviewState extends ConsumerState<_ProductsPreview> {
         }
 
         // Sort by createdAt descending client-side
+        products = List.from(products);
         products.sort((a, b) {
-          final dataA = a.data();
-          final dataB = b.data();
-          final dateA = (dataA['createdAt'] as Timestamp?)?.toDate() ?? DateTime(1970);
-          final dateB = (dataB['createdAt'] as Timestamp?)?.toDate() ?? DateTime(1970);
+          final dateA = (a.data()['createdAt'] as Timestamp?)?.toDate() ?? DateTime(1970);
+          final dateB = (b.data()['createdAt'] as Timestamp?)?.toDate() ?? DateTime(1970);
           return dateB.compareTo(dateA);
         });
-
-        // Limit to 5 products preview
-        if (products.length > 5) {
-          products = products.sublist(0, 5);
-        }
 
         return Column(
           children: products.map((doc) {
             final product = doc.data();
+
+            // Determine variant info
+            final variantSkus = product['variantSkus'] as List?;
+            final hasVariants = variantSkus != null && variantSkus.isNotEmpty;
+            final variantCount = hasVariants ? variantSkus.length : 0;
+
+            // Determine stock
+            final stock = hasVariants
+                ? variantSkus.fold<int>(
+                    0,
+                    (acc, sku) =>
+                        acc + ((sku as Map<String, dynamic>?)?['stock'] as int? ?? 0),
+                  )
+                : ((product['metadata'] as Map<String, dynamic>?)?['stock'] as int? ?? 0);
+
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: AdminSectionCard(
@@ -546,8 +568,8 @@ class _ProductsPreviewState extends ConsumerState<_ProductsPreview> {
                       child: (product['imageUrls'] as List?)?.isNotEmpty == true
                           ? Image.network(
                               (product['imageUrls'] as List).first as String,
-                              width: 50,
-                              height: 50,
+                              width: 56,
+                              height: 56,
                               fit: BoxFit.cover,
                               errorBuilder: (ctx, err, stack) => _fallbackImage(),
                             )
@@ -565,7 +587,9 @@ class _ProductsPreviewState extends ConsumerState<_ProductsPreview> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 4),
-                          Row(
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
                             children: [
                               Text(
                                 '₹${(product['basePrice'] as num?)?.toInt() ?? 0}',
@@ -575,13 +599,29 @@ class _ProductsPreviewState extends ConsumerState<_ProductsPreview> {
                                   fontSize: 12,
                                 ),
                               ),
-                              const SizedBox(width: 8),
                               AdminStatusPill(
                                 label: product['isActive'] == true ? 'Active' : 'Inactive',
-                                color: product['isActive'] == true ? AppColors.success : AppColors.error,
+                                color: product['isActive'] == true
+                                    ? AppColors.success
+                                    : AppColors.error,
+                              ),
+                              if (hasVariants)
+                                AdminStatusPill(
+                                  label: '$variantCount variant${variantCount == 1 ? '' : 's'}',
+                                  color: const Color(0xFF7C3AED),
+                                ),
+                              AdminStatusPill(
+                                label: 'Stock: $stock',
+                                color: stock > 0
+                                    ? AppColors.success
+                                    : AppColors.error,
                               ),
                             ],
                           ),
+                          if (hasVariants) ...[
+                            const SizedBox(height: 4),
+                            _VariantChips(variantSkus: variantSkus),
+                          ],
                         ],
                       ),
                     ),
@@ -597,10 +637,67 @@ class _ProductsPreviewState extends ConsumerState<_ProductsPreview> {
 
   Widget _fallbackImage() {
     return Container(
-      width: 50,
-      height: 50,
+      width: 56,
+      height: 56,
       color: AppColors.primary.withValues(alpha: 0.1),
       child: const Icon(Icons.image_outlined, color: AppColors.primary, size: 24),
+    );
+  }
+}
+
+/// Renders a compact chip row summarising the variant combination labels.
+class _VariantChips extends StatelessWidget {
+  final List variantSkus;
+  const _VariantChips({required this.variantSkus});
+
+  @override
+  Widget build(BuildContext context) {
+    // Collect unique combinations for display
+    final labels = variantSkus
+        .take(6)
+        .map((sku) {
+          final m = sku as Map<String, dynamic>?;
+          final combination = m?['combination'];
+          if (combination is Map) {
+            return combination.values.join(' / ');
+          }
+          return m?['skuId']?.toString() ?? '';
+        })
+        .where((l) => l.isNotEmpty)
+        .toList();
+
+    if (labels.isEmpty) return const SizedBox.shrink();
+
+    return Wrap(
+      spacing: 4,
+      runSpacing: 2,
+      children: [
+        ...labels.map(
+          (label) => Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 10, color: AppColors.primary),
+            ),
+          ),
+        ),
+        if (variantSkus.length > 6)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.grey.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              '+${variantSkus.length - 6} more',
+              style: const TextStyle(fontSize: 10),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -636,7 +733,7 @@ class _InfoRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          width: 120,
+          width: 130,
           child: Text(
             '$label:',
             style: TextStyle(

@@ -172,17 +172,20 @@ class _SellerOrdersScreenState extends ConsumerState<SellerOrdersScreen> {
                     itemCount: filteredOrders.length,
                     itemBuilder: (context, index) {
                       final order = filteredOrders[index];
+                      final canUpdate = order.status != OrderStatus.delivered && 
+                                        order.status != OrderStatus.cancelled && 
+                                        order.status != OrderStatus.refunded;
                       return OrderCard(
                         order: order,
                         showCustomerInfo: true,
                         onTap: () =>
                             context.push('/seller/orders/${order.orderId}'),
-                        actionLabel: 'Update Status',
-                        onActionPressed: () => _showStatusPicker(
+                        actionLabel: canUpdate ? 'Update Status' : null,
+                        onActionPressed: canUpdate ? () => _showStatusPicker(
                           context,
                           order.orderId,
                           order.status,
-                        ),
+                        ) : null,
                       );
                     },
                   ),

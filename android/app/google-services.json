@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "282984146836",
-    "project_id": "ecom-750fc",
-    "storage_bucket": "ecom-750fc.firebasestorage.app"
+    "project_number": "928528421197",
+    "project_id": "ecom-skill-karan-2026",
+    "storage_bucket": "ecom-skill-karan-2026.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:282984146836:android:b2e0fc2653b1c62ff8d181",
+        "mobilesdk_app_id": "1:928528421197:android:f17578f99ae0a39a3a2704",
         "android_client_info": {
           "package_name": "com.example.ecom"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBt0r928tO1TtV_oKgumGCFsTe3jotk6Q0"
+          "current_key": "AIzaSyDe56BuRraCEpSXzt0yQIRMkXSbk0Q48-g"
         }
       ],
       "services": {

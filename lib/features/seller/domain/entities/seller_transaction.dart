@@ -6,16 +6,21 @@ enum TransactionType {
   payoutRequest('payout_request'),
   payoutCompleted('payout_completed'),
   platformFee('platform_fee'),
-  adjustment('adjustment');
+  adjustment('adjustment'),
+  sale('sale'),
+  unknown('unknown');
 
   final String value;
 
   const TransactionType(this.value);
 
   static TransactionType fromString(String? value) {
+    if (value == 'payout') {
+      return TransactionType.payoutCompleted;
+    }
     return values.firstWhere(
       (type) => type.value == value,
-      orElse: () => TransactionType.adjustment,
+      orElse: () => TransactionType.unknown,
     );
   }
 }

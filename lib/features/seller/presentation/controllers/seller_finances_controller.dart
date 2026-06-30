@@ -72,7 +72,7 @@ class SellerFinancesController extends _$SellerFinancesController {
         await http
             .post(
               Uri.parse(
-                'https://us-central1-ecom-750fc.cloudfunctions.net/releaseMaturedEscrows',
+                'https://releasematuredescrows-oshbhnscba-uc.a.run.app',
               ),
               headers: {
                 'Content-Type': 'application/json',
@@ -111,7 +111,7 @@ class SellerFinancesController extends _$SellerFinancesController {
         await http
             .post(
               Uri.parse(
-                'https://us-central1-ecom-750fc.cloudfunctions.net/releaseMaturedEscrows',
+                'https://releasematuredescrows-oshbhnscba-uc.a.run.app',
               ),
               headers: {
                 'Content-Type': 'application/json',

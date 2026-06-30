@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/core/widgets/app_error_view.dart';
 import 'package:ecom/core/widgets/app_loading_view.dart';
@@ -12,6 +13,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+
+final escrowForOrderProvider = StreamProvider.family<Map<String, dynamic>?, String>((ref, orderId) {
+  final firestore = ref.watch(firebaseFirestoreProvider);
+  return firestore
+      .collection('escrows')
+      .where('orderId', isEqualTo: orderId)
+      .snapshots()
+      .map((snap) => snap.docs.isNotEmpty ? snap.docs.first.data() : null);
+});
 
 class OrderDetailScreen extends ConsumerWidget {
   final String orderId;
@@ -138,10 +148,11 @@ class OrderDetailScreen extends ConsumerWidget {
                     const SizedBox(height: 32),
                     _buildCancelButton(context, ref, order),
                   ],
-                  if (isBuyer && order.status == OrderStatus.delivered) ...[
-                    const SizedBox(height: 32),
-                    _buildReturnButton(context, ref, order),
-                  ],
+                  // Commented out return flow as returns/refunds are not accepted
+                  // if (isBuyer && order.status == OrderStatus.delivered) ...[
+                  //   const SizedBox(height: 32),
+                  //   _buildReturnButton(context, ref, order),
+                  // ],
                   const SizedBox(height: 40),
                 ],
               ),
@@ -573,6 +584,7 @@ class OrderDetailScreen extends ConsumerWidget {
     ColorScheme colorScheme,
   ) {
     final nextStatus = _getNextStatus(order.status);
+    final escrowAsync = ref.watch(escrowForOrderProvider(order.orderId));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -600,6 +612,102 @@ class OrderDetailScreen extends ConsumerWidget {
               ),
             ),
           ),
+        if (order.status == OrderStatus.delivered) ...[
+          escrowAsync.when(
+            loading: () => const Center(
+              child: Padding(
+                padding: EdgeInsets.all(8.0),
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+            error: (e, _) => Text('Error loading escrow: $e'),
+            data: (escrow) {
+              if (escrow == null) return const SizedBox.shrink();
+              final status = escrow['status'] as String? ?? 'pending';
+              final escrowId = escrow['id'] as String? ?? '';
+
+              if (status == 'pending') {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () => _requestEarlyRelease(context, ref, escrowId, order.orderId),
+                      icon: const Icon(Icons.flash_on_rounded),
+                      label: const Text('REQUEST EARLY RELEASE'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.teal,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              } else if (status == 'release_requested') {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.hourglass_empty_rounded, color: Colors.amber),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Early release requested. Pending admin approval.',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: Colors.amber.shade800,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              } else if (status == 'released') {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.check_circle_outline_rounded, color: Colors.green),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Funds released successfully to wallet balance.',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: Colors.green.shade800,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+        ],
         if (order.status == OrderStatus.returnRequested) ...[
           const SizedBox(height: 12),
           SizedBox(
@@ -632,6 +740,47 @@ class OrderDetailScreen extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+
+  void _requestEarlyRelease(
+    BuildContext context,
+    WidgetRef ref,
+    String escrowId,
+    String orderId,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Request Early Release'),
+        content: const Text(
+          'Are you sure you want to request early release of funds into your wallet? '
+          'Since returns are not accepted, the admin will review and release the amount immediately.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final firestore = ref.read(firebaseFirestoreProvider);
+              await firestore.collection('escrows').doc(escrowId).update({
+                'status': 'release_requested',
+                'releaseRequestedAt': FieldValue.serverTimestamp(),
+              });
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Early release requested successfully')),
+                );
+              }
+            },
+            style: FilledButton.styleFrom(backgroundColor: Colors.teal),
+            child: const Text('Submit Request'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -763,65 +912,66 @@ class OrderDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildReturnButton(
-    BuildContext context,
-    WidgetRef ref,
-    AppOrder order,
-  ) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: () => _showReturnDialog(context, ref, order),
-        icon: const Icon(Icons.assignment_return_outlined),
-        label: const Text('Request Return'),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.orange,
-          side: const BorderSide(color: Colors.orange),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-        ),
-      ),
-    );
-  }
-
-  void _showReturnDialog(BuildContext context, WidgetRef ref, AppOrder order) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Request Return'),
-        content: const Text('Are you sure you want to return this order?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await ref
-                  .read(orderControllerProvider.notifier)
-                  .updateStatus(
-                    orderId: order.orderId,
-                    status: OrderStatus.returnRequested,
-                  );
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Return requested successfully'),
-                  ),
-                );
-                ref.invalidate(orderByIdProvider(order.orderId));
-              }
-            },
-            style: FilledButton.styleFrom(backgroundColor: Colors.orange),
-            child: const Text('Confirm Return'),
-          ),
-        ],
-      ),
-    );
-  }
+  // Commented out unused return/refund methods
+  // Widget _buildReturnButton(
+  //   BuildContext context,
+  //   WidgetRef ref,
+  //   AppOrder order,
+  // ) {
+  //   return SizedBox(
+  //     width: double.infinity,
+  //     child: OutlinedButton.icon(
+  //       onPressed: () => _showReturnDialog(context, ref, order),
+  //       icon: const Icon(Icons.assignment_return_outlined),
+  //       label: const Text('Request Return'),
+  //       style: OutlinedButton.styleFrom(
+  //         foregroundColor: Colors.orange,
+  //         side: const BorderSide(color: Colors.orange),
+  //         shape: RoundedRectangleBorder(
+  //           borderRadius: BorderRadius.circular(12),
+  //         ),
+  //         padding: const EdgeInsets.symmetric(vertical: 14),
+  //       ),
+  //     ),
+  //   );
+  // }
+  // 
+  // void _showReturnDialog(BuildContext context, WidgetRef ref, AppOrder order) {
+  //   showDialog(
+  //     context: context,
+  //     builder: (context) => AlertDialog(
+  //       title: const Text('Request Return'),
+  //       content: const Text('Are you sure you want to return this order?'),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.pop(context),
+  //           child: const Text('Cancel'),
+  //         ),
+  //         FilledButton(
+  //           onPressed: () async {
+  //             Navigator.pop(context);
+  //             await ref
+  //                 .read(orderControllerProvider.notifier)
+  //                 .updateStatus(
+  //                   orderId: order.orderId,
+  //                   status: OrderStatus.returnRequested,
+  //                 );
+  //             if (context.mounted) {
+  //               ScaffoldMessenger.of(context).showSnackBar(
+  //                 const SnackBar(
+  //                   content: Text('Return requested successfully'),
+  //                 ),
+  //               );
+  //               ref.invalidate(orderByIdProvider(order.orderId));
+  //             }
+  //           },
+  //           style: FilledButton.styleFrom(backgroundColor: Colors.orange),
+  //           child: const Text('Confirm Return'),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   Widget _priceRow(String label, double amount, ThemeData theme) {
     return Row(

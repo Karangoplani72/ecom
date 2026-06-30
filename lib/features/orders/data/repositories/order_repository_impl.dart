@@ -281,19 +281,17 @@ class OrderRepositoryImpl implements OrderRepository {
     required OrderStatus status,
   }) async {
     try {
-      await firestore.runTransaction((transaction) async {
+      final errorMessage = await firestore.runTransaction<String?>((transaction) async {
         final orderRef = firestore.collection('orders').doc(orderId);
         final orderDoc = await transaction.get(orderRef);
 
-        if (!orderDoc.exists) throw Exception('Order not found');
+        if (!orderDoc.exists) return 'Order not found';
 
         final order = OrderDto.fromFirestore(orderDoc).toDomain();
 
         // Validate transition
         if (!_isValidTransition(order.status, status)) {
-          throw Exception(
-            'Invalid status transition from ${order.status.name} to ${status.name}',
-          );
+          return 'Invalid status transition from ${order.status.name} to ${status.name}';
         }
 
         transaction.update(orderRef, {
@@ -309,9 +307,17 @@ class OrderRepositoryImpl implements OrderRepository {
           'Your order #${orderId.substring(0, 8)} is now ${status.name.toUpperCase()}.',
           '/buyer/orders/$orderId',
         );
+        
+        return null;
       });
 
+      if (errorMessage != null) {
+        return Left(errorMessage);
+      }
+
       return const Right(unit);
+    } on FirebaseException catch (e) {
+      return Left('Failed to update order status: ${e.message}');
     } catch (e) {
       final message = e.toString().replaceFirst('Exception: ', '');
       return Left('Failed to update order status: $message');

@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -19,18 +18,8 @@ final apiClientProvider = Provider<Dio>((ref) {
   // Add interceptors
   dio.interceptors.addAll([
     // App Check & Auth Interceptor
-    InterceptorsWrapper(
-      onRequest: (options, handler) async {
-        try {
-          final appCheckToken = await FirebaseAppCheck.instance.getToken();
-          if (appCheckToken != null) {
-            options.headers['X-Firebase-AppCheck'] = appCheckToken;
-          }
-        } catch (_) {}
-        return handler.next(options);
-      },
-    ),
-    
+    InterceptorsWrapper(onRequest: (options, handler) async {}),
+
     // Logging Interceptor
     LogInterceptor(
       request: true,

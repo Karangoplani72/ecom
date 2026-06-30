@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:ecom/features/admin/data/dtos/admin_user_dto.dart';
@@ -10,7 +12,9 @@ import 'package:ecom/features/admin/domain/entities/platform_config.dart';
 import 'package:ecom/features/admin/domain/repositories/admin_repository.dart';
 import 'package:ecom/features/seller/domain/entities/store_profile.dart';
 import 'package:ecom/features/seller_application/domain/entities/seller_application.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fpdart/fpdart.dart';
+import 'package:http/http.dart' as http;
 
 import '../../../seller/data/dtos/store_profile_dto.dart';
 import '../../../seller_application/data/dtos/seller_application_dto.dart';
@@ -612,9 +616,13 @@ class AdminRepositoryImpl implements AdminRepository {
       final batch = _firestore.batch();
 
       // Mark all seller's products inactive
+      // NOTE: product docs in `catalog` store the owning store's id under
+      // the `storeId` field (not `sellerId` — that field doesn't exist on
+      // product docs). Querying by `sellerId` previously always returned
+      // zero results, so deleted stores' products were never deactivated.
       final productsSnapshot = await _firestore
           .collection('catalog')
-          .where('sellerId', isEqualTo: storeId)
+          .where('storeId', isEqualTo: storeId)
           .get();
 
       for (final doc in productsSnapshot.docs) {
@@ -667,7 +675,9 @@ class AdminRepositoryImpl implements AdminRepository {
       //     await admin.auth().deleteUser(data.uid);
       //     await admin.firestore().collection('users').doc(data.uid).delete();
       //   });
-      final callable = FirebaseFunctions.instance.httpsCallable('deleteUserAccount');
+      final callable = FirebaseFunctions.instance.httpsCallable(
+        'deleteUserAccount',
+      );
       await callable.call({'uid': uid});
       return const Right(unit);
     } catch (e) {
@@ -729,7 +739,10 @@ class AdminRepositoryImpl implements AdminRepository {
   @override
   Future<Either<String, Unit>> processSettlement(String settlementId) async {
     try {
-      final payoutDoc = await _firestore.collection('payouts').doc(settlementId).get();
+      final payoutDoc = await _firestore
+          .collection('payouts')
+          .doc(settlementId)
+          .get();
       if (payoutDoc.exists) {
         await _firestore.collection('payouts').doc(settlementId).update({
           'status': 'processing',
@@ -755,7 +768,10 @@ class AdminRepositoryImpl implements AdminRepository {
     String reason,
   ) async {
     try {
-      final payoutDoc = await _firestore.collection('payouts').doc(settlementId).get();
+      final payoutDoc = await _firestore
+          .collection('payouts')
+          .doc(settlementId)
+          .get();
       if (payoutDoc.exists) {
         await _firestore.collection('payouts').doc(settlementId).update({
           'status': 'failed',
@@ -780,74 +796,29 @@ class AdminRepositoryImpl implements AdminRepository {
   @override
   Future<Either<String, Unit>> completeSettlement(String settlementId) async {
     try {
-      final payoutRef = _firestore.collection('payouts').doc(settlementId);
-      final settlementRef = _firestore.collection('settlements').doc(settlementId);
-      
-      final payoutSnap = await payoutRef.get();
-      final bool isPayout = payoutSnap.exists;
-      
-      final docSnap = isPayout ? payoutSnap : await settlementRef.get();
-      if (!docSnap.exists) {
-        return const Left('Settlement request not found');
+      final idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
+      if (idToken == null) {
+        return const Left('Not authenticated — please sign in again.');
       }
-      
-      final data = docSnap.data() as Map<String, dynamic>;
-      final status = data['status'] as String? ?? 'pending';
-      if (status == 'completed') {
-        return const Left('Settlement is already completed');
+
+      final response = await http
+          .post(
+            Uri.parse('https://completesettlement-oshbhnscba-uc.a.run.app'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $idToken',
+            },
+            body: jsonEncode({'settlementId': settlementId}),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        return const Right(unit);
       }
-      
-      final amount = (data['amount'] as num?)?.toDouble() ?? 0.0;
-      final storeId = (data['storeId'] as String? ?? data['sellerId'] as String? ?? '');
-      
-      if (storeId.isEmpty) {
-        return const Left('Invalid merchant/seller ID in settlement');
-      }
-      
-      final walletRef = _firestore.collection('wallets').doc(storeId);
-      final transactionRef = _firestore.collection('transactions').doc();
-      
-      await _firestore.runTransaction((transaction) async {
-        final walletSnap = await transaction.get(walletRef);
-        final currentBalance = (walletSnap.data()?['balance'] as num? ?? 0.0).toDouble();
-        
-        if (currentBalance < amount) {
-          throw Exception('Insufficient merchant wallet balance (Current: $currentBalance, Payout: $amount)');
-        }
-        
-        // Update wallet balance
-        transaction.update(walletRef, {
-          'balance': currentBalance - amount,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-        
-        // Create SellerTransaction
-        transaction.set(transactionRef, {
-          'storeId': storeId,
-          'type': 'payout_completed',
-          'status': 'completed',
-          'amount': amount,
-          'currency': data['currency'] as String? ?? 'INR',
-          'referenceId': settlementId,
-          'description': 'Payout request #${settlementId.substring(0, 8).toUpperCase()} completed',
-          'metadata': {
-            'bankAccountId': data['bankAccountId'] as String? ?? '',
-            'settlementId': settlementId,
-          },
-          'createdAt': FieldValue.serverTimestamp(),
-          'completedAt': FieldValue.serverTimestamp(),
-        });
-        
-        // Update settlement/payout doc
-        transaction.update(isPayout ? payoutRef : settlementRef, {
-          'status': 'completed',
-          'completedAt': FieldValue.serverTimestamp(),
-          'processedAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      });
-      
-      return const Right(unit);
+
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final errorMsg = body['error'] as String? ?? 'Unknown error';
+      return Left('Failed to complete settlement: $errorMsg');
     } catch (e) {
       return Left('Failed to complete settlement: ${e.toString()}');
     }
@@ -868,8 +839,7 @@ class AdminRepositoryImpl implements AdminRepository {
   @override
   Future<Either<String, Unit>> createAuditLog(AuditLog log) async {
     try {
-      final data = log.toJson()
-        ..['createdAt'] = FieldValue.serverTimestamp();
+      final data = log.toJson()..['createdAt'] = FieldValue.serverTimestamp();
       await _firestore.collection('audit_logs').doc(log.id).set(data);
       return const Right(unit);
     } catch (e) {

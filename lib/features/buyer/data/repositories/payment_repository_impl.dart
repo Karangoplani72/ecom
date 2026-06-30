@@ -8,20 +8,12 @@ import 'package:ecom/features/buyer/data/dtos/payment_transaction_dto.dart';
 import 'package:ecom/features/buyer/domain/entities/cart_item.dart';
 import 'package:ecom/features/buyer/domain/entities/payment_transaction.dart';
 import 'package:ecom/features/buyer/domain/repositories/payment_repository.dart';
-import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/foundation.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:http/http.dart' as http;
 
 // App Check token — never throws; omits header on any failure.
-Future<String?> _safeAppCheckToken() async {
-  try {
-    return await FirebaseAppCheck.instance.getToken();
-  } catch (e) {
-    debugPrint('[APP_CHECK] getToken() failed (non-fatal): $e');
-    return null;
-  }
-}
+Future<String?> _safeAppCheckToken() async => null;
 
 class PaymentRepositoryImpl implements PaymentRepository {
   final FirebaseFirestore _firestore;

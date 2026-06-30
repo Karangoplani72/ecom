@@ -1,6 +1,7 @@
 import 'package:ecom/core/constants/app_radius.dart';
 import 'package:ecom/core/theme/app_colors.dart';
 import 'package:ecom/features/admin/presentation/controllers/admin_controller.dart';
+import 'package:ecom/features/admin/presentation/providers/store_live_stats_provider.dart';
 import 'package:ecom/features/admin/presentation/widgets/admin_common.dart';
 import 'package:ecom/features/admin/presentation/widgets/admin_shell.dart';
 import 'package:ecom/features/seller/domain/entities/store_profile.dart';
@@ -155,36 +156,44 @@ class _SellerCard extends ConsumerWidget {
           const SizedBox(height: 12),
           const Divider(height: 1),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              _StatCard(
-                label: 'Products',
-                value: store.totalProducts.toString(),
-                icon: Icons.inventory_2_outlined,
-                color: const Color(0xFF2563EB),
-              ),
-              const SizedBox(width: 10),
-              _StatCard(
-                label: 'Orders',
-                value: store.totalOrders.toString(),
-                icon: Icons.receipt_long_outlined,
-                color: const Color(0xFF16A34A),
-              ),
-              const SizedBox(width: 10),
-              _StatCard(
-                label: 'Rating',
-                value: store.rating.toStringAsFixed(1),
-                icon: Icons.star_rounded,
-                color: const Color(0xFFF59E0B),
-              ),
-              const SizedBox(width: 10),
-              _StatCard(
-                label: 'Reviews',
-                value: store.totalReviews.toString(),
-                icon: Icons.reviews_outlined,
-                color: const Color(0xFF7C3AED),
-              ),
-            ],
+          Consumer(
+            builder: (context, ref, _) {
+              final statsAsync = ref.watch(storeLiveStatsProvider(store.id));
+              final stats = statsAsync.asData?.value;
+              final isLoading = statsAsync.isLoading;
+
+              return Row(
+                children: [
+                  _StatCard(
+                    label: 'Products',
+                    value: isLoading ? '…' : (stats?.totalProducts ?? 0).toString(),
+                    icon: Icons.inventory_2_outlined,
+                    color: const Color(0xFF2563EB),
+                  ),
+                  const SizedBox(width: 10),
+                  _StatCard(
+                    label: 'Orders',
+                    value: isLoading ? '…' : (stats?.totalOrders ?? 0).toString(),
+                    icon: Icons.receipt_long_outlined,
+                    color: const Color(0xFF16A34A),
+                  ),
+                  const SizedBox(width: 10),
+                  _StatCard(
+                    label: 'Rating',
+                    value: isLoading ? '…' : (stats?.rating ?? 0.0).toStringAsFixed(1),
+                    icon: Icons.star_rounded,
+                    color: const Color(0xFFF59E0B),
+                  ),
+                  const SizedBox(width: 10),
+                  _StatCard(
+                    label: 'Reviews',
+                    value: isLoading ? '…' : (stats?.totalReviews ?? 0).toString(),
+                    icon: Icons.reviews_outlined,
+                    color: const Color(0xFF7C3AED),
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 12),
           Row(

@@ -174,11 +174,20 @@ class _OverviewTab extends ConsumerWidget {
           txAsync.when(
             loading: () => const SizedBox.shrink(),
             error: (err, stack) => const SizedBox.shrink(),
-            data: (txList) => _EarningsSummary(
-              transactions: txList,
-              currencyFmt: currencyFmt,
-              isDark: isDark,
-            ),
+            data: (txList) {
+              final payoutsAsync = ref.watch(sellerPayoutsProvider);
+              final payouts = payoutsAsync.when(
+                data: (data) => data,
+                loading: () => <Map<String, dynamic>>[],
+                error: (e, s) => <Map<String, dynamic>>[],
+              );
+              return _EarningsSummary(
+                transactions: txList,
+                payouts: payouts,
+                currencyFmt: currencyFmt,
+                isDark: isDark,
+              );
+            },
           ),
           const SizedBox(height: 20),
 
@@ -370,11 +379,13 @@ class _WalletStat extends StatelessWidget {
 
 class _EarningsSummary extends StatelessWidget {
   final List<SellerTransaction> transactions;
+  final List<Map<String, dynamic>> payouts;
   final NumberFormat currencyFmt;
   final bool isDark;
 
   const _EarningsSummary({
     required this.transactions,
+    required this.payouts,
     required this.currencyFmt,
     required this.isDark,
   });
@@ -391,17 +402,20 @@ class _EarningsSummary extends StatelessWidget {
     int pendingCount = 0;
 
     for (final tx in transactions) {
-      if (tx.type == TransactionType.orderRevenue &&
-          tx.status == TransactionStatus.completed) {
+      if (tx.type == TransactionType.adjustment &&
+          tx.status == TransactionStatus.completed &&
+          tx.amount > 0) {
         if (tx.createdAt.isAfter(startOfMonth)) thisMonth += tx.amount;
         if (tx.createdAt.isAfter(startOfWeek)) thisWeek += tx.amount;
       }
       if (tx.type == TransactionType.payoutCompleted &&
           tx.status == TransactionStatus.completed) {
-        totalPaidOut += tx.amount;
+        totalPaidOut += tx.amount.abs();
       }
-      if (tx.type == TransactionType.payoutRequest &&
-          tx.status == TransactionStatus.pending) {
+    }
+
+    for (final payout in payouts) {
+      if (payout['status'] == 'pending') {
         pendingCount++;
       }
     }
@@ -1065,34 +1079,43 @@ class _TransactionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isCredit = tx.type == TransactionType.orderRevenue;
+    // Only escrow releases (adjustment) and order revenue count as credits to seller
+    final isCredit =
+        tx.type == TransactionType.adjustment ||
+        tx.type == TransactionType.orderRevenue;
     final dateFmt = DateFormat('d MMM yyyy • h:mm a');
 
     IconData txIcon;
     Color txColor;
 
-    switch (tx.type) {
-      case TransactionType.orderRevenue:
+    switch (tx.type.value) {
+      case 'order_revenue':
+      case 'adjustment':
         txIcon = Icons.arrow_downward_rounded;
         txColor = AppColors.success;
         break;
-      case TransactionType.payoutRequest:
+      case 'payout':
+      case 'payout_request':
         txIcon = Icons.schedule_rounded;
         txColor = AppColors.warning;
         break;
-      case TransactionType.payoutCompleted:
+      case 'payout_completed':
         txIcon = Icons.arrow_upward_rounded;
         txColor = const Color(0xFF0EA5E9);
         break;
-      case TransactionType.refund:
+      case 'refund':
         txIcon = Icons.replay_rounded;
         txColor = Colors.orange;
         break;
-      case TransactionType.platformFee:
+      case 'platform_fee':
         txIcon = Icons.percent_rounded;
         txColor = Colors.redAccent;
         break;
-      case TransactionType.adjustment:
+      case 'sale':
+        txIcon = Icons.shopping_cart_rounded;
+        txColor = Colors.blueGrey;
+        break;
+      default:
         txIcon = Icons.tune_rounded;
         txColor = Colors.grey;
         break;
@@ -1200,19 +1223,24 @@ class _TransactionTile extends StatelessWidget {
   }
 
   String _typeName(TransactionType type) {
-    switch (type) {
-      case TransactionType.orderRevenue:
+    switch (type.value) {
+      case 'order_revenue':
         return 'Order Revenue';
-      case TransactionType.payoutRequest:
+      case 'payout_request':
         return 'Payout Request';
-      case TransactionType.payoutCompleted:
-        return 'Payout Completed';
-      case TransactionType.refund:
+      case 'payout_completed':
+      case 'payout':
+        return 'Payout';
+      case 'refund':
         return 'Refund';
-      case TransactionType.platformFee:
+      case 'platform_fee':
         return 'Platform Fee';
-      case TransactionType.adjustment:
-        return 'Adjustment';
+      case 'adjustment':
+        return 'Escrow Release';
+      case 'sale':
+        return 'Sale Record';
+      default:
+        return type.value.replaceAll('_', ' ').toUpperCase();
     }
   }
 }
@@ -2009,7 +2037,7 @@ class _BankAccountDialog extends ConsumerStatefulWidget {
 
 class _BankAccountDialogState extends ConsumerState<_BankAccountDialog> {
   static final RegExp _ifscPattern = RegExp(r'^[A-Z]{4}0[A-Z0-9]{6}$');
-  static final RegExp _namePattern = RegExp(r"^[a-zA-Z\s.''-]+$");
+  static final RegExp _namePattern = RegExp(r"^[a-zA-Z\s.'-]+$");
   static const int _ifscLength = 11;
   static const int _minAccountNumberLength = 9;
   static const int _maxAccountNumberLength = 18;

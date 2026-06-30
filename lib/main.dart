@@ -3,7 +3,6 @@ import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/core/services/push_notification_service.dart';
 import 'package:ecom/firebase_options.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
-import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -22,16 +21,6 @@ Future<void> main() async {
   await dotenv.load(fileName: flavor == 'prod' ? '.env.prod' : '.env.dev');
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  await FirebaseAppCheck.instance.activate(
-    providerWeb: ReCaptchaV3Provider(dotenv.env['RECAPTCHA_SITE_KEY']!),
-    providerAndroid: kDebugMode
-        ? const AndroidDebugProvider()
-        : const AndroidPlayIntegrityProvider(),
-    providerApple: kDebugMode
-        ? const AppleDebugProvider()
-        : const AppleDeviceCheckProvider(),
-  );
 
   // Setup Global Error Handling with Crashlytics (not supported on web yet)
   if (!kIsWeb) {

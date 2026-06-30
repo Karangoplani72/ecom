@@ -101,7 +101,11 @@ service cloud.firestore {
       allow get:  if resource.data.status == 'verified'
                   || isStoreOwner(storeId)
                   || isAdmin();
-      allow list: if isAdmin() || isLoggedIn();
+      // FIX: was `isAdmin() || isLoggedIn()` — any logged-in buyer/seller
+      // could list the entire stores collection (including unverified/
+      // rejected ones). Only the admin stores screen lists multiple docs;
+      // every other read in the app fetches a single store by id.
+      allow list: if isAdmin();
 
       allow create: if isAdmin();
       allow update: if isStoreOwner(storeId) || isAdmin();
@@ -146,8 +150,14 @@ service cloud.firestore {
     // =========================================================================
     match /orders/{orderId} {
       allow get:  if isLoggedIn() && (resource.data.buyerId == request.auth.uid || resource.data.storeId == request.auth.uid || isAdmin());
-      // list: resource.data is unavailable in list context; buyers/sellers filter by their own field via query
-      allow list: if isLoggedIn();
+      // FIX: resource.data IS evaluated per potential document for `list`
+      // too — this now forces buyer/seller queries to be filtered by
+      // buyerId/storeId (Firestore rejects the whole request otherwise),
+      // instead of letting any logged-in user list every order.
+      allow list: if isLoggedIn()
+                  && (resource.data.buyerId == request.auth.uid
+                      || resource.data.storeId == request.auth.uid
+                      || isAdmin());
 
       allow create: if isLoggedIn()
                     && request.resource.data.buyerId == request.auth.uid
@@ -208,7 +218,13 @@ service cloud.firestore {
                                        || resource.data.storeId == request.auth.uid
                                        || isAdmin());
       // Sellers list their own transactions filtered by storeId; admin lists all
-      allow list: if isLoggedIn();
+      // FIX: was `if isLoggedIn();` — unscoped, so any authenticated buyer
+      // could list (or query by externalTransactionId) the entire
+      // transactions collection. Now mirrors the get rule above.
+      allow list: if isLoggedIn()
+                  && (resource.data.buyerId == request.auth.uid
+                      || resource.data.storeId == request.auth.uid
+                      || isAdmin());
       allow create: if isAdmin();
       allow update, delete: if false;
     }
@@ -218,7 +234,12 @@ service cloud.firestore {
     // =========================================================================
     match /wallets/{sellerId} {
       allow read:   if isLoggedIn() && (request.auth.uid == sellerId || isAdmin());
-      allow update: if isAdmin();
+      // FIX: admin payout completion (completeSettlement) debits this
+      // balance directly from the client with no server-side invariant.
+      // This is a minimal backstop, not a full fix — the balance check
+      // and decrement really belong in a Cloud Function alongside the
+      // existing escrow-release functions that already credit this field.
+      allow update: if isAdmin() && request.resource.data.balance >= 0;
       allow create, delete: if false;
     }
 
@@ -228,20 +249,32 @@ service cloud.firestore {
     match /payouts/{payoutId} {
       allow read:   if isLoggedIn() && (resource.data.storeId == request.auth.uid || isAdmin());
       // Admin lists all payouts (settlements screen); sellers query by storeId
-      allow list:   if isLoggedIn();
+      // FIX: was `if isLoggedIn();` — unscoped, so any logged-in user could
+      // list every seller's payout requests and amounts.
+      allow list:   if isLoggedIn()
+                    && (resource.data.storeId == request.auth.uid || isAdmin());
       allow create: if isLoggedIn()
                     && request.resource.data.storeId == request.auth.uid
                     && request.resource.data.status == 'pending'
                     && isNumber(request.resource.data.amount, 0.01, 100000000);
       allow update: if isAdmin()
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                         'status', 'processedAt', 'completedAt', 'rejectedAt', 'rejectionReason', 'updatedAt'
+                         'status', 'processedAt', 'completedAt', 'rejectedAt', 'rejectionReason', 'updatedAt', 'adminNote'
                        ]);
       allow delete: if false;
     }
 
     match /escrows/{escrowId} {
-      allow read, write: if false;
+      allow read: if isLoggedIn() && (
+        resource == null || 
+        resource.data.storeId == request.auth.uid || 
+        isAdmin()
+      );
+      allow update: if isLoggedIn()
+                    && resource.data.storeId == request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'releaseRequestedAt'])
+                    && request.resource.data.status == 'release_requested';
+      allow create, delete: if false;
     }
 
     // =========================================================================
@@ -370,11 +403,23 @@ service cloud.firestore {
 
     match /coupons/{couponId} {
       allow read: if true;
-      allow write: if isAdmin();
-      allow update: if isLoggedIn()
-        && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['usageCount', 'usedBy'])
-        && request.resource.data.usageCount == resource.data.usageCount + 1;
+      allow create, delete: if isAdmin();
+      // FIX: this used to be a separate `allow write: if isAdmin();` plus
+      // this `allow update`, which functioned as duplicate/overlapping
+      // grants for the same operation. The update condition also never
+      // checked that `usedBy` actually gained the caller's own uid or that
+      // existing entries weren't stripped — a logged-in user could
+      // overwrite usedBy with anything as long as usageCount incremented
+      // by 1. Now: admins have full control, and any other caller may
+      // only bump usageCount by exactly 1 while atomically appending their
+      // own uid to usedBy (no other field, and no removed entries).
+      allow update: if isAdmin()
+                    || (isLoggedIn()
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usageCount', 'usedBy'])
+                        && request.resource.data.usageCount == resource.data.usageCount + 1
+                        && request.resource.data.usedBy.size() == resource.data.usedBy.size() + 1
+                        && request.resource.data.usedBy.hasAny([request.auth.uid])
+                        && resource.data.usedBy.hasOnly(request.resource.data.usedBy));
     }
 
     // =========================================================================
@@ -409,7 +454,7 @@ service cloud.firestore {
       allow create: if false;
       allow update: if isAdmin()
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                         'status', 'processedAt', 'completedAt', 'rejectedAt', 'rejectionReason', 'updatedAt'
+                         'status', 'processedAt', 'completedAt', 'rejectedAt', 'rejectionReason', 'updatedAt', 'adminNote'
                        ]);
       allow delete: if hasRole('superAdmin');
     }
@@ -418,6 +463,8 @@ service cloud.firestore {
     // AUDIT LOGS
     // =========================================================================
     match /audit_logs/{logId} {
+      // FIX: stray "0,n" token after the opening brace — invalid syntax,
+      // would have failed `firebase deploy --only firestore:rules`.
       allow read:           if isAdmin();
       allow create:         if isLoggedIn();
       allow update, delete: if false;

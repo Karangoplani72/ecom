@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,15 +11,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 part 'common_providers.g.dart';
 
 // ---------------------------------------------------------------------------
-// Cloud Function base URLs — derived from the Firebase project (ecom-750fc).
-// Update if functions are re-deployed to a different region.
+// Cloud Function URLs — project migrated from ecom-750fc to
+// ecom-skill-karan-2026. Gen2 functions get per-project Cloud Run URLs
+// (not the predictable us-central1-PROJECTID.cloudfunctions.net pattern),
+// so these must be updated from the `firebase deploy --only functions`
+// output any time the project changes.
 // ---------------------------------------------------------------------------
-const getRazorpayKeyUrl =
-    'https://us-central1-ecom-750fc.cloudfunctions.net/getRazorpayKey';
+const getRazorpayKeyUrl = 'https://getrazorpaykey-oshbhnscba-uc.a.run.app';
 const createRazorpayOrderUrl =
-    'https://us-central1-ecom-750fc.cloudfunctions.net/createRazorpayOrder';
+    'https://createrazorpayorder-oshbhnscba-uc.a.run.app';
 const verifyAndFinalizePaymentUrl =
-    'https://us-central1-ecom-750fc.cloudfunctions.net/verifyAndFinalizePayment';
+    'https://verifyandfinalizepayment-oshbhnscba-uc.a.run.app';
 
 // ---------------------------------------------------------------------------
 // App Check token helper — never throws.
@@ -29,14 +30,8 @@ const verifyAndFinalizePaymentUrl =
 // App Check failure are swallowed here and the caller simply omits the header.
 // ---------------------------------------------------------------------------
 Future<String?> _safeAppCheckToken() async {
-  try {
-    return await FirebaseAppCheck.instance.getToken();
-  } catch (e) {
-    debugPrint('[APP_CHECK] getToken() failed (non-fatal): $e');
-    return null;
-  }
+  return null;
 }
-
 // ---------------------------------------------------------------------------
 // Core Firebase Providers
 // ---------------------------------------------------------------------------
