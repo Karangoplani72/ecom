@@ -46,8 +46,8 @@ service cloud.firestore {
     // USERS
     // =========================================================================
     match /users/{userId} {
-      allow get:    if isOwner(userId) || isAdmin();
-      allow list:   if isAdmin();
+      allow get:    if isOwner(userId) || isAdmin() || hasRole('seller') || hasRole('storeManager');
+      allow list:   if isAdmin() || hasRole('seller') || hasRole('storeManager');
 
       allow create: if isLoggedIn()
                     && isOwner(userId)
