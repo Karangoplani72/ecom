@@ -26,8 +26,8 @@ Stream<List<ChatMessage>> liveMessageStream(Ref ref, String roomId) {
 // ── Chat rooms stream for the current user ───────────────────────────────────
 
 @riverpod
-Stream<List<ChatRoom>> chatRoomsStream(Ref ref, String userId) {
-  return ref.watch(communicationRepositoryProvider).streamChatRooms(userId);
+Stream<List<ChatRoom>> chatRoomsStream(Ref ref, String userId, {bool isStaff = false}) {
+  return ref.watch(communicationRepositoryProvider).streamChatRooms(userId, isStaff: isStaff);
 }
 
 // ── Typing indicator stream ───────────────────────────────────────────────────

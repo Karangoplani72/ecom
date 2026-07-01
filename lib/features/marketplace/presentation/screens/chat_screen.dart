@@ -2,8 +2,9 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/core/theme/app_colors.dart';
+import 'package:ecom/features/auth/domain/entities/app_user.dart';
+import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:ecom/features/marketplace/presentation/controllers/communication_controller.dart';
 import 'package:ecom/features/marketplace/presentation/widgets/chat_bubble.dart';
 import 'package:ecom/features/marketplace/presentation/widgets/chat_typing_indicator.dart';
@@ -35,8 +36,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   String? _otherPhotoUrl;
   bool _metaLoaded = false;
 
-  String get _currentUserId =>
-      ref.read(currentUserIdProvider) ?? 'unknown';
+  String get _currentUserId {
+    final user = ref.read(currentUserProfileProvider).value;
+    if (user == null) return 'unknown';
+    final isStaff = user.roles.contains(UserRole.storeManager) && !user.roles.contains(UserRole.seller);
+    return isStaff ? (user.storeId ?? user.uid) : user.uid;
+  }
 
   @override
   void initState() {

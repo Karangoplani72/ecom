@@ -147,7 +147,7 @@ final class ChatRoomsStreamProvider
     with $FutureModifier<List<ChatRoom>>, $StreamProvider<List<ChatRoom>> {
   ChatRoomsStreamProvider._({
     required ChatRoomsStreamFamily super.from,
-    required String super.argument,
+    required (String, {bool isStaff}) super.argument,
   }) : super(
          retry: null,
          name: r'chatRoomsStreamProvider',
@@ -163,7 +163,7 @@ final class ChatRoomsStreamProvider
   String toString() {
     return r'chatRoomsStreamProvider'
         ''
-        '($argument)';
+        '$argument';
   }
 
   @$internal
@@ -174,8 +174,8 @@ final class ChatRoomsStreamProvider
 
   @override
   Stream<List<ChatRoom>> create(Ref ref) {
-    final argument = this.argument as String;
-    return chatRoomsStream(ref, argument);
+    final argument = this.argument as (String, {bool isStaff});
+    return chatRoomsStream(ref, argument.$1, isStaff: argument.isStaff);
   }
 
   @override
@@ -189,10 +189,14 @@ final class ChatRoomsStreamProvider
   }
 }
 
-String _$chatRoomsStreamHash() => r'9c58522ed4cfa726cf6bbcf993002ed02587114a';
+String _$chatRoomsStreamHash() => r'dd0c087bd529af306ca2fc4c769f775f4e29447a';
 
 final class ChatRoomsStreamFamily extends $Family
-    with $FunctionalFamilyOverride<Stream<List<ChatRoom>>, String> {
+    with
+        $FunctionalFamilyOverride<
+          Stream<List<ChatRoom>>,
+          (String, {bool isStaff})
+        > {
   ChatRoomsStreamFamily._()
     : super(
         retry: null,
@@ -202,8 +206,11 @@ final class ChatRoomsStreamFamily extends $Family
         isAutoDispose: true,
       );
 
-  ChatRoomsStreamProvider call(String userId) =>
-      ChatRoomsStreamProvider._(argument: userId, from: this);
+  ChatRoomsStreamProvider call(String userId, {bool isStaff = false}) =>
+      ChatRoomsStreamProvider._(
+        argument: (userId, isStaff: isStaff),
+        from: this,
+      );
 
   @override
   String toString() => r'chatRoomsStreamProvider';

@@ -20,6 +20,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../shared/presentation/navigation/app_back_button_handler.dart';
+
 // ─────────────────────────────────────────────────────────────
 // AdminScaffold — page-level wrapper
 // ─────────────────────────────────────────────────────────────
@@ -46,8 +48,9 @@ class AdminScaffold extends StatelessWidget {
     final sidebarColor =
         isDark ? AppColors.darkSurface : AppColors.lightSurface;
 
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+    return AppBackButtonHandler(
+      child: Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       drawer: isDesktop
           ? null
           : Drawer(
@@ -85,7 +88,7 @@ class AdminScaffold extends StatelessWidget {
           ),
         ],
       ),
-    );
+    ));
   }
 }
 

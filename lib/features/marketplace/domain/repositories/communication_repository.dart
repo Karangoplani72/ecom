@@ -11,7 +11,7 @@ abstract class CommunicationRepository {
   // ── Chat Rooms ───────────────────────────────────────────────────────────────
   /// Streams all chat rooms where [userId] is a participant, ordered by
   /// most-recent message first.
-  Stream<List<ChatRoom>> streamChatRooms(String userId);
+  Stream<List<ChatRoom>> streamChatRooms(String userId, {bool isStaff = false});
 
   /// Creates a chat room for [buyerId] ↔ [sellerId] if it doesn't exist,
   /// or returns the existing one.  Returns the chatId on success.

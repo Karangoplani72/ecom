@@ -90,10 +90,12 @@ class CommunicationRepositoryImpl implements CommunicationRepository {
   // ── Chat Rooms ───────────────────────────────────────────────────────────────
 
   @override
-  Stream<List<ChatRoom>> streamChatRooms(String userId) {
-    return _firestore
-        .collection('chats')
-        .where('participants', arrayContains: userId)
+  Stream<List<ChatRoom>> streamChatRooms(String userId, {bool isStaff = false}) {
+    final query = isStaff
+        ? _firestore.collection('chats').where('sellerId', isEqualTo: userId)
+        : _firestore.collection('chats').where('participants', arrayContains: userId);
+
+    return query
         .orderBy('lastMessageAt', descending: true)
         .snapshots()
         .map((snap) => snap.docs

@@ -3,6 +3,8 @@ import 'package:ecom/core/widgets/app_loading_view.dart';
 import 'package:ecom/core/widgets/app_error_view.dart';
 import 'package:ecom/core/widgets/app_primary_button.dart';
 import 'package:ecom/core/widgets/app_text_field.dart';
+import 'package:ecom/features/auth/domain/entities/app_user.dart';
+import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:ecom/features/seller/presentation/controllers/seller_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -36,6 +38,8 @@ class _SellerSettingsScreenState extends ConsumerState<SellerSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final storeState = ref.watch(sellerControllerProvider);
+    final userState = ref.watch(authControllerProvider);
+    final isSeller = userState.value?.roles.contains(UserRole.seller) ?? false;
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -63,99 +67,101 @@ class _SellerSettingsScreenState extends ConsumerState<SellerSettingsScreen> {
           return ListView(
             padding: const EdgeInsets.all(24),
             children: [
-              // Store Status Pausing Card
-              Card(
-                elevation: 0,
-                color: store.isActive
-                    ? Colors.green.withValues(alpha: 0.08)
-                    : Colors.red.withValues(alpha: 0.08),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(
-                    color: store.isActive
-                        ? Colors.green.withValues(alpha: 0.3)
-                        : Colors.red.withValues(alpha: 0.3),
+              if (isSeller) ...[
+                // Store Status Pausing Card
+                Card(
+                  elevation: 0,
+                  color: store.isActive
+                      ? Colors.green.withValues(alpha: 0.08)
+                      : Colors.red.withValues(alpha: 0.08),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(
+                      color: store.isActive
+                          ? Colors.green.withValues(alpha: 0.3)
+                          : Colors.red.withValues(alpha: 0.3),
+                    ),
                   ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            store.isActive ? 'Storefront is Online' : 'Storefront is Offline/Paused',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: store.isActive ? Colors.green : Colors.red,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              store.isActive ? 'Storefront is Online' : 'Storefront is Offline/Paused',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: store.isActive ? Colors.green : Colors.red,
+                              ),
                             ),
-                          ),
-                          Switch.adaptive(
-                            value: store.isActive,
-                            activeThumbColor: Colors.green,
-                            onChanged: (val) async {
-                              await ref
-                                  .read(sellerControllerProvider.notifier)
-                                  .patchStoreSettings({'isActive': val});
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        store.isActive
-                            ? 'Your store is active. Customers can browse and purchase your listed products.'
-                            : 'Your store is currently paused. Products will be hidden from searches and buyers cannot check out.',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ],
+                            Switch.adaptive(
+                              value: store.isActive,
+                              activeThumbColor: Colors.green,
+                              onChanged: (val) async {
+                                await ref
+                                    .read(sellerControllerProvider.notifier)
+                                    .patchStoreSettings({'isActive': val});
+                              },
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          store.isActive
+                              ? 'Your store is active. Customers can browse and purchase your listed products.'
+                              : 'Your store is currently paused. Products will be hidden from searches and buyers cannot check out.',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
+                const SizedBox(height: 24),
 
-              // Verification Status Section
-              _buildSectionHeader('Verification & Status', theme),
-              ListTile(
-                leading: const Icon(Icons.verified_rounded, color: Colors.blue),
-                title: const Text('Store Verification'),
-                subtitle: Text('Status: ${store.status.name.toUpperCase()}'),
-                trailing: store.isVerified
-                    ? const Icon(Icons.check_circle, color: Colors.green)
-                    : const Icon(Icons.pending, color: Colors.orange),
-              ),
-              const Divider(),
+                // Verification Status Section
+                _buildSectionHeader('Verification & Status', theme),
+                ListTile(
+                  leading: const Icon(Icons.verified_rounded, color: Colors.blue),
+                  title: const Text('Store Verification'),
+                  subtitle: Text('Status: ${store.status.name.toUpperCase()}'),
+                  trailing: store.isVerified
+                      ? const Icon(Icons.check_circle, color: Colors.green)
+                      : const Icon(Icons.pending, color: Colors.orange),
+                ),
+                const Divider(),
 
-              // Warehouse Logistics Address
-              const SizedBox(height: 16),
-              _buildSectionHeader('Logistics & Shipping', theme),
-              const SizedBox(height: 12),
-              AppTextField(
-                controller: _addressController,
-                label: 'Pickup Address (For Delivery Agents)',
-                hint: 'Enter your warehouse or store physical address...',
-                maxLines: 3,
-                prefixIcon: Icons.local_shipping_outlined,
-              ),
-              const SizedBox(height: 16),
-              AppPrimaryButton(
-                text: 'Update Pickup Address',
-                isLoading: storeState.isLoading,
-                onPressed: () async {
-                  await ref
-                      .read(sellerControllerProvider.notifier)
-                      .patchStoreSettings({'address': _addressController.text.trim()});
+                // Warehouse Logistics Address
+                const SizedBox(height: 16),
+                _buildSectionHeader('Logistics & Shipping', theme),
+                const SizedBox(height: 12),
+                AppTextField(
+                  controller: _addressController,
+                  label: 'Pickup Address (For Delivery Agents)',
+                  hint: 'Enter your warehouse or store physical address...',
+                  maxLines: 3,
+                  prefixIcon: Icons.local_shipping_outlined,
+                ),
+                const SizedBox(height: 16),
+                AppPrimaryButton(
+                  text: 'Update Pickup Address',
+                  isLoading: storeState.isLoading,
+                  onPressed: () async {
+                    await ref
+                        .read(sellerControllerProvider.notifier)
+                        .patchStoreSettings({'address': _addressController.text.trim()});
 
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Pickup address updated successfully!')),
-                    );
-                  }
-                },
-              ),
-              const SizedBox(height: 32),
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Pickup address updated successfully!')),
+                      );
+                    }
+                  },
+                ),
+                const SizedBox(height: 32),
+              ],
 
               // Notification Preferences
               _buildSectionHeader('Notifications', theme),

@@ -49,6 +49,8 @@ import 'package:ecom/features/orders/presentation/screens/order_detail_screen.da
 import 'package:ecom/features/seller/presentation/screens/add_product_screen.dart';
 import 'package:ecom/features/seller/presentation/screens/edit_product_screen.dart';
 import 'package:ecom/features/seller/presentation/screens/seller_analytics_screen.dart';
+import 'package:ecom/features/staff/presentation/screens/staff_dashboard_screen.dart';
+import 'package:ecom/features/staff/presentation/widgets/staff_navigation.dart';
 import 'package:ecom/features/seller/presentation/screens/seller_dashboard_screen.dart';
 import 'package:ecom/features/seller/presentation/screens/seller_inventory_screen.dart';
 import 'package:ecom/features/seller/presentation/screens/seller_orders_screen.dart';
@@ -58,7 +60,6 @@ import 'package:ecom/features/seller/presentation/screens/seller_store_profile_s
 import 'package:ecom/features/seller/presentation/widgets/seller_navigation.dart';
 import 'package:ecom/features/seller_application/presentation/screens/seller_application_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -70,6 +71,8 @@ import '../../../features/seller/presentation/screens/seller_returns_screen.dart
 import 'package:ecom/features/seller/domain/entities/staff_permission.dart';
 import 'package:ecom/features/seller/presentation/controllers/staff_permission_provider.dart';
 
+import 'app_back_button_handler.dart';
+import 'navigation_history_provider.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'rootNav',
@@ -129,6 +132,15 @@ abstract class AppRoutes {
   static const sellerFinances = '/seller/finances';
   static const sellerStaff = '/seller/staff';
 
+  // Staff shell tabs
+  static const staffDashboard = '/staff/dashboard';
+  static const staffInventory = '/staff/inventory';
+  static const staffOrders = '/staff/orders';
+  static const staffStoreProfile = '/staff/store-profile';
+  static const staffCustomers = '/staff/customers';
+  static const staffSettings = '/staff/settings';
+  static const staffStaff = '/staff/staff';
+
   // Seller push screens
   static const addProduct = '/seller/inventory/add';
   static const editProduct = '/seller/inventory/edit/:productId';
@@ -167,9 +179,11 @@ String _homeFor(AppUser user) {
       user.roles.contains(UserRole.admin)) {
     return AppRoutes.adminPanel;
   }
-  if (user.roles.contains(UserRole.seller) ||
-      user.roles.contains(UserRole.storeManager)) {
+  if (user.roles.contains(UserRole.seller)) {
     return AppRoutes.sellerDashboard;
+  }
+  if (user.roles.contains(UserRole.storeManager)) {
+    return AppRoutes.staffDashboard;
   }
   return AppRoutes.buyerHome;
 }
@@ -177,7 +191,7 @@ String _homeFor(AppUser user) {
 final routerProvider = Provider<GoRouter>((ref) {
   final authNotifier = _AuthRedirectNotifier(ref);
 
-  return GoRouter(
+  final router = GoRouter(
     navigatorKey: rootNavigatorKey,
     debugLogDiagnostics: false,
     refreshListenable: authNotifier,
@@ -243,6 +257,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isProtectedPath =
           loc.startsWith('/seller') ||
           loc.startsWith('/admin') ||
+          loc.startsWith('/staff') ||
           loc == AppRoutes.buyerOrders ||
           loc == AppRoutes.buyerCheckout ||
           loc == AppRoutes.buyerNotifications ||
@@ -263,12 +278,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isAdmin =
           user.roles.contains(UserRole.admin) ||
           user.roles.contains(UserRole.superAdmin);
-      final isSeller = user.roles.contains(UserRole.seller) ||
-          user.roles.contains(UserRole.storeManager);
+      final isSeller = user.roles.contains(UserRole.seller);
+      final isStaff = user.roles.contains(UserRole.storeManager) && !isSeller;
 
       // ── 6. Seller application flow ───────────────────────────────────────
       if (loc == AppRoutes.sellerApply) {
         if (isSeller) return AppRoutes.sellerDashboard;
+        if (isStaff) return AppRoutes.staffDashboard;
         if (isAdmin) return AppRoutes.adminPanel;
         return null; // plain buyers may apply to become a seller
       }
@@ -277,11 +293,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Chat is used by both buyers and sellers to talk to each other, so
       // it's intentionally exempt from panel isolation.
       if (loc.startsWith('/chat')) {
-        if (isSeller && !user.roles.contains(UserRole.seller) && user.roles.contains(UserRole.storeManager)) {
+        if (isStaff) {
           final permsAsync = ref.read(staffPermissionsProvider);
           final perms = permsAsync.value;
           if (perms != null && !perms.has(StaffPermission.messages)) {
-            return AppRoutes.sellerDashboard;
+            return AppRoutes.staffDashboard;
           }
         }
         return null;
@@ -294,30 +310,29 @@ final routerProvider = Provider<GoRouter>((ref) {
       // for admins/sellers wandering into the buyer storefront.
       final isAdminPath = loc.startsWith('/admin');
       final isSellerPath = loc.startsWith('/seller');
+      final isStaffPath = loc.startsWith('/staff');
 
       if (isAdmin) {
         if (!isAdminPath) return AppRoutes.adminPanel;
       } else if (isSeller) {
         if (!isSellerPath) return AppRoutes.sellerDashboard;
+      } else if (isStaff) {
+        if (!isStaffPath) return AppRoutes.staffDashboard;
         
         // Store Manager Permission Guards
-        if (user.roles.contains(UserRole.storeManager) && !user.roles.contains(UserRole.seller)) {
-          final permsAsync = ref.read(staffPermissionsProvider);
-          final perms = permsAsync.value;
-          
-          if (perms != null) {
-            if (loc.startsWith('/seller/inventory') && !perms.has(StaffPermission.inventory)) return AppRoutes.sellerDashboard;
-            if (loc.startsWith('/seller/orders') && !perms.has(StaffPermission.orders)) return AppRoutes.sellerDashboard;
-            if (loc.startsWith('/seller/analytics') && !perms.has(StaffPermission.analytics)) return AppRoutes.sellerDashboard;
-            if (loc.startsWith('/seller/customers') && !perms.has(StaffPermission.customers)) return AppRoutes.sellerDashboard;
-            if (loc.startsWith('/seller/finances') && !perms.has(StaffPermission.finances)) return AppRoutes.sellerDashboard;
-            if (loc.startsWith('/seller/store-profile') && !perms.has(StaffPermission.storeProfile)) return AppRoutes.sellerDashboard;
-            if (loc.startsWith('/seller/settings') && !perms.has(StaffPermission.settings)) return AppRoutes.sellerDashboard;
-            if (loc.startsWith('/seller/staff') && !perms.has(StaffPermission.staff)) return AppRoutes.sellerDashboard;
-            if (loc.startsWith('/seller/returns') && !perms.has(StaffPermission.orders)) return AppRoutes.sellerDashboard;
-          }
+        final permsAsync = ref.read(staffPermissionsProvider);
+        final perms = permsAsync.value;
+        
+        if (perms != null) {
+          if (loc.startsWith('/staff/inventory') && !perms.has(StaffPermission.inventory)) return AppRoutes.staffDashboard;
+          if (loc.startsWith('/staff/orders') && !perms.has(StaffPermission.orders)) return AppRoutes.staffDashboard;
+          if (loc.startsWith('/staff/customers') && !perms.has(StaffPermission.customers)) return AppRoutes.staffDashboard;
+          if (loc.startsWith('/staff/store-profile') && !perms.has(StaffPermission.storeProfile)) return AppRoutes.staffDashboard;
+          if (loc.startsWith('/staff/settings') && !perms.has(StaffPermission.settings)) return AppRoutes.staffDashboard;
+          if (loc.startsWith('/staff/staff') && !perms.has(StaffPermission.staff)) return AppRoutes.staffDashboard;
+          if (loc.startsWith('/staff/returns') && !perms.has(StaffPermission.orders)) return AppRoutes.staffDashboard;
         }
-      } else if (isAdminPath || isSellerPath) {
+      } else if (isAdminPath || isSellerPath || isStaffPath) {
         return AppRoutes.buyerHome;
       }
 
@@ -506,8 +521,9 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // ── Seller shell ──────────────────────────────────────────────────────
       StatefulShellRoute.indexedStack(
-        builder: (context, state, navigationShell) =>
-            _SellerShell(navigationShell: navigationShell),
+        builder: (context, state, navigationShell) => AppBackButtonHandler(
+          child: _SellerShell(navigationShell: navigationShell),
+        ),
         branches: [
           StatefulShellBranch(
             navigatorKey: _sellerDashboardNavigatorKey,
@@ -548,6 +564,57 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
+      // ── Staff shell ──────────────────────────────────────────────────────
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) => AppBackButtonHandler(
+          child: StaffNavigation(child: navigationShell),
+        ),
+        branches: [
+          StatefulShellBranch(
+            navigatorKey: GlobalKey<NavigatorState>(debugLabel: 'staffDashboard'),
+            routes: [
+              GoRoute(
+                path: AppRoutes.staffDashboard,
+                builder: (context, state) => const StaffDashboardScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            navigatorKey: GlobalKey<NavigatorState>(debugLabel: 'staffInventory'),
+            routes: [
+              GoRoute(
+                path: AppRoutes.staffInventory,
+                builder: (context, state) => const SellerInventoryScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            navigatorKey: GlobalKey<NavigatorState>(debugLabel: 'staffOrders'),
+            routes: [
+              GoRoute(
+                path: AppRoutes.staffOrders,
+                builder: (context, state) => const SellerOrdersScreen(),
+              ),
+            ],
+          ),
+        ],
+      ),
+      GoRoute(
+        path: AppRoutes.staffCustomers,
+        builder: (context, state) => const SellerCustomersScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.staffStoreProfile,
+        builder: (context, state) => const SellerStoreProfileScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.staffSettings,
+        builder: (context, state) => const SellerSettingsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.staffStaff,
+        builder: (context, state) => const SellerStaffScreen(),
+      ),
       // ── Admin ─────────────────────────────────────────────────────────────
       GoRoute(
         path: AppRoutes.adminPanel,
@@ -625,6 +692,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+
+  Future.microtask(() {
+    router.routerDelegate.addListener(() {
+      final location = router.routerDelegate.currentConfiguration.last.matchedLocation;
+      ref.read(navigationHistoryProvider.notifier).pushRoute(location);
+    });
+  });
+
+  return router;
 });
 
 class _BuyerShell extends ConsumerStatefulWidget {
@@ -637,50 +713,6 @@ class _BuyerShell extends ConsumerStatefulWidget {
 }
 
 class _BuyerShellState extends ConsumerState<_BuyerShell> {
-  DateTime? _lastBackPress;
-  static const _homeIndex = 0;
-
-  Future<bool> _onWillPop() async {
-    final shell = widget.navigationShell;
-
-    // First, try to pop the nested navigator (pushed routes within the shell)
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-      return false;
-    }
-
-    // If not on home tab, switch to home tab
-    if (shell.currentIndex != _homeIndex) {
-      shell.goBranch(_homeIndex);
-      return false;
-    }
-
-    // Check if root navigator can pop (for routes outside the shell)
-    final navigator = rootNavigatorKey.currentState;
-    if (navigator != null && navigator.canPop()) {
-      navigator.pop();
-      return false;
-    }
-
-    // Show exit confirmation on double press
-    final now = DateTime.now();
-    if (_lastBackPress == null ||
-        now.difference(_lastBackPress!) > const Duration(seconds: 2)) {
-      _lastBackPress = now;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Press back again to exit'),
-          duration: Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return false;
-    }
-
-    await SystemNavigator.pop();
-    return true;
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -702,11 +734,7 @@ class _BuyerShellState extends ConsumerState<_BuyerShell> {
       ),
     ];
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _onWillPop();
-      },
+    return AppBackButtonHandler(
       child: Scaffold(
         extendBody: true,
         body: widget.navigationShell,

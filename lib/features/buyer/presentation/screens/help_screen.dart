@@ -4,7 +4,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:ecom/core/theme/app_colors.dart';
 import 'package:ecom/features/buyer/presentation/widgets/buyer_anti_gravity_widgets.dart';
 
-class HelpScreen extends StatelessWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:ecom/features/marketplace/presentation/controllers/communication_controller.dart';
+
+class HelpScreen extends ConsumerWidget {
   const HelpScreen({super.key});
 
   static const List<_FaqItem> _faqs = [
@@ -80,8 +86,50 @@ class HelpScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _startSupportChat(BuildContext context, WidgetRef ref) async {
+    final buyer = ref.read(currentUserProfileProvider).value;
+    if (buyer == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error: You must be logged in to chat.')),
+        );
+      }
+      return;
+    }
+    
+    try {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Starting chat...')),
+        );
+      }
+      final roomId = await ref.read(communicationControllerProvider.notifier).createOrGetRoom(
+        buyerId: buyer.uid,
+        sellerId: 'admin_support',
+        buyerName: buyer.displayName,
+        sellerName: 'Customer Support',
+      );
+      if (context.mounted) {
+        if (roomId != null) {
+          context.push('/chat/$roomId');
+        } else {
+          final error = ref.read(communicationControllerProvider).error;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Chat Creation Failed: $error')),
+          );
+        }
+      }
+    } catch (e, stack) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not start chat: $e\n$stack')),
+        );
+      }
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : AppColors.lightTextPrimary;
@@ -127,8 +175,10 @@ class HelpScreen extends StatelessWidget {
                     // ── Support Agent Card ──
                     GlassCardWidget(
                       padding: const EdgeInsets.all(20),
-                      child: Row(
+                      child: Column(
                         children: [
+                          Row(
+                            children: [
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
@@ -170,7 +220,30 @@ class HelpScreen extends StatelessWidget {
                           ),
                         ],
                       ),
-                    ),
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _startSupportChat(context, ref),
+                          icon: const Icon(Icons.chat_bubble_outline),
+                          label: Text(
+                            'Chat with Support',
+                            style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF7C3AED),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                     const SizedBox(height: 28),
 
                     // ── FAQ Header ──
@@ -193,9 +266,11 @@ class HelpScreen extends StatelessWidget {
                             padding: EdgeInsets.zero,
                             child: Theme(
                               data: theme.copyWith(dividerColor: Colors.transparent),
-                              child: ExpansionTile(
-                                leading: Container(
-                                  padding: const EdgeInsets.all(6),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: ExpansionTile(
+                                  leading: Container(
+                                    padding: const EdgeInsets.all(6),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFF7C3AED).withValues(alpha: 0.08),
                                     shape: BoxShape.circle,
@@ -235,7 +310,9 @@ class HelpScreen extends StatelessWidget {
                               ),
                             ),
                           ),
-                        )),
+                        ),
+                      ),
+                    ),
                   ]),
                 ),
               ),

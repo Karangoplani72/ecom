@@ -1,7 +1,8 @@
 import 'dart:ui';
 
-import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/core/theme/app_colors.dart';
+import 'package:ecom/features/auth/domain/entities/app_user.dart';
+import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:ecom/features/marketplace/presentation/controllers/communication_controller.dart';
 import 'package:ecom/features/marketplace/presentation/widgets/chat_room_card.dart';
 import 'package:flutter/material.dart';
@@ -14,14 +15,13 @@ class ChatRoomsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final userId = ref.watch(currentUserIdProvider);
+    final user = ref.watch(currentUserProfileProvider).value;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : AppColors.lightTextPrimary;
-    final bgColor =
-        isDark ? AppColors.darkBgPrimary : AppColors.lightBgPrimary;
+    final bgColor = isDark ? AppColors.darkBgPrimary : AppColors.lightBgPrimary;
 
-    if (userId == null) {
+    if (user == null) {
       return Scaffold(
         backgroundColor: bgColor,
         appBar: _buildAppBar(context, isDark, textColor),
@@ -34,7 +34,10 @@ class ChatRoomsScreen extends ConsumerWidget {
       );
     }
 
-    final roomsAsync = ref.watch(chatRoomsStreamProvider(userId));
+    final isStaff = user.roles.contains(UserRole.storeManager) && !user.roles.contains(UserRole.seller);
+    final effectiveUserId = isStaff ? (user.storeId ?? user.uid) : user.uid;
+
+    final roomsAsync = ref.watch(chatRoomsStreamProvider(effectiveUserId, isStaff: isStaff));
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -80,8 +83,9 @@ class ChatRoomsScreen extends ConsumerWidget {
                             : Colors.white.withValues(alpha: 0.7),
                         border: Border(
                           bottom: BorderSide(
-                            color: Colors.white
-                                .withValues(alpha: isDark ? 0.08 : 0.5),
+                            color: Colors.white.withValues(
+                              alpha: isDark ? 0.08 : 0.5,
+                            ),
                           ),
                         ),
                       ),
@@ -119,9 +123,7 @@ class ChatRoomsScreen extends ConsumerWidget {
               roomsAsync.when(
                 loading: () => const SliverFillRemaining(
                   child: Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFF7C3AED),
-                    ),
+                    child: CircularProgressIndicator(color: Color(0xFF7C3AED)),
                   ),
                 ),
                 error: (err, _) => SliverFillRemaining(
@@ -148,18 +150,14 @@ class ChatRoomsScreen extends ConsumerWidget {
                   return SliverPadding(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final room = rooms[index];
-                          return ChatRoomCard(
-                            room: room,
-                            currentUserId: userId,
-                            onTap: () =>
-                                context.push('/chat/${room.chatId}'),
-                          );
-                        },
-                        childCount: rooms.length,
-                      ),
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final room = rooms[index];
+                        return ChatRoomCard(
+                          room: room,
+                          currentUserId: effectiveUserId,
+                          onTap: () => context.push('/chat/${room.chatId}'),
+                        );
+                      }, childCount: rooms.length),
                     ),
                   );
                 },
@@ -171,8 +169,7 @@ class ChatRoomsScreen extends ConsumerWidget {
     );
   }
 
-  AppBar _buildAppBar(
-      BuildContext context, bool isDark, Color textColor) {
+  AppBar _buildAppBar(BuildContext context, bool isDark, Color textColor) {
     return AppBar(
       backgroundColor: Colors.transparent,
       leading: Padding(
@@ -219,11 +216,7 @@ class ChatRoomsScreen extends ConsumerWidget {
                   color: const Color(0xFF7C3AED).withValues(alpha: 0.15),
                 ),
               ),
-              child: Icon(
-                icon,
-                size: 48,
-                color: const Color(0xFF7C3AED),
-              ),
+              child: Icon(icon, size: 48, color: const Color(0xFF7C3AED)),
             ),
             const SizedBox(height: 24),
             Text(
@@ -240,8 +233,9 @@ class ChatRoomsScreen extends ConsumerWidget {
               subtitle,
               style: GoogleFonts.inter(
                 fontSize: 14,
-                color:
-                    isDark ? AppColors.darkTextSecond : AppColors.lightTextSecond,
+                color: isDark
+                    ? AppColors.darkTextSecond
+                    : AppColors.lightTextSecond,
                 height: 1.5,
               ),
               textAlign: TextAlign.center,

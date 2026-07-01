@@ -7,8 +7,35 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class SellerSidebar extends ConsumerWidget {
-  const SellerSidebar({super.key});
+class StaffNavigation extends StatelessWidget {
+  final Widget child;
+
+  const StaffNavigation({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.sizeOf(context).width >= 1024;
+
+    if (isDesktop) {
+      return Scaffold(
+        body: Row(
+          children: [
+            const StaffSidebar(),
+            Expanded(child: child),
+          ],
+        ),
+      );
+    }
+
+    return Scaffold(
+      drawer: const StaffDrawer(),
+      body: child,
+    );
+  }
+}
+
+class StaffSidebar extends ConsumerWidget {
+  const StaffSidebar({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -42,11 +69,11 @@ class SellerSidebar extends ConsumerWidget {
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: AppColors.primary,
+                    color: Colors.purple,
                     borderRadius: AppRadius.borderSM,
                   ),
                   child: const Icon(
-                    Icons.storefront_rounded,
+                    Icons.badge_rounded,
                     color: Colors.white,
                     size: 20,
                   ),
@@ -62,7 +89,7 @@ class SellerSidebar extends ConsumerWidget {
                       ),
                     ),
                     Text(
-                      'Seller Portal',
+                      'Staff Portal',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.lightTextSecondary,
                       ),
@@ -79,28 +106,18 @@ class SellerSidebar extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (perms.has(StaffPermission.dashboard) || perms.has(StaffPermission.analytics))
-                    _SidebarSection(
-                      label: 'Overview',
-                      children: [
-                        if (perms.has(StaffPermission.dashboard))
-                          _SidebarItem(
-                            icon: Icons.dashboard_outlined,
-                            activeIcon: Icons.dashboard_rounded,
-                            label: 'Dashboard',
-                            route: '/seller/dashboard',
-                            isActive: currentPath.startsWith('/seller/dashboard'),
-                          ),
-                        if (perms.has(StaffPermission.analytics))
-                          _SidebarItem(
-                            icon: Icons.analytics_outlined,
-                            activeIcon: Icons.analytics_rounded,
-                            label: 'Analytics',
-                            route: '/seller/analytics',
-                            isActive: currentPath.startsWith('/seller/analytics'),
-                          ),
-                      ],
-                    ),
+                  _SidebarSection(
+                    label: 'Overview',
+                    children: [
+                      _SidebarItem(
+                        icon: Icons.dashboard_outlined,
+                        activeIcon: Icons.dashboard_rounded,
+                        label: 'Dashboard',
+                        route: '/staff/dashboard',
+                        isActive: currentPath == '/staff/dashboard',
+                      ),
+                    ],
+                  ),
                   if (perms.has(StaffPermission.inventory) || 
                       perms.has(StaffPermission.orders) || 
                       perms.has(StaffPermission.customers) || 
@@ -113,32 +130,32 @@ class SellerSidebar extends ConsumerWidget {
                             icon: Icons.inventory_2_outlined,
                             activeIcon: Icons.inventory_2_rounded,
                             label: 'Inventory',
-                            route: '/seller/inventory',
-                            isActive: currentPath.startsWith('/seller/inventory'),
+                            route: '/staff/inventory',
+                            isActive: currentPath.startsWith('/staff/inventory'),
                           ),
                         if (perms.has(StaffPermission.orders))
                           _SidebarItem(
                             icon: Icons.shopping_bag_outlined,
                             activeIcon: Icons.shopping_bag_rounded,
                             label: 'Orders',
-                            route: '/seller/orders',
-                            isActive: currentPath.startsWith('/seller/orders'),
+                            route: '/staff/orders',
+                            isActive: currentPath.startsWith('/staff/orders'),
                           ),
                         if (perms.has(StaffPermission.customers))
                           _SidebarItem(
                             icon: Icons.people_outline_rounded,
                             activeIcon: Icons.people_rounded,
                             label: 'Customers',
-                            route: '/seller/customers',
-                            isActive: currentPath.startsWith('/seller/customers'),
+                            route: '/staff/customers',
+                            isActive: currentPath.startsWith('/staff/customers'),
                           ),
                         if (perms.has(StaffPermission.staff))
                           _SidebarItem(
                             icon: Icons.people_alt_outlined,
                             activeIcon: Icons.people_alt_rounded,
                             label: 'Staff',
-                            route: '/seller/staff',
-                            isActive: currentPath.startsWith('/seller/staff'),
+                            route: '/staff/staff',
+                            isActive: currentPath.startsWith('/staff/staff'),
                           ),
                       ],
                     ),
@@ -155,19 +172,6 @@ class SellerSidebar extends ConsumerWidget {
                         ),
                       ],
                     ),
-                  if (perms.has(StaffPermission.finances))
-                    _SidebarSection(
-                      label: 'Finance',
-                      children: [
-                        _SidebarItem(
-                          icon: Icons.account_balance_wallet_outlined,
-                          activeIcon: Icons.account_balance_wallet_rounded,
-                          label: 'Finances',
-                          route: '/seller/finances',
-                          isActive: currentPath.startsWith('/seller/finances'),
-                        ),
-                      ],
-                    ),
                   if (perms.has(StaffPermission.storeProfile) || perms.has(StaffPermission.settings))
                     _SidebarSection(
                       label: 'Settings',
@@ -177,16 +181,16 @@ class SellerSidebar extends ConsumerWidget {
                             icon: Icons.store_outlined,
                             activeIcon: Icons.store_rounded,
                             label: 'Store Profile',
-                            route: '/seller/store-profile',
-                            isActive: currentPath.startsWith('/seller/store-profile'),
+                            route: '/staff/store-profile',
+                            isActive: currentPath.startsWith('/staff/store-profile'),
                           ),
                         if (perms.has(StaffPermission.settings))
                           _SidebarItem(
                             icon: Icons.settings_outlined,
                             activeIcon: Icons.settings_rounded,
                             label: 'Settings',
-                            route: '/seller/settings',
-                            isActive: currentPath.startsWith('/seller/settings'),
+                            route: '/staff/settings',
+                            isActive: currentPath.startsWith('/staff/settings'),
                           ),
                       ],
                     ),
@@ -262,7 +266,7 @@ class _SidebarItem extends StatelessWidget {
             if (Scaffold.of(context).isDrawerOpen) {
               Navigator.of(context).pop();
             }
-            context.go(route);
+            context.push(route);
           },
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -338,11 +342,11 @@ class _SidebarLogout extends ConsumerWidget {
   }
 }
 
-class SellerDrawer extends StatelessWidget {
-  const SellerDrawer({super.key});
+class StaffDrawer extends StatelessWidget {
+  const StaffDrawer({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const Drawer(width: 280, child: SellerSidebar());
+    return const Drawer(width: 280, child: StaffSidebar());
   }
 }
