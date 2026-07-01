@@ -1,0 +1,521 @@
+import 'package:ecom/core/constants/app_radius.dart';
+import 'package:ecom/core/theme/app_colors.dart';
+import 'package:ecom/core/widgets/app_loading_view.dart';
+import 'package:ecom/core/widgets/app_error_view.dart';
+import 'package:ecom/core/widgets/app_primary_button.dart';
+import 'package:ecom/core/widgets/app_text_field.dart';
+import 'package:ecom/features/auth/domain/entities/app_user.dart';
+import 'package:ecom/features/seller/presentation/controllers/seller_staff_controller.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+
+class SellerStaffScreen extends ConsumerStatefulWidget {
+  const SellerStaffScreen({super.key});
+
+  @override
+  ConsumerState<SellerStaffScreen> createState() => _SellerStaffScreenState();
+}
+
+class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
+  final _emailController = TextEditingController();
+  String _selectedRole = 'Manager';
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  void _showInviteBottomSheet(BuildContext context) {
+    _emailController.clear();
+    _selectedRole = 'Manager';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: EdgeInsets.fromLTRB(
+                24,
+                24,
+                24,
+                MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Invite Staff Member',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Enter the email address of the team member you want to add to your storefront operations.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 20),
+                  AppTextField(
+                    controller: _emailController,
+                    label: 'Email Address',
+                    hint: 'name@example.com',
+                    prefixIcon: Icons.email_outlined,
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Access Role',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    initialValue: _selectedRole,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                        borderRadius: AppRadius.borderLG,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'Manager',
+                        child: Text('Manager (Full access)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Editor',
+                        child: Text('Editor (Manage inventory & orders)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Viewer',
+                        child: Text('Viewer (Read-only access)'),
+                      ),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        setModalState(() => _selectedRole = val);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  AppPrimaryButton(
+                    text: 'Send Invitation',
+                    onPressed: () async {
+                      final email = _emailController.text.trim();
+                      if (email.isEmpty) return;
+
+                      // Close bottom sheet first
+                      Navigator.pop(context);
+
+                      final result = await ref
+                          .read(sellerStaffControllerProvider.notifier)
+                          .inviteStaff(email, _selectedRole);
+
+                      if (mounted) {
+                        result.fold(
+                          (err) => ScaffoldMessenger.of(this.context).showSnackBar(
+                            SnackBar(content: Text(err), backgroundColor: AppColors.error),
+                          ),
+                          (_) => ScaffoldMessenger.of(this.context).showSnackBar(
+                            const SnackBar(content: Text('Staff member invited successfully!')),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final staffState = ref.watch(sellerStaffControllerProvider);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Staff Management'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: TextButton.icon(
+              icon: const Icon(Icons.add),
+              label: const Text('Invite Staff'),
+              onPressed: () => _showInviteBottomSheet(context),
+            ),
+          ),
+        ],
+      ),
+      body: staffState.when(
+        loading: () => const AppLoadingView(),
+        error: (err, _) => AppErrorView(
+          message: 'Failed to load staff list: $err',
+          onRetry: () => ref.invalidate(sellerStaffControllerProvider),
+        ),
+        data: (data) {
+          final active = data.activeStaff;
+          final pending = data.pendingInvitations;
+
+          if (active.isEmpty && pending.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.people_outline_rounded,
+                      size: 64,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'No Team Members Yet',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Invite managers, editors, or viewers to help handle your store operations.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.lightTextSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.add),
+                    label: const Text('Invite First Staff Member'),
+                    onPressed: () => _showInviteBottomSheet(context),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return DefaultTabController(
+            length: 2,
+            child: Column(
+              children: [
+                TabBar(
+                  labelColor: AppColors.primary,
+                  unselectedLabelColor: isDark ? Colors.white54 : AppColors.lightTextSecondary,
+                  indicatorColor: AppColors.primary,
+                  tabs: [
+                    Tab(text: 'Active Staff (${active.length})'),
+                    Tab(text: 'Pending Invites (${pending.length})'),
+                  ],
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      _buildActiveStaffList(active, isDark),
+                      _buildPendingInvitesList(pending, isDark),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildActiveStaffList(List<AppUser> staff, bool isDark) {
+    if (staff.isEmpty) {
+      return const Center(
+        child: Text('No active staff members.'),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: staff.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final member = staff[index];
+        final dateStr = DateFormat('MMM d, yyyy').format(member.createdAt);
+
+        return Card(
+          elevation: 0,
+          color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: isDark ? Colors.white12 : AppColors.border,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                  child: Text(
+                    member.displayName.isNotEmpty ? member.displayName[0].toUpperCase() : 'S',
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              member.displayName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'Manager',
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        member.email,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Joined $dateStr',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: AppColors.error),
+                  onPressed: () => _confirmRemoveStaff(member),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPendingInvitesList(List<StaffInvitation> invites, bool isDark) {
+    if (invites.isEmpty) {
+      return const Center(
+        child: Text('No pending invitations.'),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: invites.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final invite = invites[index];
+        final dateStr = DateFormat('MMM d, yyyy').format(invite.createdAt);
+
+        return Card(
+          elevation: 0,
+          color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: isDark ? Colors.white12 : AppColors.border,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: Colors.orange.withValues(alpha: 0.1),
+                  child: const Icon(
+                    Icons.mail_outline_rounded,
+                    color: Colors.orange,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              invite.email,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              invite.role,
+                              style: const TextStyle(
+                                color: Colors.orange,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Invited on $dateStr',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: AppColors.error),
+                  onPressed: () => _confirmRevokeInvite(invite),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _confirmRemoveStaff(AppUser member) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Remove Staff Member'),
+          content: Text(
+            'Are you sure you want to remove ${member.displayName} (${member.email}) from your storefront? They will lose all access immediately.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                final result = await ref
+                    .read(sellerStaffControllerProvider.notifier)
+                    .removeStaff(member.uid);
+
+                if (mounted) {
+                  result.fold(
+                    (err) => ScaffoldMessenger.of(this.context).showSnackBar(
+                      SnackBar(content: Text(err), backgroundColor: AppColors.error),
+                    ),
+                    (_) => ScaffoldMessenger.of(this.context).showSnackBar(
+                      const SnackBar(content: Text('Staff member removed.')),
+                    ),
+                  );
+                }
+              },
+              child: const Text('Remove', style: TextStyle(color: AppColors.error)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _confirmRevokeInvite(StaffInvitation invite) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Revoke Invitation'),
+          content: Text(
+            'Are you sure you want to revoke the invitation for ${invite.email}?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                final result = await ref
+                    .read(sellerStaffControllerProvider.notifier)
+                    .revokeInvitation(invite.id);
+
+                if (mounted) {
+                  result.fold(
+                    (err) => ScaffoldMessenger.of(this.context).showSnackBar(
+                      SnackBar(content: Text(err), backgroundColor: AppColors.error),
+                    ),
+                    (_) => ScaffoldMessenger.of(this.context).showSnackBar(
+                      const SnackBar(content: Text('Invitation revoked.')),
+                    ),
+                  );
+                }
+              },
+              child: const Text('Revoke', style: TextStyle(color: AppColors.error)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}

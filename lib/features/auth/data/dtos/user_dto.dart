@@ -20,6 +20,7 @@ class UserDto {
 
   final bool isActive;
   final String? fcmToken;
+  final String? storeId;
 
   @JsonKey(defaultValue: false)
   final bool sellerApproved;
@@ -39,6 +40,7 @@ class UserDto {
     required this.roles,
     required this.isActive,
     this.fcmToken,
+    this.storeId,
     this.sellerApproved = false,
     this.sellerApplicationStatus = 'none',
     required this.createdAt,
@@ -78,6 +80,7 @@ class UserDto {
       verificationStatus: VerificationStatus.pending,
       isActive: isActive,
       fcmToken: fcmToken,
+      storeId: storeId,
       sellerApproved: sellerApproved,
       sellerApplicationStatus: sellerApplicationStatus,
       createdAt: createdAt,

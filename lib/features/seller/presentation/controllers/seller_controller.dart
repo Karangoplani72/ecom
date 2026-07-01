@@ -1,4 +1,5 @@
 import 'package:ecom/core/providers/common_providers.dart';
+import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:ecom/features/seller/data/repositories/seller_repository_impl.dart';
 import 'package:ecom/features/seller/domain/entities/store_profile.dart';
 import 'package:ecom/features/seller/domain/repositories/seller_repository.dart';
@@ -15,13 +16,14 @@ SellerRepository sellerRepository(Ref ref) {
 class SellerController extends _$SellerController {
   @override
   FutureOr<StoreProfile?> build() async {
-    final sellerId = ref.watch(currentUserIdProvider);
-    if (sellerId == null || sellerId.isEmpty) {
+    final user = ref.watch(currentUserProfileProvider).value;
+    if (user == null) {
       return null;
     }
 
+    final targetStoreId = user.storeId ?? user.uid;
     final repo = ref.read(sellerRepositoryProvider);
-    final result = await repo.getStoreProfileBySeller(sellerId);
+    final result = await repo.getStoreProfileBySeller(targetStoreId);
 
     return result.fold(
       (error) => throw error,

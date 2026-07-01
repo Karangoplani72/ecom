@@ -112,6 +112,13 @@ class SellerSidebar extends StatelessWidget {
                 route: '/seller/customers',
                 isActive: currentPath.startsWith('/seller/customers'),
               ),
+              _SidebarItem(
+                icon: Icons.people_alt_outlined,
+                activeIcon: Icons.people_alt_rounded,
+                label: 'Staff',
+                route: '/seller/staff',
+                isActive: currentPath.startsWith('/seller/staff'),
+              ),
             ],
           ),
           _SidebarSection(

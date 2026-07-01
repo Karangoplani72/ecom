@@ -129,11 +129,30 @@ class AuthRepositoryImpl implements AuthRepository {
       final userId = credential.user!.uid;
       final now = DateTime.now();
 
+      // Check for pending store staff invitation
+      final inviteSnapshot = await _firestore
+          .collection('store_invitations')
+          .where('email', isEqualTo: email.trim().toLowerCase())
+          .limit(1)
+          .get();
+
+      String? invitedStoreId;
+      final userRoles = <String>['buyer'];
+
+      if (inviteSnapshot.docs.isNotEmpty) {
+        final inviteData = inviteSnapshot.docs.first.data();
+        invitedStoreId = inviteData['storeId'] as String?;
+        userRoles.add('storeManager');
+        // Delete invitation now that it is accepted
+        await inviteSnapshot.docs.first.reference.delete();
+      }
+
       final userProfile = {
         'uid': userId,
         'email': email.trim(),
         'displayName': displayName.trim(),
-        'roles': ['buyer'],
+        'roles': userRoles,
+        'storeId': invitedStoreId,
         'isActive': true,
         'sellerApproved': false,
         'sellerApplicationStatus': 'none',
@@ -150,6 +169,20 @@ class AuthRepositoryImpl implements AuthRepository {
       };
 
       await _firestore.collection('users').doc(userId).set(userProfile);
+
+      if (invitedStoreId != null) {
+        await _firestore
+            .collection('stores')
+            .doc(invitedStoreId)
+            .collection('staff')
+            .doc(userId)
+            .set({
+          'email': email.trim(),
+          'displayName': displayName.trim(),
+          'role': 'storeManager',
+          'joinedAt': Timestamp.fromDate(now),
+        });
+      }
 
       final userDto = UserDto.fromJson(userProfile);
       return Right(userDto.toDomain());

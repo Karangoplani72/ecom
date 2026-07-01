@@ -53,6 +53,7 @@ import 'package:ecom/features/seller/presentation/screens/seller_dashboard_scree
 import 'package:ecom/features/seller/presentation/screens/seller_inventory_screen.dart';
 import 'package:ecom/features/seller/presentation/screens/seller_orders_screen.dart';
 import 'package:ecom/features/seller/presentation/screens/seller_settings_screen.dart';
+import 'package:ecom/features/seller/presentation/screens/seller_staff_screen.dart';
 import 'package:ecom/features/seller/presentation/screens/seller_store_profile_screen.dart';
 import 'package:ecom/features/seller/presentation/widgets/seller_navigation.dart';
 import 'package:ecom/features/seller_application/presentation/screens/seller_application_screen.dart';
@@ -110,6 +111,7 @@ abstract class AppRoutes {
   static const sellerCustomers = '/seller/customers';
   static const sellerSettings = '/seller/settings';
   static const sellerFinances = '/seller/finances';
+  static const sellerStaff = '/seller/staff';
 
   // Seller push screens
   static const addProduct = '/seller/inventory/add';
@@ -149,7 +151,8 @@ String _homeFor(AppUser user) {
       user.roles.contains(UserRole.admin)) {
     return AppRoutes.adminPanel;
   }
-  if (user.roles.contains(UserRole.seller)) {
+  if (user.roles.contains(UserRole.seller) ||
+      user.roles.contains(UserRole.storeManager)) {
     return AppRoutes.sellerDashboard;
   }
   return AppRoutes.buyerHome;
@@ -244,7 +247,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isAdmin =
           user.roles.contains(UserRole.admin) ||
           user.roles.contains(UserRole.superAdmin);
-      final isSeller = user.roles.contains(UserRole.seller);
+      final isSeller = user.roles.contains(UserRole.seller) ||
+          user.roles.contains(UserRole.storeManager);
 
       // ── 6. Seller application flow ───────────────────────────────────────
       if (loc == AppRoutes.sellerApply) {
@@ -439,6 +443,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.sellerSettings,
         builder: (context, state) => const SellerSettingsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.sellerStaff,
+        builder: (context, state) => const SellerStaffScreen(),
       ),
       GoRoute(
         path: AppRoutes.addProduct,

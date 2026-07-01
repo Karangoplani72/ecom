@@ -14,6 +14,7 @@ class AppUser {
   final VerificationStatus verificationStatus;
   final bool isActive;
   final String? fcmToken;
+  final String? storeId;
 
   /// Becomes true after admin approves seller application
   final bool sellerApproved;
@@ -33,6 +34,7 @@ class AppUser {
     required this.verificationStatus,
     required this.isActive,
     this.fcmToken,
+    this.storeId,
     this.sellerApproved = false,
     this.sellerApplicationStatus = 'none',
     required this.createdAt,
@@ -68,6 +70,7 @@ class AppUser {
     VerificationStatus? verificationStatus,
     bool? isActive,
     String? fcmToken,
+    String? storeId,
     bool? sellerApproved,
     String? sellerApplicationStatus,
     DateTime? createdAt,
@@ -82,6 +85,7 @@ class AppUser {
       verificationStatus: verificationStatus ?? this.verificationStatus,
       isActive: isActive ?? this.isActive,
       fcmToken: fcmToken ?? this.fcmToken,
+      storeId: storeId ?? this.storeId,
       sellerApproved: sellerApproved ?? this.sellerApproved,
       sellerApplicationStatus:
           sellerApplicationStatus ?? this.sellerApplicationStatus,

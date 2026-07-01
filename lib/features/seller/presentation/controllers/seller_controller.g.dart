@@ -79,7 +79,7 @@ final class SellerControllerProvider
   SellerController create() => SellerController();
 }
 
-String _$sellerControllerHash() => r'dfdae08d1f86f3f30d7207fd38cedb89dffbe752';
+String _$sellerControllerHash() => r'5d31e4bcffde11b86c227b80d2a7ea6678682f9a';
 
 abstract class _$SellerController extends $AsyncNotifier<StoreProfile?> {
   FutureOr<StoreProfile?> build();
