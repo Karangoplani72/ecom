@@ -38,6 +38,10 @@ service cloud.firestore {
       return isLoggedIn() && request.auth.uid == storeId;
     }
 
+    function isStoreMember(storeId) {
+      return isLoggedIn() && (request.auth.uid == storeId || getUserData().get('storeId', '') == storeId);
+    }
+
     // =========================================================================
     // USERS
     // =========================================================================
@@ -120,6 +124,11 @@ service cloud.firestore {
                       || (isLoggedIn()
                           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['metadata', 'status', 'updatedAt'])
                           && request.resource.data.metadata.stock <= resource.data.metadata.stock);
+      }
+
+      match /staff/{userId} {
+        allow read: if isStoreMember(storeId) || isAdmin();
+        allow write: if isStoreMember(storeId) || isOwner(userId) || isAdmin();
       }
     }
 
@@ -275,6 +284,17 @@ service cloud.firestore {
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'releaseRequestedAt', 'releaseTarget', 'releaseReason'])
                     && request.resource.data.status == 'release_requested';
       allow create, delete: if false;
+    }
+
+    // =========================================================================
+    // STORE INVITATIONS
+    // =========================================================================
+    match /store_invitations/{invitationId} {
+      allow get:    if isLoggedIn() && (resource == null || isStoreMember(resource.data.storeId) || request.auth.token.email == resource.data.email);
+      allow list:   if isLoggedIn() && (resource == null || isStoreMember(resource.data.storeId) || request.auth.token.email == resource.data.email);
+      allow create: if isLoggedIn() && isStoreMember(request.resource.data.storeId);
+      allow update: if isLoggedIn() && isStoreMember(request.resource.data.storeId);
+      allow delete: if isLoggedIn() && (isStoreMember(resource.data.storeId) || request.auth.token.email == resource.data.email);
     }
 
     // =========================================================================
