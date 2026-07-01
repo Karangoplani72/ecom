@@ -12,12 +12,20 @@ class StaffInvitation {
   final String id;
   final String email;
   final String role;
+  final String storeName;
+  final String storeId;
+  final String invitedBy;
+  final String status;
   final DateTime createdAt;
 
   const StaffInvitation({
     required this.id,
     required this.email,
     required this.role,
+    required this.storeName,
+    required this.storeId,
+    required this.invitedBy,
+    required this.status,
     required this.createdAt,
   });
 
@@ -29,6 +37,10 @@ class StaffInvitation {
       id: doc.id,
       email: data['email'] as String? ?? '',
       role: data['role'] as String? ?? 'storeManager',
+      storeName: data['storeName'] as String? ?? '',
+      storeId: data['storeId'] as String? ?? '',
+      invitedBy: data['invitedBy'] as String? ?? '',
+      status: data['status'] as String? ?? 'pending',
       createdAt: date,
     );
   }
@@ -126,10 +138,18 @@ class SellerStaffController extends _$SellerStaffController {
 
       // 2. If user doesn't exist, create an invitation
       final inviteId = cleanEmail; // Unique ID based on email to prevent duplicates
+
+      // Resolve the inviter's display name
+      final currentUser = ref.read(firebaseAuthProvider).currentUser;
+      final inviterName = currentUser?.displayName ?? currentUser?.email ?? 'Store Owner';
+
       await firestore.collection('store_invitations').doc(inviteId).set({
         'email': cleanEmail,
         'storeId': store.id,
+        'storeName': store.storeName,
         'role': role,
+        'invitedBy': inviterName,
+        'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
       });
 

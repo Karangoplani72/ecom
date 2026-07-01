@@ -350,8 +350,33 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
 
   Widget _buildPendingInvitesList(List<StaffInvitation> invites, bool isDark) {
     if (invites.isEmpty) {
-      return const Center(
-        child: Text('No pending invitations.'),
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.mark_email_read_outlined,
+              size: 48,
+              color: Colors.grey.withValues(alpha: 0.5),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No Pending Invitations',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white54 : Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'All sent invitations have been accepted or revoked.',
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark ? Colors.white38 : Colors.grey.shade400,
+              ),
+            ),
+          ],
+        ),
       );
     }
 
@@ -361,7 +386,9 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
       separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final invite = invites[index];
-        final dateStr = DateFormat('MMM d, yyyy').format(invite.createdAt);
+        final dateStr = DateFormat('MMM d, yyyy · h:mm a').format(invite.createdAt);
+        final timeAgo = _formatTimeAgo(invite.createdAt);
+        final roleConfig = _getRoleConfig(invite.role);
 
         return Card(
           elevation: 0,
@@ -374,62 +401,213 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
           ),
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  backgroundColor: Colors.orange.withValues(alpha: 0.1),
-                  child: const Icon(
-                    Icons.mail_outline_rounded,
-                    color: Colors.orange,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              invite.email,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
+                // Header row: avatar + email + role badge
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.orange.withValues(alpha: 0.15),
+                            Colors.deepOrange.withValues(alpha: 0.08),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: Text(
+                          invite.email.isNotEmpty ? invite.email[0].toUpperCase() : '?',
+                          style: const TextStyle(
+                            color: Colors.deepOrange,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            invite.email,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
                             ),
-                            child: Text(
-                              invite.role,
-                              style: const TextStyle(
-                                color: Colors.orange,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: const BoxDecoration(
+                                  color: Colors.orange,
+                                  shape: BoxShape.circle,
+                                ),
                               ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Pending · $timeAgo',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.orange.shade700,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: roleConfig.color.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: roleConfig.color.withValues(alpha: 0.3),
+                          width: 0.5,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            roleConfig.icon,
+                            size: 12,
+                            color: roleConfig.color,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            invite.role,
+                            style: TextStyle(
+                              color: roleConfig.color,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Invited on $dateStr',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey,
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 14),
+
+                // Detail rows
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.04)
+                        : Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      if (invite.storeName.isNotEmpty)
+                        _buildDetailRow(
+                          icon: Icons.storefront_rounded,
+                          label: 'Store',
+                          value: invite.storeName,
+                          isDark: isDark,
                         ),
+                      if (invite.invitedBy.isNotEmpty) ...[
+                        if (invite.storeName.isNotEmpty)
+                          Divider(
+                            height: 16,
+                            color: isDark ? Colors.white10 : Colors.grey.shade200,
+                          ),
+                        _buildDetailRow(
+                          icon: Icons.person_outline_rounded,
+                          label: 'Invited by',
+                          value: invite.invitedBy,
+                          isDark: isDark,
+                        ),
+                      ],
+                      Divider(
+                        height: 16,
+                        color: isDark ? Colors.white10 : Colors.grey.shade200,
+                      ),
+                      _buildDetailRow(
+                        icon: Icons.calendar_today_rounded,
+                        label: 'Sent on',
+                        value: dateStr,
+                        isDark: isDark,
+                      ),
+                      Divider(
+                        height: 16,
+                        color: isDark ? Colors.white10 : Colors.grey.shade200,
+                      ),
+                      _buildDetailRow(
+                        icon: Icons.security_rounded,
+                        label: 'Access level',
+                        value: roleConfig.description,
+                        isDark: isDark,
                       ),
                     ],
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close, color: AppColors.error),
-                  onPressed: () => _confirmRevokeInvite(invite),
+
+                const SizedBox(height: 12),
+
+                // Action buttons row
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.refresh_rounded, size: 16),
+                        label: const Text('Resend'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                          side: BorderSide(
+                            color: AppColors.primary.withValues(alpha: 0.3),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Invitation reminder sent to ${invite.email}'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.close_rounded, size: 16),
+                        label: const Text('Revoke'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.error,
+                          side: BorderSide(
+                            color: AppColors.error.withValues(alpha: 0.3),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        onPressed: () => _confirmRevokeInvite(invite),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -437,6 +615,90 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
         );
       },
     );
+  }
+
+  Widget _buildDetailRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required bool isDark,
+  }) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 14,
+          color: isDark ? Colors.white38 : Colors.grey.shade500,
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 80,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: isDark ? Colors.white38 : Colors.grey.shade500,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: isDark ? Colors.white70 : Colors.black87,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _formatTimeAgo(DateTime date) {
+    final now = DateTime.now();
+    final diff = now.difference(date);
+
+    if (diff.inDays > 30) {
+      return '${(diff.inDays / 30).floor()} month${(diff.inDays / 30).floor() > 1 ? 's' : ''} ago';
+    } else if (diff.inDays > 0) {
+      return '${diff.inDays} day${diff.inDays > 1 ? 's' : ''} ago';
+    } else if (diff.inHours > 0) {
+      return '${diff.inHours} hour${diff.inHours > 1 ? 's' : ''} ago';
+    } else if (diff.inMinutes > 0) {
+      return '${diff.inMinutes} min ago';
+    } else {
+      return 'Just now';
+    }
+  }
+
+  ({Color color, IconData icon, String description}) _getRoleConfig(String role) {
+    switch (role) {
+      case 'Manager':
+        return (
+          color: AppColors.primary,
+          icon: Icons.admin_panel_settings_rounded,
+          description: 'Full access to manage store, orders, products & staff',
+        );
+      case 'Editor':
+        return (
+          color: Colors.teal,
+          icon: Icons.edit_rounded,
+          description: 'Can manage inventory, orders & product listings',
+        );
+      case 'Viewer':
+        return (
+          color: Colors.blueGrey,
+          icon: Icons.visibility_rounded,
+          description: 'Read-only access to view store data & analytics',
+        );
+      default:
+        return (
+          color: Colors.orange,
+          icon: Icons.person_rounded,
+          description: 'Store team member',
+        );
+    }
   }
 
   void _confirmRemoveStaff(AppUser member) {
