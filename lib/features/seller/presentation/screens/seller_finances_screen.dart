@@ -2636,7 +2636,7 @@ class _PendingEscrowsSection extends ConsumerWidget {
                     const Text('Destination', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      value: destination,
+                      initialValue: destination,
                       decoration: const InputDecoration(
                         isDense: true,
                         border: OutlineInputBorder(),
