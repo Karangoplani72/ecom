@@ -48,4 +48,4 @@ final class SellerCustomersProvider
   }
 }
 
-String _$sellerCustomersHash() => r'c068d394635cca17595b455a4064f4fda321e097';
+String _$sellerCustomersHash() => r'72ffed0ceaf2df9bf5729a28e172ce9bd72449e6';

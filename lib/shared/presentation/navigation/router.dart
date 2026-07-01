@@ -67,9 +67,25 @@ import '../../../features/seller/presentation/screens/seller_customers_screen.da
 import '../../../features/seller/presentation/screens/seller_finances_screen.dart';
 import '../../../features/seller/presentation/screens/seller_returns_screen.dart';
 
+import 'package:ecom/features/seller/domain/entities/staff_permission.dart';
+import 'package:ecom/features/seller/presentation/controllers/staff_permission_provider.dart';
+
+
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'rootNav',
 );
+
+// Buyer Shell Keys
+final _buyerHomeNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'buyerHome');
+final _buyerProductsNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'buyerProducts');
+final _buyerProfileNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'buyerProfile');
+
+// Seller Shell Keys
+final _sellerDashboardNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'sellerDashboard');
+final _sellerInventoryNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'sellerInventory');
+final _sellerOrdersNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'sellerOrders');
+final _sellerAnalyticsNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'sellerAnalytics');
+
 
 abstract class AppRoutes {
   // Auth
@@ -274,6 +290,23 @@ final routerProvider = Provider<GoRouter>((ref) {
         if (!isAdminPath) return AppRoutes.adminPanel;
       } else if (isSeller) {
         if (!isSellerPath) return AppRoutes.sellerDashboard;
+        
+        // Store Manager Permission Guards
+        if (user.roles.contains(UserRole.storeManager) && !user.roles.contains(UserRole.seller)) {
+          final permsAsync = ref.read(staffPermissionsProvider);
+          final perms = permsAsync.value;
+          
+          if (perms != null) {
+            if (loc.startsWith('/seller/inventory') && !perms.has(StaffPermission.inventory)) return AppRoutes.sellerDashboard;
+            if (loc.startsWith('/seller/orders') && !perms.has(StaffPermission.orders)) return AppRoutes.sellerDashboard;
+            if (loc.startsWith('/seller/analytics') && !perms.has(StaffPermission.analytics)) return AppRoutes.sellerDashboard;
+            if (loc.startsWith('/seller/customers') && !perms.has(StaffPermission.customers)) return AppRoutes.sellerDashboard;
+            if (loc.startsWith('/seller/finances') && !perms.has(StaffPermission.finances)) return AppRoutes.sellerDashboard;
+            if (loc.startsWith('/seller/store-profile') && !perms.has(StaffPermission.storeProfile)) return AppRoutes.sellerDashboard;
+            if (loc.startsWith('/seller/settings') && !perms.has(StaffPermission.settings)) return AppRoutes.sellerDashboard;
+            if (loc.startsWith('/seller/staff') && !perms.has(StaffPermission.staff)) return AppRoutes.sellerDashboard;
+          }
+        }
       } else if (isAdminPath || isSellerPath) {
         return AppRoutes.buyerHome;
       }
@@ -389,6 +422,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
         branches: [
           StatefulShellBranch(
+            navigatorKey: _buyerHomeNavigatorKey,
             routes: [
               GoRoute(
                 path: AppRoutes.buyerHome,
@@ -397,6 +431,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
           StatefulShellBranch(
+            navigatorKey: _buyerProductsNavigatorKey,
             routes: [
               GoRoute(
                 path: AppRoutes.buyerProducts,
@@ -408,6 +443,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
           StatefulShellBranch(
+            navigatorKey: _buyerProfileNavigatorKey,
             routes: [
               GoRoute(
                 path: AppRoutes.buyerProfile,
@@ -464,6 +500,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             _SellerShell(navigationShell: navigationShell),
         branches: [
           StatefulShellBranch(
+            navigatorKey: _sellerDashboardNavigatorKey,
             routes: [
               GoRoute(
                 path: AppRoutes.sellerDashboard,
@@ -472,6 +509,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
           StatefulShellBranch(
+            navigatorKey: _sellerInventoryNavigatorKey,
             routes: [
               GoRoute(
                 path: AppRoutes.sellerInventory,
@@ -480,6 +518,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
           StatefulShellBranch(
+            navigatorKey: _sellerOrdersNavigatorKey,
             routes: [
               GoRoute(
                 path: AppRoutes.sellerOrders,
@@ -488,6 +527,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
           StatefulShellBranch(
+            navigatorKey: _sellerAnalyticsNavigatorKey,
             routes: [
               GoRoute(
                 path: AppRoutes.sellerAnalytics,

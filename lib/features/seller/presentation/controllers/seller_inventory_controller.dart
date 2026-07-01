@@ -1,3 +1,4 @@
+import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/features/seller/data/repositories/seller_product_repository_impl.dart';
 import 'package:ecom/features/seller/domain/entities/seller_product.dart';
@@ -15,7 +16,7 @@ SellerProductRepository sellerProductRepository(Ref ref) {
 
 @riverpod
 Stream<List<SellerProduct>> sellerProducts(Ref ref) {
-  final sellerId = ref.watch(currentUserIdProvider);
+  final sellerId = (ref.watch(currentUserProfileProvider).value?.storeId ?? ref.watch(currentUserProfileProvider).value?.uid);
 
   if (sellerId == null) {
     return Stream.value([]);
@@ -32,7 +33,7 @@ class SellerInventoryController extends _$SellerInventoryController {
   FutureOr<void> build() {}
 
   Future<void> deleteProduct({required String productId}) async {
-    final sellerId = ref.read(currentUserIdProvider);
+    final sellerId = (ref.read(currentUserProfileProvider).value?.storeId ?? ref.read(currentUserProfileProvider).value?.uid);
 
     if (sellerId == null) {
       state = AsyncValue.error(
@@ -58,7 +59,7 @@ class SellerInventoryController extends _$SellerInventoryController {
     required String productId,
     required int stock,
   }) async {
-    final sellerId = ref.read(currentUserIdProvider);
+    final sellerId = (ref.read(currentUserProfileProvider).value?.storeId ?? ref.read(currentUserProfileProvider).value?.uid);
 
     if (sellerId == null) {
       state = AsyncValue.error(
@@ -92,7 +93,7 @@ class SellerInventoryController extends _$SellerInventoryController {
     required String productId,
     required String status,
   }) async {
-    final sellerId = ref.read(currentUserIdProvider);
+    final sellerId = (ref.read(currentUserProfileProvider).value?.storeId ?? ref.read(currentUserProfileProvider).value?.uid);
 
     if (sellerId == null) {
       state = AsyncValue.error(

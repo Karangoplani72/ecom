@@ -1,3 +1,4 @@
+import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/features/seller/data/repositories/seller_dashboard_repository_impl.dart';
 import 'package:ecom/features/seller/domain/entities/seller_dashboard_data.dart';
@@ -17,7 +18,7 @@ SellerDashboardRepository sellerDashboardRepository(Ref ref) {
 class SellerDashboardController extends _$SellerDashboardController {
   @override
   Future<SellerDashboardData> build() async {
-    final sellerId = ref.watch(currentUserIdProvider);
+    final sellerId = (ref.watch(currentUserProfileProvider).value?.storeId ?? ref.watch(currentUserProfileProvider).value?.uid);
 
     if (sellerId == null || sellerId.isEmpty) {
       throw Exception('Seller not authenticated');
@@ -33,7 +34,7 @@ class SellerDashboardController extends _$SellerDashboardController {
   Future<void> refresh() async {
     state = const AsyncValue.loading();
 
-    final sellerId = ref.read(currentUserIdProvider);
+    final sellerId = (ref.read(currentUserProfileProvider).value?.storeId ?? ref.read(currentUserProfileProvider).value?.uid);
 
     if (sellerId == null || sellerId.isEmpty) {
       state = AsyncValue.error(

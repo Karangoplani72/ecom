@@ -83,7 +83,7 @@ final class SellerDashboardControllerProvider
 }
 
 String _$sellerDashboardControllerHash() =>
-    r'8dce3a15eca9fa182f9958884a3fdb5cce3773b1';
+    r'b4811bfe0cf1ac62668259713527bf505720809f';
 
 abstract class _$SellerDashboardController
     extends $AsyncNotifier<SellerDashboardData> {

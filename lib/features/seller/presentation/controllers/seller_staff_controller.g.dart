@@ -34,7 +34,7 @@ final class SellerStaffControllerProvider
 }
 
 String _$sellerStaffControllerHash() =>
-    r'04ef3afb85240ed1e6f01403c9f2e934345e3b1d';
+    r'4521ac1a4438ba23a5639a05d73532ffddc0a18d';
 
 abstract class _$SellerStaffController
     extends $StreamNotifier<SellerStaffState> {

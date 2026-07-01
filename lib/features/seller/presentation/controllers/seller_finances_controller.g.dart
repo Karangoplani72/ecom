@@ -94,7 +94,7 @@ final class MerchantWalletProvider
   }
 }
 
-String _$merchantWalletHash() => r'58a32536254bd493797bd7633bf9e7acc709e7a4';
+String _$merchantWalletHash() => r'86e0d751ee39984060dc101804708851097748dc';
 
 @ProviderFor(sellerBankAccount)
 final sellerBankAccountProvider = SellerBankAccountProvider._();
@@ -135,7 +135,7 @@ final class SellerBankAccountProvider
   }
 }
 
-String _$sellerBankAccountHash() => r'482780cc7bf32952c5090ad2c4772b7ab20ffa55';
+String _$sellerBankAccountHash() => r'd381b6914a72dc0c1f209d5936601780e6e3e23c';
 
 @ProviderFor(sellerTransactions)
 final sellerTransactionsProvider = SellerTransactionsProvider._();
@@ -177,7 +177,7 @@ final class SellerTransactionsProvider
 }
 
 String _$sellerTransactionsHash() =>
-    r'e060aa5e597b0f473b742547feb6be12f24f39e2';
+    r'62039393106ad243109588515d3f2be0d6c45377';
 
 @ProviderFor(SellerFinancesController)
 final sellerFinancesControllerProvider = SellerFinancesControllerProvider._();
@@ -204,7 +204,7 @@ final class SellerFinancesControllerProvider
 }
 
 String _$sellerFinancesControllerHash() =>
-    r'8f88070d05b495b79a9424b8b6a7252dd606558a';
+    r'6dad540de669ba53b5934bf5c6c9671de03029aa';
 
 abstract class _$SellerFinancesController
     extends $AsyncNotifier<MerchantWallet> {

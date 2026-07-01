@@ -94,7 +94,7 @@ final class SellerAnalyticsProvider
   }
 }
 
-String _$sellerAnalyticsHash() => r'85ee50ea45a7a7e032743069f53fc772e1b2c0d8';
+String _$sellerAnalyticsHash() => r'056dc1189168e1b9e01f36b886f6ab4e525f3dcc';
 
 @ProviderFor(SellerAnalyticsController)
 final sellerAnalyticsControllerProvider = SellerAnalyticsControllerProvider._();
@@ -121,7 +121,7 @@ final class SellerAnalyticsControllerProvider
 }
 
 String _$sellerAnalyticsControllerHash() =>
-    r'9c619f64cf1cb78c9886a89f710243a02c893012';
+    r'89b6b8be634f6ca3cf1cf90ef6cd99f3ad421a8e';
 
 abstract class _$SellerAnalyticsController
     extends $AsyncNotifier<SellerAnalytics> {

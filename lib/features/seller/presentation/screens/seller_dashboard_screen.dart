@@ -1,3 +1,5 @@
+import 'package:ecom/features/auth/domain/entities/app_user.dart';
+import 'package:ecom/features/seller/presentation/widgets/staff_dashboard_view.dart';
 import 'package:ecom/core/constants/app_radius.dart';
 import 'package:ecom/core/theme/app_colors.dart';
 import 'package:ecom/core/utils/time_utils.dart';
@@ -21,6 +23,11 @@ class SellerDashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authControllerProvider).value;
+    if (user != null && !user.roles.contains(UserRole.seller)) {
+      return const SafeArea(child: StaffDashboardView());
+    }
+
     final dashboardAsync = ref.watch(sellerDashboardControllerProvider);
     final isDesktop = MediaQuery.sizeOf(context).width >= 1024;
 

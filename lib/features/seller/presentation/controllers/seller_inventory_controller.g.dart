@@ -96,7 +96,7 @@ final class SellerProductsProvider
   }
 }
 
-String _$sellerProductsHash() => r'3d16cd8210c92c42b9f71384d8ebce61e3b3dae7';
+String _$sellerProductsHash() => r'43c77581384330ab55b4b656bef3874ebaaf4116';
 
 @ProviderFor(SellerInventoryController)
 final sellerInventoryControllerProvider = SellerInventoryControllerProvider._();
@@ -123,7 +123,7 @@ final class SellerInventoryControllerProvider
 }
 
 String _$sellerInventoryControllerHash() =>
-    r'a30c1f917c08d3e197fe9be818ae7357179c21f9';
+    r'396b50e44ea04800ce5bdaa84519ac86de9f44c2';
 
 abstract class _$SellerInventoryController extends $AsyncNotifier<void> {
   FutureOr<void> build();

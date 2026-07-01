@@ -1,17 +1,21 @@
 import 'package:ecom/core/constants/app_radius.dart';
 import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/core/theme/app_colors.dart';
+import 'package:ecom/features/seller/domain/entities/staff_permission.dart';
+import 'package:ecom/features/seller/presentation/controllers/staff_permission_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class SellerSidebar extends StatelessWidget {
+class SellerSidebar extends ConsumerWidget {
   const SellerSidebar({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final currentPath = GoRouterState.of(context).uri.toString();
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final permsAsync = ref.watch(staffPermissionsProvider);
+    final perms = permsAsync.value ?? StaffPermissions.none();
 
     return Container(
       width: 256,
@@ -75,101 +79,117 @@ class SellerSidebar extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _SidebarSection(
-                    label: 'Overview',
-                    children: [
-                      _SidebarItem(
-                        icon: Icons.dashboard_outlined,
-                        activeIcon: Icons.dashboard_rounded,
-                        label: 'Dashboard',
-                        route: '/seller/dashboard',
-                        isActive: currentPath.startsWith('/seller/dashboard'),
-                      ),
-                      _SidebarItem(
-                        icon: Icons.analytics_outlined,
-                        activeIcon: Icons.analytics_rounded,
-                        label: 'Analytics',
-                        route: '/seller/analytics',
-                        isActive: currentPath.startsWith('/seller/analytics'),
-                      ),
-                    ],
-                  ),
-                  _SidebarSection(
-                    label: 'Store',
-                    children: [
-                      _SidebarItem(
-                        icon: Icons.inventory_2_outlined,
-                        activeIcon: Icons.inventory_2_rounded,
-                        label: 'Inventory',
-                        route: '/seller/inventory',
-                        isActive: currentPath.startsWith('/seller/inventory'),
-                      ),
-                      _SidebarItem(
-                        icon: Icons.shopping_bag_outlined,
-                        activeIcon: Icons.shopping_bag_rounded,
-                        label: 'Orders',
-                        route: '/seller/orders',
-                        isActive: currentPath.startsWith('/seller/orders'),
-                      ),
-                      _SidebarItem(
-                        icon: Icons.people_outline_rounded,
-                        activeIcon: Icons.people_rounded,
-                        label: 'Customers',
-                        route: '/seller/customers',
-                        isActive: currentPath.startsWith('/seller/customers'),
-                      ),
-                      _SidebarItem(
-                        icon: Icons.people_alt_outlined,
-                        activeIcon: Icons.people_alt_rounded,
-                        label: 'Staff',
-                        route: '/seller/staff',
-                        isActive: currentPath.startsWith('/seller/staff'),
-                      ),
-                    ],
-                  ),
-                  _SidebarSection(
-                    label: 'Communication',
-                    children: [
-                      _SidebarItem(
-                        icon: Icons.forum_outlined,
-                        activeIcon: Icons.forum_rounded,
-                        label: 'Messages',
-                        route: '/chat-rooms',
-                        isActive: currentPath.startsWith('/chat'),
-                      ),
-                    ],
-                  ),
-                  _SidebarSection(
-                    label: 'Finance',
-                    children: [
-                      _SidebarItem(
-                        icon: Icons.account_balance_wallet_outlined,
-                        activeIcon: Icons.account_balance_wallet_rounded,
-                        label: 'Finances',
-                        route: '/seller/finances',
-                        isActive: currentPath.startsWith('/seller/finances'),
-                      ),
-                    ],
-                  ),
-                  _SidebarSection(
-                    label: 'Settings',
-                    children: [
-                      _SidebarItem(
-                        icon: Icons.store_outlined,
-                        activeIcon: Icons.store_rounded,
-                        label: 'Store Profile',
-                        route: '/seller/store-profile',
-                        isActive: currentPath.startsWith('/seller/store-profile'),
-                      ),
-                      _SidebarItem(
-                        icon: Icons.settings_outlined,
-                        activeIcon: Icons.settings_rounded,
-                        label: 'Settings',
-                        route: '/seller/settings',
-                        isActive: currentPath.startsWith('/seller/settings'),
-                      ),
-                    ],
-                  ),
+                  if (perms.has(StaffPermission.dashboard) || perms.has(StaffPermission.analytics))
+                    _SidebarSection(
+                      label: 'Overview',
+                      children: [
+                        if (perms.has(StaffPermission.dashboard))
+                          _SidebarItem(
+                            icon: Icons.dashboard_outlined,
+                            activeIcon: Icons.dashboard_rounded,
+                            label: 'Dashboard',
+                            route: '/seller/dashboard',
+                            isActive: currentPath.startsWith('/seller/dashboard'),
+                          ),
+                        if (perms.has(StaffPermission.analytics))
+                          _SidebarItem(
+                            icon: Icons.analytics_outlined,
+                            activeIcon: Icons.analytics_rounded,
+                            label: 'Analytics',
+                            route: '/seller/analytics',
+                            isActive: currentPath.startsWith('/seller/analytics'),
+                          ),
+                      ],
+                    ),
+                  if (perms.has(StaffPermission.inventory) || 
+                      perms.has(StaffPermission.orders) || 
+                      perms.has(StaffPermission.customers) || 
+                      perms.has(StaffPermission.staff))
+                    _SidebarSection(
+                      label: 'Store',
+                      children: [
+                        if (perms.has(StaffPermission.inventory))
+                          _SidebarItem(
+                            icon: Icons.inventory_2_outlined,
+                            activeIcon: Icons.inventory_2_rounded,
+                            label: 'Inventory',
+                            route: '/seller/inventory',
+                            isActive: currentPath.startsWith('/seller/inventory'),
+                          ),
+                        if (perms.has(StaffPermission.orders))
+                          _SidebarItem(
+                            icon: Icons.shopping_bag_outlined,
+                            activeIcon: Icons.shopping_bag_rounded,
+                            label: 'Orders',
+                            route: '/seller/orders',
+                            isActive: currentPath.startsWith('/seller/orders'),
+                          ),
+                        if (perms.has(StaffPermission.customers))
+                          _SidebarItem(
+                            icon: Icons.people_outline_rounded,
+                            activeIcon: Icons.people_rounded,
+                            label: 'Customers',
+                            route: '/seller/customers',
+                            isActive: currentPath.startsWith('/seller/customers'),
+                          ),
+                        if (perms.has(StaffPermission.staff))
+                          _SidebarItem(
+                            icon: Icons.people_alt_outlined,
+                            activeIcon: Icons.people_alt_rounded,
+                            label: 'Staff',
+                            route: '/seller/staff',
+                            isActive: currentPath.startsWith('/seller/staff'),
+                          ),
+                      ],
+                    ),
+                  if (perms.has(StaffPermission.messages))
+                    _SidebarSection(
+                      label: 'Communication',
+                      children: [
+                        _SidebarItem(
+                          icon: Icons.forum_outlined,
+                          activeIcon: Icons.forum_rounded,
+                          label: 'Messages',
+                          route: '/chat-rooms',
+                          isActive: currentPath.startsWith('/chat'),
+                        ),
+                      ],
+                    ),
+                  if (perms.has(StaffPermission.finances))
+                    _SidebarSection(
+                      label: 'Finance',
+                      children: [
+                        _SidebarItem(
+                          icon: Icons.account_balance_wallet_outlined,
+                          activeIcon: Icons.account_balance_wallet_rounded,
+                          label: 'Finances',
+                          route: '/seller/finances',
+                          isActive: currentPath.startsWith('/seller/finances'),
+                        ),
+                      ],
+                    ),
+                  if (perms.has(StaffPermission.storeProfile) || perms.has(StaffPermission.settings))
+                    _SidebarSection(
+                      label: 'Settings',
+                      children: [
+                        if (perms.has(StaffPermission.storeProfile))
+                          _SidebarItem(
+                            icon: Icons.store_outlined,
+                            activeIcon: Icons.store_rounded,
+                            label: 'Store Profile',
+                            route: '/seller/store-profile',
+                            isActive: currentPath.startsWith('/seller/store-profile'),
+                          ),
+                        if (perms.has(StaffPermission.settings))
+                          _SidebarItem(
+                            icon: Icons.settings_outlined,
+                            activeIcon: Icons.settings_rounded,
+                            label: 'Settings',
+                            route: '/seller/settings',
+                            isActive: currentPath.startsWith('/seller/settings'),
+                          ),
+                      ],
+                    ),
                 ],
               ),
             ),

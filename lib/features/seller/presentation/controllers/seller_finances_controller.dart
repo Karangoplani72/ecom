@@ -1,3 +1,4 @@
+import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/features/seller/data/repositories/seller_finance_repository_impl.dart';
 import 'package:ecom/features/seller/domain/entities/merchant_wallet.dart';
@@ -19,7 +20,7 @@ SellerFinanceRepository sellerFinanceRepository(Ref ref) {
 
 @riverpod
 Future<MerchantWallet> merchantWallet(Ref ref) async {
-  final sellerId = ref.watch(currentUserIdProvider);
+  final sellerId = (ref.watch(currentUserProfileProvider).value?.storeId ?? ref.watch(currentUserProfileProvider).value?.uid);
 
   if (sellerId == null || sellerId.isEmpty) {
     throw Exception('Seller not authenticated');
@@ -34,7 +35,7 @@ Future<MerchantWallet> merchantWallet(Ref ref) async {
 
 @riverpod
 Future<Map<String, dynamic>?> sellerBankAccount(Ref ref) async {
-  final sellerId = ref.watch(currentUserIdProvider);
+  final sellerId = (ref.watch(currentUserProfileProvider).value?.storeId ?? ref.watch(currentUserProfileProvider).value?.uid);
   if (sellerId == null || sellerId.isEmpty) return null;
   final doc = await ref
       .read(firebaseFirestoreProvider)
@@ -48,7 +49,7 @@ Future<Map<String, dynamic>?> sellerBankAccount(Ref ref) async {
 
 @riverpod
 Future<List<SellerTransaction>> sellerTransactions(Ref ref) async {
-  final sellerId = ref.watch(currentUserIdProvider);
+  final sellerId = (ref.watch(currentUserProfileProvider).value?.storeId ?? ref.watch(currentUserProfileProvider).value?.uid);
   if (sellerId == null || sellerId.isEmpty) return [];
   final result = await ref
       .read(sellerFinanceRepositoryProvider)
@@ -60,7 +61,7 @@ Future<List<SellerTransaction>> sellerTransactions(Ref ref) async {
 class SellerFinancesController extends _$SellerFinancesController {
   @override
   Future<MerchantWallet> build() async {
-    final sellerId = ref.watch(currentUserIdProvider);
+    final sellerId = (ref.watch(currentUserProfileProvider).value?.storeId ?? ref.watch(currentUserProfileProvider).value?.uid);
 
     if (sellerId == null || sellerId.isEmpty) {
       throw Exception('Seller not authenticated');
@@ -95,7 +96,7 @@ class SellerFinancesController extends _$SellerFinancesController {
   Future<void> refresh() async {
     state = const AsyncLoading();
 
-    final sellerId = ref.read(currentUserIdProvider);
+    final sellerId = (ref.read(currentUserProfileProvider).value?.storeId ?? ref.read(currentUserProfileProvider).value?.uid);
 
     if (sellerId == null || sellerId.isEmpty) {
       state = AsyncError(
@@ -150,7 +151,7 @@ class SellerFinancesController extends _$SellerFinancesController {
       return;
     }
 
-    final sellerId = ref.read(currentUserIdProvider);
+    final sellerId = (ref.read(currentUserProfileProvider).value?.storeId ?? ref.read(currentUserProfileProvider).value?.uid);
 
     if (sellerId == null || sellerId.isEmpty) {
       state = AsyncError(
@@ -230,7 +231,7 @@ class SellerFinancesController extends _$SellerFinancesController {
       return;
     }
 
-    final sellerId = ref.read(currentUserIdProvider);
+    final sellerId = (ref.read(currentUserProfileProvider).value?.storeId ?? ref.read(currentUserProfileProvider).value?.uid);
 
     if (sellerId == null || sellerId.isEmpty) {
       state = AsyncError(

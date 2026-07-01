@@ -1,3 +1,4 @@
+import 'package:ecom/features/seller/domain/entities/staff_permission.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ecom/features/auth/data/dtos/user_dto.dart';
 import 'package:ecom/features/auth/domain/entities/app_user.dart';
@@ -215,6 +216,7 @@ class AuthRepositoryImpl implements AuthRepository {
           'email': email.trim(),
           'displayName': displayName.trim(),
           'role': 'storeManager',
+          'permissions': StaffPermissions.defaultForRole('storeManager').toList(),
           'joinedAt': Timestamp.fromDate(now),
         });
       }
@@ -336,6 +338,7 @@ class AuthRepositoryImpl implements AuthRepository {
           'email': email.trim(),
           'displayName': firebaseUser.displayName ?? 'Staff Member',
           'role': 'storeManager',
+          'permissions': StaffPermissions.defaultForRole('storeManager').toList(),
           'joinedAt': Timestamp.fromDate(now),
         });
       }
@@ -387,6 +390,7 @@ class AuthRepositoryImpl implements AuthRepository {
             'email': email.trim(),
             'displayName': displayName.trim(),
             'role': inviteRole,
+            'permissions': StaffPermissions.defaultForRole(inviteRole).toList(),
             'joinedAt': FieldValue.serverTimestamp(),
           });
 

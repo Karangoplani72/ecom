@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/features/auth/data/dtos/user_dto.dart';
 import 'package:ecom/features/auth/domain/entities/app_user.dart';
+import 'package:ecom/features/seller/domain/entities/staff_permission.dart';
 import 'package:ecom/features/seller/presentation/controllers/seller_controller.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -120,7 +121,8 @@ class SellerStaffController extends _$SellerStaffController {
           'roles': rolesList,
         });
 
-        // Add to store's staff subcollection
+        // Add to store's staff subcollection with default permissions
+        final defaultPerms = StaffPermissions.defaultForRole(role);
         await firestore
             .collection('stores')
             .doc(store.id)
@@ -130,6 +132,7 @@ class SellerStaffController extends _$SellerStaffController {
           'email': cleanEmail,
           'displayName': doc.data()['displayName'] ?? 'Staff Member',
           'role': role,
+          'permissions': defaultPerms.toList(),
           'joinedAt': FieldValue.serverTimestamp(),
         });
 
@@ -202,6 +205,29 @@ class SellerStaffController extends _$SellerStaffController {
       return const Right(unit);
     } catch (e) {
       return Left('Failed to revoke invitation: ${e.toString()}');
+    }
+  }
+
+  /// Update permissions for a staff member
+  Future<Either<String, Unit>> updateStaffPermissions(
+    String userId,
+    StaffPermissions permissions,
+  ) async {
+    final store = ref.read(sellerControllerProvider).value;
+    if (store == null) return const Left('Store not loaded');
+
+    final firestore = ref.read(firebaseFirestoreProvider);
+
+    try {
+      await firestore
+          .collection('stores')
+          .doc(store.id)
+          .collection('staff')
+          .doc(userId)
+          .update({'permissions': permissions.toList()});
+      return const Right(unit);
+    } catch (e) {
+      return Left('Failed to update permissions: ${e.toString()}');
     }
   }
 }

@@ -1,10 +1,13 @@
 import 'package:ecom/core/constants/app_radius.dart';
+import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/core/theme/app_colors.dart';
-import 'package:ecom/core/widgets/app_loading_view.dart';
 import 'package:ecom/core/widgets/app_error_view.dart';
+import 'package:ecom/core/widgets/app_loading_view.dart';
 import 'package:ecom/core/widgets/app_primary_button.dart';
 import 'package:ecom/core/widgets/app_text_field.dart';
 import 'package:ecom/features/auth/domain/entities/app_user.dart';
+import 'package:ecom/features/seller/domain/entities/staff_permission.dart';
+import 'package:ecom/features/seller/presentation/controllers/seller_controller.dart';
 import 'package:ecom/features/seller/presentation/controllers/seller_staff_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,7 +45,9 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
             return Container(
               decoration: BoxDecoration(
                 color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
               ),
               padding: EdgeInsets.fromLTRB(
                 24,
@@ -87,7 +92,10 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
                       border: OutlineInputBorder(
                         borderRadius: AppRadius.borderLG,
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                     ),
                     items: const [
                       DropdownMenuItem(
@@ -125,13 +133,21 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
 
                       if (mounted) {
                         result.fold(
-                          (err) => ScaffoldMessenger.of(this.context).showSnackBar(
-                            SnackBar(content: Text(err), backgroundColor: AppColors.error),
-                          ),
+                          (err) =>
+                              ScaffoldMessenger.of(this.context).showSnackBar(
+                                SnackBar(
+                                  content: Text(err),
+                                  backgroundColor: AppColors.error,
+                                ),
+                              ),
                           (_) {
                             ref.invalidate(sellerStaffControllerProvider);
                             ScaffoldMessenger.of(this.context).showSnackBar(
-                              const SnackBar(content: Text('Staff member invited successfully!')),
+                              const SnackBar(
+                                content: Text(
+                                  'Staff member invited successfully!',
+                                ),
+                              ),
                             );
                           },
                         );
@@ -226,7 +242,9 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
               children: [
                 TabBar(
                   labelColor: AppColors.primary,
-                  unselectedLabelColor: isDark ? Colors.white54 : AppColors.lightTextSecondary,
+                  unselectedLabelColor: isDark
+                      ? Colors.white54
+                      : AppColors.lightTextSecondary,
                   indicatorColor: AppColors.primary,
                   tabs: [
                     Tab(text: 'Active Staff (${active.length})'),
@@ -251,9 +269,7 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
 
   Widget _buildActiveStaffList(List<AppUser> staff, bool isDark) {
     if (staff.isEmpty) {
-      return const Center(
-        child: Text('No active staff members.'),
-      );
+      return const Center(child: Text('No active staff members.'));
     }
 
     return ListView.separated(
@@ -269,9 +285,7 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
           color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: isDark ? Colors.white12 : AppColors.border,
-            ),
+            side: BorderSide(color: isDark ? Colors.white12 : AppColors.border),
           ),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -280,7 +294,9 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
                 CircleAvatar(
                   backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                   child: Text(
-                    member.displayName.isNotEmpty ? member.displayName[0].toUpperCase() : 'S',
+                    member.displayName.isNotEmpty
+                        ? member.displayName[0].toUpperCase()
+                        : 'S',
                     style: const TextStyle(
                       color: AppColors.primary,
                       fontWeight: FontWeight.bold,
@@ -304,7 +320,10 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.primary.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
@@ -340,7 +359,18 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.delete_outline, color: AppColors.error),
+                  icon: const Icon(
+                    Icons.tune_rounded,
+                    color: AppColors.primary,
+                  ),
+                  onPressed: () =>
+                      _showManagePermissionsSheet(context, ref, member),
+                ),
+                IconButton(
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    color: AppColors.error,
+                  ),
                   onPressed: () => _confirmRemoveStaff(member),
                 ),
               ],
@@ -389,7 +419,10 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
       separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final invite = invites[index];
-        final dateStr = DateFormat('MMM d, yyyy · h:mm a').format(invite.createdAt);
+        final dateStr = DateFormat(
+          'MMM d, yyyy · h:mm a',
+        ).format(invite.createdAt);
+
         final timeAgo = _formatTimeAgo(invite.createdAt);
         final roleConfig = _getRoleConfig(invite.role);
 
@@ -398,9 +431,7 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
           color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: isDark ? Colors.white12 : AppColors.border,
-            ),
+            side: BorderSide(color: isDark ? Colors.white12 : AppColors.border),
           ),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -426,7 +457,9 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
                       ),
                       child: Center(
                         child: Text(
-                          invite.email.isNotEmpty ? invite.email[0].toUpperCase() : '?',
+                          invite.email.isNotEmpty
+                              ? invite.email[0].toUpperCase()
+                              : '?',
                           style: const TextStyle(
                             color: Colors.deepOrange,
                             fontWeight: FontWeight.bold,
@@ -474,7 +507,10 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: roleConfig.color.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(20),
@@ -530,7 +566,9 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
                         if (invite.storeName.isNotEmpty)
                           Divider(
                             height: 16,
-                            color: isDark ? Colors.white10 : Colors.grey.shade200,
+                            color: isDark
+                                ? Colors.white10
+                                : Colors.grey.shade200,
                           ),
                         _buildDetailRow(
                           icon: Icons.person_outline_rounded,
@@ -585,7 +623,9 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
                         onPressed: () {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('Invitation reminder sent to ${invite.email}'),
+                              content: Text(
+                                'Invitation reminder sent to ${invite.email}',
+                              ),
                               behavior: SnackBarBehavior.floating,
                             ),
                           );
@@ -675,7 +715,9 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
     }
   }
 
-  ({Color color, IconData icon, String description}) _getRoleConfig(String role) {
+  ({Color color, IconData icon, String description}) _getRoleConfig(
+    String role,
+  ) {
     switch (role) {
       case 'Manager':
         return (
@@ -728,7 +770,10 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
                 if (mounted) {
                   result.fold(
                     (err) => ScaffoldMessenger.of(this.context).showSnackBar(
-                      SnackBar(content: Text(err), backgroundColor: AppColors.error),
+                      SnackBar(
+                        content: Text(err),
+                        backgroundColor: AppColors.error,
+                      ),
                     ),
                     (_) => ScaffoldMessenger.of(this.context).showSnackBar(
                       const SnackBar(content: Text('Staff member removed.')),
@@ -736,7 +781,10 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
                   );
                 }
               },
-              child: const Text('Remove', style: TextStyle(color: AppColors.error)),
+              child: const Text(
+                'Remove',
+                style: TextStyle(color: AppColors.error),
+              ),
             ),
           ],
         );
@@ -768,7 +816,10 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
                 if (mounted) {
                   result.fold(
                     (err) => ScaffoldMessenger.of(this.context).showSnackBar(
-                      SnackBar(content: Text(err), backgroundColor: AppColors.error),
+                      SnackBar(
+                        content: Text(err),
+                        backgroundColor: AppColors.error,
+                      ),
                     ),
                     (_) => ScaffoldMessenger.of(this.context).showSnackBar(
                       const SnackBar(content: Text('Invitation revoked.')),
@@ -776,11 +827,304 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
                   );
                 }
               },
-              child: const Text('Revoke', style: TextStyle(color: AppColors.error)),
+              child: const Text(
+                'Revoke',
+                style: TextStyle(color: AppColors.error),
+              ),
             ),
           ],
         );
       },
+    );
+  }
+}
+
+void _showManagePermissionsSheet(
+  BuildContext context,
+  WidgetRef ref,
+  AppUser staff,
+) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) => _ManagePermissionsSheet(staff: staff),
+  );
+}
+
+class _ManagePermissionsSheet extends ConsumerStatefulWidget {
+  final AppUser staff;
+
+  const _ManagePermissionsSheet({required this.staff});
+
+  @override
+  ConsumerState<_ManagePermissionsSheet> createState() =>
+      _ManagePermissionsSheetState();
+}
+
+class _ManagePermissionsSheetState
+    extends ConsumerState<_ManagePermissionsSheet> {
+  late Set<StaffPermission> _selectedPermissions;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPermissions();
+  }
+
+  Future<void> _loadPermissions() async {
+    final firestore = ref.read(firebaseFirestoreProvider);
+    final store = ref.read(sellerControllerProvider).value;
+
+    if (store == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      final doc = await firestore
+          .collection('stores')
+          .doc(store.id)
+          .collection('staff')
+          .doc(widget.staff.uid)
+          .get();
+
+      if (doc.exists) {
+        final data = doc.data();
+        final permList = data?['permissions'] as List<dynamic>? ?? [];
+        if (mounted) {
+          setState(() {
+            _selectedPermissions = Set.from(
+              StaffPermissions.fromList(permList).values,
+            );
+            _isLoading = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _selectedPermissions = Set.from(StaffPermissions.all().values);
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _selectedPermissions = {};
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _savePermissions() async {
+    final perms = StaffPermissions.fromList(
+      _selectedPermissions.map((e) => e.name).toList(),
+    );
+
+    final result = await ref
+        .read(sellerStaffControllerProvider.notifier)
+        .updateStaffPermissions(widget.staff.uid, perms);
+
+    if (mounted) {
+      result.fold(
+        (error) => ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error), backgroundColor: AppColors.error),
+        ),
+        (_) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Permissions updated successfully'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+          Navigator.of(context).pop();
+        },
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Material(
+      color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      clipBehavior: Clip.antiAlias,
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height * 0.8,
+        child: Column(
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.tune_rounded,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Manage Permissions',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          widget.staff.displayName,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: AppColors.lightTextSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+
+            // Content
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ListView(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Access Rights',
+                                style: Theme.of(context).textTheme.titleSmall
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.lightTextSecondary,
+                                    ),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  setState(() {
+                                    if (_selectedPermissions.length ==
+                                        StaffPermission.values.length) {
+                                      _selectedPermissions.clear();
+                                      _selectedPermissions.add(
+                                        StaffPermission.dashboard,
+                                      ); // Keep dashboard at least
+                                    } else {
+                                      _selectedPermissions = Set.from(
+                                        StaffPermission.values,
+                                      );
+                                    }
+                                  });
+                                },
+                                child: Text(
+                                  _selectedPermissions.length ==
+                                          StaffPermission.values.length
+                                      ? 'Deselect All'
+                                      : 'Select All',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        ...StaffPermission.values.map((permission) {
+                          final isDashboard =
+                              permission == StaffPermission.dashboard;
+                          final isSelected = _selectedPermissions.contains(
+                            permission,
+                          );
+
+                          return CheckboxListTile(
+                            value: isSelected,
+                            onChanged: isDashboard
+                                ? null // Dashboard is always required
+                                : (value) {
+                                    setState(() {
+                                      if (value == true) {
+                                        _selectedPermissions.add(permission);
+                                      } else {
+                                        _selectedPermissions.remove(permission);
+                                      }
+                                    });
+                                  },
+                            title: Row(
+                              children: [
+                                Icon(
+                                  StaffPermissions.icon(permission),
+                                  size: 20,
+                                  color: isSelected || isDashboard
+                                      ? (isDark ? Colors.white : Colors.black)
+                                      : AppColors.lightTextSecondary,
+                                ),
+                                const SizedBox(width: 12),
+                                Text(StaffPermissions.label(permission)),
+                              ],
+                            ),
+                            subtitle: Padding(
+                              padding: const EdgeInsets.only(left: 32, top: 4),
+                              child: Text(
+                                StaffPermissions.description(permission),
+                              ),
+                            ),
+                            activeColor: AppColors.primary,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 4,
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+            ),
+
+            // Footer
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                border: Border(
+                  top: BorderSide(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : AppColors.border,
+                  ),
+                ),
+              ),
+              child: SafeArea(
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: FilledButton(
+                    onPressed: _isLoading ? null : _savePermissions,
+                    child: const Text('Save Permissions'),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -61,7 +61,13 @@ service cloud.firestore {
                     || (isOwner(userId)
                         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['roles', 'isActive', 'walletBalance', 'sellerApproved'])
                         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['sellerApplicationStatus'])
-                            || request.resource.data.sellerApplicationStatus == 'pending'));
+                            || request.resource.data.sellerApplicationStatus == 'pending'))
+                    || ( (hasRole('seller') || hasRole('storeManager'))
+                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['storeId', 'roles'])
+                         && request.resource.data.storeId == getUserData().get('storeId', request.auth.uid)
+                         && request.resource.data.roles.hasAll(resource.data.roles)
+                         && request.resource.data.roles.size() <= resource.data.roles.size() + 1
+                       );
 
       allow delete: if hasRole('superAdmin');
 
@@ -127,8 +133,8 @@ service cloud.firestore {
       }
 
       match /staff/{userId} {
-        allow read: if isStoreMember(storeId) || isAdmin();
-        allow write: if isStoreMember(storeId) || isOwner(userId) || isAdmin();
+        allow read: if isStoreMember(storeId) || isOwner(userId) || isAdmin();
+        allow write: if isStoreOwner(storeId) || isAdmin() || (hasRole('storeManager') && isStoreMember(storeId));
       }
     }
 

@@ -1,3 +1,4 @@
+import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
 import 'dart:async';
 
 import 'package:ecom/core/providers/common_providers.dart';
@@ -17,7 +18,7 @@ SellerAnalyticsRepository sellerAnalyticsRepository(Ref ref) {
 
 @riverpod
 Future<SellerAnalytics> sellerAnalytics(Ref ref) async {
-  final sellerId = ref.watch(currentUserIdProvider);
+  final sellerId = (ref.watch(currentUserProfileProvider).value?.storeId ?? ref.watch(currentUserProfileProvider).value?.uid);
 
   if (sellerId == null || sellerId.isEmpty) {
     throw Exception('Seller not authenticated');
@@ -34,7 +35,7 @@ Future<SellerAnalytics> sellerAnalytics(Ref ref) async {
 class SellerAnalyticsController extends _$SellerAnalyticsController {
   @override
   Future<SellerAnalytics> build() async {
-    final sellerId = ref.watch(currentUserIdProvider);
+    final sellerId = (ref.watch(currentUserProfileProvider).value?.storeId ?? ref.watch(currentUserProfileProvider).value?.uid);
 
     if (sellerId == null || sellerId.isEmpty) {
       throw Exception('Seller not authenticated');
@@ -50,7 +51,7 @@ class SellerAnalyticsController extends _$SellerAnalyticsController {
   Future<void> refresh() async {
     state = const AsyncLoading();
 
-    final sellerId = ref.read(currentUserIdProvider);
+    final sellerId = (ref.read(currentUserProfileProvider).value?.storeId ?? ref.read(currentUserProfileProvider).value?.uid);
 
     if (sellerId == null || sellerId.isEmpty) {
       state = AsyncError(
