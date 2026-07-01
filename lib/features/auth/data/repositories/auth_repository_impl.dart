@@ -77,16 +77,32 @@ class AuthRepositoryImpl implements AuthRepository {
       }
 
       // Fetch user document from Firestore
-      final doc = await _firestore
+      var doc = await _firestore
           .collection('users')
           .doc(credential.user!.uid)
           .get();
 
       if (!doc.exists) {
-        return const Left('User profile not found in database');
+        await _createUserProfile(credential.user!);
+        doc = await _firestore
+            .collection('users')
+            .doc(credential.user!.uid)
+            .get();
       }
 
-      final userDto = UserDto.fromFirestore(doc);
+      // Check and apply pending invitation on login
+      await _checkAndApplyPendingInvitation(
+        email,
+        credential.user!.uid,
+        doc.data()?['displayName'] ?? 'Staff Member',
+      );
+
+      final finalDoc = await _firestore
+          .collection('users')
+          .doc(credential.user!.uid)
+          .get();
+
+      final userDto = UserDto.fromFirestore(finalDoc);
       return Right(userDto.toDomain());
     } on firebase_auth.FirebaseAuthException catch (e) {
       final errorMessage = _getFirebaseAuthErrorMessage(e.code);
@@ -128,6 +144,25 @@ class AuthRepositoryImpl implements AuthRepository {
       // Create user profile in Firestore
       final userId = credential.user!.uid;
       final now = DateTime.now();
+
+      // Avoid race conditions with the background authStateChanges listener
+      final existingDoc = await _firestore.collection('users').doc(userId).get();
+      if (existingDoc.exists) {
+        if (existingDoc.data()?['displayName'] == '') {
+          await _firestore.collection('users').doc(userId).update({
+            'displayName': displayName.trim(),
+          });
+        }
+        // Still check for pending invitations even on the race-condition path
+        await _checkAndApplyPendingInvitation(
+          email.trim(),
+          userId,
+          displayName.trim(),
+        );
+        final finalDoc = await _firestore.collection('users').doc(userId).get();
+        final userDto = UserDto.fromFirestore(finalDoc);
+        return Right(userDto.toDomain());
+      }
 
       // Check for pending store staff invitation
       final inviteSnapshot = await _firestore
@@ -250,13 +285,35 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<void> _createUserProfile(firebase_auth.User firebaseUser) async {
     try {
       final now = DateTime.now();
+      final email = firebaseUser.email ?? '';
+
+      // Check for pending store staff invitation
+      final inviteSnapshot = await _firestore
+          .collection('store_invitations')
+          .where('email', isEqualTo: email.trim().toLowerCase())
+          .limit(1)
+          .get();
+
+      String? invitedStoreId;
+      final userRoles = <String>['buyer'];
+
+      if (inviteSnapshot.docs.isNotEmpty) {
+        final inviteData = inviteSnapshot.docs.first.data();
+        invitedStoreId = inviteData['storeId'] as String?;
+        userRoles.add('storeManager');
+        // Delete invitation now that it is accepted
+        await inviteSnapshot.docs.first.reference.delete();
+      }
+
       await _firestore.collection('users').doc(firebaseUser.uid).set({
         'uid': firebaseUser.uid,
-        'email': firebaseUser.email ?? '',
+        'email': email.trim(),
         'displayName': firebaseUser.displayName ?? '',
-        'roles': ['buyer'],
+        'roles': userRoles,
+        'storeId': invitedStoreId,
         'isActive': true,
         'sellerApproved': false,
+        'sellerApplicationStatus': 'none',
         'walletBalance': 0.0,
         'phoneNumber': firebaseUser.phoneNumber ?? '',
         'photoUrl': firebaseUser.photoURL,
@@ -268,9 +325,77 @@ class AuthRepositoryImpl implements AuthRepository {
         'updatedAt': Timestamp.fromDate(now),
         'lastLoginAt': Timestamp.fromDate(now),
       });
+
+      if (invitedStoreId != null) {
+        await _firestore
+            .collection('stores')
+            .doc(invitedStoreId)
+            .collection('staff')
+            .doc(firebaseUser.uid)
+            .set({
+          'email': email.trim(),
+          'displayName': firebaseUser.displayName ?? 'Staff Member',
+          'role': 'storeManager',
+          'joinedAt': Timestamp.fromDate(now),
+        });
+      }
     } catch (e, stackTrace) {
       debugPrint('Failed to create user profile: $e');
       debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  /// Helper to check and apply a pending store staff invitation for existing users
+  Future<void> _checkAndApplyPendingInvitation(
+    String email,
+    String userId,
+    String displayName,
+  ) async {
+    try {
+      final inviteSnapshot = await _firestore
+          .collection('store_invitations')
+          .where('email', isEqualTo: email.trim().toLowerCase())
+          .limit(1)
+          .get();
+
+      if (inviteSnapshot.docs.isNotEmpty) {
+        final inviteData = inviteSnapshot.docs.first.data();
+        final invitedStoreId = inviteData['storeId'] as String?;
+        final inviteRole = inviteData['role'] as String? ?? 'storeManager';
+
+        if (invitedStoreId != null) {
+          // Update user profile roles & store ID
+          final userDoc = await _firestore.collection('users').doc(userId).get();
+          if (userDoc.exists) {
+            final rolesList = List<String>.from(userDoc.data()?['roles'] ?? []);
+            if (!rolesList.contains('storeManager')) {
+              rolesList.add('storeManager');
+            }
+            await _firestore.collection('users').doc(userId).update({
+              'storeId': invitedStoreId,
+              'roles': rolesList,
+            });
+          }
+
+          // Add to store staff subcollection
+          await _firestore
+              .collection('stores')
+              .doc(invitedStoreId)
+              .collection('staff')
+              .doc(userId)
+              .set({
+            'email': email.trim(),
+            'displayName': displayName.trim(),
+            'role': inviteRole,
+            'joinedAt': FieldValue.serverTimestamp(),
+          });
+
+          // Delete invitation now that it is accepted
+          await inviteSnapshot.docs.first.reference.delete();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error applying pending invitation: $e');
     }
   }
 

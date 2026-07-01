@@ -128,9 +128,12 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
                           (err) => ScaffoldMessenger.of(this.context).showSnackBar(
                             SnackBar(content: Text(err), backgroundColor: AppColors.error),
                           ),
-                          (_) => ScaffoldMessenger.of(this.context).showSnackBar(
-                            const SnackBar(content: Text('Staff member invited successfully!')),
-                          ),
+                          (_) {
+                            ref.invalidate(sellerStaffControllerProvider);
+                            ScaffoldMessenger.of(this.context).showSnackBar(
+                              const SnackBar(content: Text('Staff member invited successfully!')),
+                            );
+                          },
                         );
                       }
                     },
