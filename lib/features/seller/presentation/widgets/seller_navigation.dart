@@ -68,103 +68,112 @@ class SellerSidebar extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 32),
-          _SidebarSection(
-            label: 'Overview',
-            children: [
-              _SidebarItem(
-                icon: Icons.dashboard_outlined,
-                activeIcon: Icons.dashboard_rounded,
-                label: 'Dashboard',
-                route: '/seller/dashboard',
-                isActive: currentPath.startsWith('/seller/dashboard'),
+          const SizedBox(height: 16),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _SidebarSection(
+                    label: 'Overview',
+                    children: [
+                      _SidebarItem(
+                        icon: Icons.dashboard_outlined,
+                        activeIcon: Icons.dashboard_rounded,
+                        label: 'Dashboard',
+                        route: '/seller/dashboard',
+                        isActive: currentPath.startsWith('/seller/dashboard'),
+                      ),
+                      _SidebarItem(
+                        icon: Icons.analytics_outlined,
+                        activeIcon: Icons.analytics_rounded,
+                        label: 'Analytics',
+                        route: '/seller/analytics',
+                        isActive: currentPath.startsWith('/seller/analytics'),
+                      ),
+                    ],
+                  ),
+                  _SidebarSection(
+                    label: 'Store',
+                    children: [
+                      _SidebarItem(
+                        icon: Icons.inventory_2_outlined,
+                        activeIcon: Icons.inventory_2_rounded,
+                        label: 'Inventory',
+                        route: '/seller/inventory',
+                        isActive: currentPath.startsWith('/seller/inventory'),
+                      ),
+                      _SidebarItem(
+                        icon: Icons.shopping_bag_outlined,
+                        activeIcon: Icons.shopping_bag_rounded,
+                        label: 'Orders',
+                        route: '/seller/orders',
+                        isActive: currentPath.startsWith('/seller/orders'),
+                      ),
+                      _SidebarItem(
+                        icon: Icons.people_outline_rounded,
+                        activeIcon: Icons.people_rounded,
+                        label: 'Customers',
+                        route: '/seller/customers',
+                        isActive: currentPath.startsWith('/seller/customers'),
+                      ),
+                      _SidebarItem(
+                        icon: Icons.people_alt_outlined,
+                        activeIcon: Icons.people_alt_rounded,
+                        label: 'Staff',
+                        route: '/seller/staff',
+                        isActive: currentPath.startsWith('/seller/staff'),
+                      ),
+                    ],
+                  ),
+                  _SidebarSection(
+                    label: 'Communication',
+                    children: [
+                      _SidebarItem(
+                        icon: Icons.forum_outlined,
+                        activeIcon: Icons.forum_rounded,
+                        label: 'Messages',
+                        route: '/chat-rooms',
+                        isActive: currentPath.startsWith('/chat'),
+                      ),
+                    ],
+                  ),
+                  _SidebarSection(
+                    label: 'Finance',
+                    children: [
+                      _SidebarItem(
+                        icon: Icons.account_balance_wallet_outlined,
+                        activeIcon: Icons.account_balance_wallet_rounded,
+                        label: 'Finances',
+                        route: '/seller/finances',
+                        isActive: currentPath.startsWith('/seller/finances'),
+                      ),
+                    ],
+                  ),
+                  _SidebarSection(
+                    label: 'Settings',
+                    children: [
+                      _SidebarItem(
+                        icon: Icons.store_outlined,
+                        activeIcon: Icons.store_rounded,
+                        label: 'Store Profile',
+                        route: '/seller/store-profile',
+                        isActive: currentPath.startsWith('/seller/store-profile'),
+                      ),
+                      _SidebarItem(
+                        icon: Icons.settings_outlined,
+                        activeIcon: Icons.settings_rounded,
+                        label: 'Settings',
+                        route: '/seller/settings',
+                        isActive: currentPath.startsWith('/seller/settings'),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              _SidebarItem(
-                icon: Icons.analytics_outlined,
-                activeIcon: Icons.analytics_rounded,
-                label: 'Analytics',
-                route: '/seller/analytics',
-                isActive: currentPath.startsWith('/seller/analytics'),
-              ),
-            ],
+            ),
           ),
-          _SidebarSection(
-            label: 'Store',
-            children: [
-              _SidebarItem(
-                icon: Icons.inventory_2_outlined,
-                activeIcon: Icons.inventory_2_rounded,
-                label: 'Inventory',
-                route: '/seller/inventory',
-                isActive: currentPath.startsWith('/seller/inventory'),
-              ),
-              _SidebarItem(
-                icon: Icons.shopping_bag_outlined,
-                activeIcon: Icons.shopping_bag_rounded,
-                label: 'Orders',
-                route: '/seller/orders',
-                isActive: currentPath.startsWith('/seller/orders'),
-              ),
-              _SidebarItem(
-                icon: Icons.people_outline_rounded,
-                activeIcon: Icons.people_rounded,
-                label: 'Customers',
-                route: '/seller/customers',
-                isActive: currentPath.startsWith('/seller/customers'),
-              ),
-              _SidebarItem(
-                icon: Icons.people_alt_outlined,
-                activeIcon: Icons.people_alt_rounded,
-                label: 'Staff',
-                route: '/seller/staff',
-                isActive: currentPath.startsWith('/seller/staff'),
-              ),
-            ],
-          ),
-          _SidebarSection(
-            label: 'Communication',
-            children: [
-              _SidebarItem(
-                icon: Icons.forum_outlined,
-                activeIcon: Icons.forum_rounded,
-                label: 'Messages',
-                route: '/chat-rooms',
-                isActive: currentPath.startsWith('/chat'),
-              ),
-            ],
-          ),
-          _SidebarSection(
-            label: 'Finance',
-            children: [
-              _SidebarItem(
-                icon: Icons.account_balance_wallet_outlined,
-                activeIcon: Icons.account_balance_wallet_rounded,
-                label: 'Finances',
-                route: '/seller/finances',
-                isActive: currentPath.startsWith('/seller/finances'),
-              ),
-            ],
-          ),
-          _SidebarSection(
-            label: 'Settings',
-            children: [
-              _SidebarItem(
-                icon: Icons.store_outlined,
-                activeIcon: Icons.store_rounded,
-                label: 'Store Profile',
-                route: '/seller/store-profile',
-                isActive: currentPath.startsWith('/seller/store-profile'),
-              ),
-              _SidebarItem(
-                icon: Icons.settings_outlined,
-                activeIcon: Icons.settings_rounded,
-                label: 'Settings',
-                route: '/seller/settings',
-                isActive: currentPath.startsWith('/seller/settings'),
-              ),
-            ],
-          ),
-          const Spacer(),
           const Divider(height: 1),
           const _SidebarLogout(),
           const SizedBox(height: 16),
