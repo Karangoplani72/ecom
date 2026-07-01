@@ -135,6 +135,41 @@ final class PendingSellerApplicationsProvider
 String _$pendingSellerApplicationsHash() =>
     r'6027b8d6f3bf839b836134bca02c8ebd4502cc0b';
 
+@ProviderFor(pendingEarlyReleaseRequestsCount)
+final pendingEarlyReleaseRequestsCountProvider =
+    PendingEarlyReleaseRequestsCountProvider._();
+
+final class PendingEarlyReleaseRequestsCountProvider
+    extends $FunctionalProvider<AsyncValue<int>, int, Stream<int>>
+    with $FutureModifier<int>, $StreamProvider<int> {
+  PendingEarlyReleaseRequestsCountProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'pendingEarlyReleaseRequestsCountProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$pendingEarlyReleaseRequestsCountHash();
+
+  @$internal
+  @override
+  $StreamProviderElement<int> $createElement($ProviderPointer pointer) =>
+      $StreamProviderElement(pointer);
+
+  @override
+  Stream<int> create(Ref ref) {
+    return pendingEarlyReleaseRequestsCount(ref);
+  }
+}
+
+String _$pendingEarlyReleaseRequestsCountHash() =>
+    r'3c4d703b21ccf38c5575b83405e15cfae32941ff';
+
 @ProviderFor(adminAllStores)
 final adminAllStoresProvider = AdminAllStoresProvider._();
 

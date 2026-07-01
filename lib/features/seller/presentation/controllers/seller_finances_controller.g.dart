@@ -204,7 +204,7 @@ final class SellerFinancesControllerProvider
 }
 
 String _$sellerFinancesControllerHash() =>
-    r'fd33edd616fee6e1828aad99c52120b4dc6b5f43';
+    r'8f88070d05b495b79a9424b8b6a7252dd606558a';
 
 abstract class _$SellerFinancesController
     extends $AsyncNotifier<MerchantWallet> {

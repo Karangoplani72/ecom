@@ -8,6 +8,7 @@ import 'package:ecom/features/admin/domain/repositories/admin_repository.dart';
 import 'package:ecom/features/seller/domain/entities/store_profile.dart';
 import 'package:ecom/features/seller_application/domain/entities/seller_application.dart';
 import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:ecom/features/auth/domain/entities/app_user.dart';
 import 'package:ecom/features/admin/domain/entities/audit_log.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fpdart/fpdart.dart';
@@ -35,6 +36,16 @@ Stream<AdminDashboardMetrics> adminDashboardMetrics(Ref ref) {
 @riverpod
 Stream<List<SellerApplication>> pendingSellerApplications(Ref ref) {
   return ref.watch(adminRepositoryProvider).watchPendingSellerApplications();
+}
+
+@riverpod
+Stream<int> pendingEarlyReleaseRequestsCount(Ref ref) {
+  final firestore = ref.watch(firebaseFirestoreProvider);
+  return firestore
+      .collection('escrows')
+      .where('status', isEqualTo: 'release_requested')
+      .snapshots()
+      .map((snap) => snap.docs.length);
 }
 
 // ─── Stores (all) ────────────────────────────────────────────────────────────
@@ -65,17 +76,18 @@ Stream<List<AuditLog>> adminAuditLogs(Ref ref) {
 @riverpod
 class AdminController extends _$AdminController {
   @override
-  FutureOr<void> build() {}
+  FutureOr<void> build() {
+    ref.keepAlive();
+  }
 
-  Future<Either<String, Unit>> _auditAction(
-    String action,
-    String targetId,
-    String targetType, {
+  Future<Either<String, Unit>> _auditActionHelper({
+    required AdminRepository repo,
+    required AppUser user,
+    required String action,
+    required String targetId,
+    required String targetType,
     Map<String, dynamic>? metadata,
   }) async {
-    final user = ref.read(currentUserProfileProvider).value;
-    if (user == null) return const Right(unit);
-
     final log = AuditLog(
       id: const Uuid().v4(),
       action: action,
@@ -87,17 +99,24 @@ class AdminController extends _$AdminController {
       createdAt: DateTime.now(),
     );
 
-    return ref.read(adminRepositoryProvider).createAuditLog(log);
+    return repo.createAuditLog(log);
   }
 
   // ── Dispute actions ──────────────────────────────────────────────────────
   Future<Either<String, Unit>> resolveTicket(String ticketId) async {
-    final result = await ref
-        .read(adminRepositoryProvider)
-        .updateTicketStatus(ticketId, TicketStatus.resolved);
+    final repo = ref.read(adminRepositoryProvider);
+    final user = ref.read(currentUserProfileProvider).value;
+
+    final result = await repo.updateTicketStatus(ticketId, TicketStatus.resolved);
     
-    if (result.isRight()) {
-      await _auditAction('resolve_ticket', ticketId, 'dispute_ticket');
+    if (result.isRight() && user != null) {
+      await _auditActionHelper(
+        repo: repo,
+        user: user,
+        action: 'resolve_ticket',
+        targetId: ticketId,
+        targetType: 'dispute_ticket',
+      );
     }
     return result;
   }
@@ -106,9 +125,19 @@ class AdminController extends _$AdminController {
     String ticketId,
     String agentId,
   ) async {
-    final result = await ref.read(adminRepositoryProvider).assignTicket(ticketId, agentId);
-    if (result.isRight()) {
-      await _auditAction('assign_ticket', ticketId, 'dispute_ticket', metadata: {'agentId': agentId});
+    final repo = ref.read(adminRepositoryProvider);
+    final user = ref.read(currentUserProfileProvider).value;
+
+    final result = await repo.assignTicket(ticketId, agentId);
+    if (result.isRight() && user != null) {
+      await _auditActionHelper(
+        repo: repo,
+        user: user,
+        action: 'assign_ticket',
+        targetId: ticketId,
+        targetType: 'dispute_ticket',
+        metadata: {'agentId': agentId},
+      );
     }
     return result;
   }
@@ -118,15 +147,24 @@ class AdminController extends _$AdminController {
     String applicationId,
     String adminId,
   ) async {
-    final result = await ref
-        .read(adminRepositoryProvider)
-        .approveSellerApplication(applicationId, adminId);
+    final repo = ref.read(adminRepositoryProvider);
+    final user = ref.read(currentUserProfileProvider).value;
 
-    if (result.isRight()) {
-      await _auditAction('approve_seller_application', applicationId, 'seller_application');
+    final result = await repo.approveSellerApplication(applicationId, adminId);
+
+    if (result.isRight() && user != null) {
+      await _auditActionHelper(
+        repo: repo,
+        user: user,
+        action: 'approve_seller_application',
+        targetId: applicationId,
+        targetType: 'seller_application',
+      );
     }
 
-    ref.invalidate(adminDashboardMetricsProvider);
+    if (ref.mounted) {
+      ref.invalidate(adminDashboardMetricsProvider);
+    }
     return result;
   }
 
@@ -135,15 +173,25 @@ class AdminController extends _$AdminController {
     String adminId,
     String reason,
   ) async {
-    final result = await ref
-        .read(adminRepositoryProvider)
-        .rejectSellerApplication(applicationId, adminId, reason);
+    final repo = ref.read(adminRepositoryProvider);
+    final user = ref.read(currentUserProfileProvider).value;
 
-    if (result.isRight()) {
-      await _auditAction('reject_seller_application', applicationId, 'seller_application', metadata: {'reason': reason});
+    final result = await repo.rejectSellerApplication(applicationId, adminId, reason);
+
+    if (result.isRight() && user != null) {
+      await _auditActionHelper(
+        repo: repo,
+        user: user,
+        action: 'reject_seller_application',
+        targetId: applicationId,
+        targetType: 'seller_application',
+        metadata: {'reason': reason},
+      );
     }
 
-    ref.invalidate(adminDashboardMetricsProvider);
+    if (ref.mounted) {
+      ref.invalidate(adminDashboardMetricsProvider);
+    }
     return result;
   }
 
@@ -152,47 +200,85 @@ class AdminController extends _$AdminController {
     String adminId,
     String feedback,
   ) async {
-    return ref
-        .read(adminRepositoryProvider)
-        .requestChangesOnSellerApplication(applicationId, adminId, feedback);
+    final repo = ref.read(adminRepositoryProvider);
+    return repo.requestChangesOnSellerApplication(applicationId, adminId, feedback);
   }
 
   // ── Store actions ────────────────────────────────────────────────────────
   Future<Either<String, Unit>> suspendStore(String storeId) async {
-    final result =
-        await ref.read(adminRepositoryProvider).suspendStore(storeId);
-    if (result.isRight()) {
-      await _auditAction('suspend_store', storeId, 'store');
+    final repo = ref.read(adminRepositoryProvider);
+    final user = ref.read(currentUserProfileProvider).value;
+
+    final result = await repo.suspendStore(storeId);
+    if (result.isRight() && user != null) {
+      await _auditActionHelper(
+        repo: repo,
+        user: user,
+        action: 'suspend_store',
+        targetId: storeId,
+        targetType: 'store',
+      );
     }
-    ref.invalidate(adminDashboardMetricsProvider);
+    if (ref.mounted) {
+      ref.invalidate(adminDashboardMetricsProvider);
+    }
     return result;
   }
 
   Future<Either<String, Unit>> activateStore(String storeId) async {
-    final result =
-        await ref.read(adminRepositoryProvider).activateStore(storeId);
-    if (result.isRight()) {
-      await _auditAction('activate_store', storeId, 'store');
+    final repo = ref.read(adminRepositoryProvider);
+    final user = ref.read(currentUserProfileProvider).value;
+
+    final result = await repo.activateStore(storeId);
+    if (result.isRight() && user != null) {
+      await _auditActionHelper(
+        repo: repo,
+        user: user,
+        action: 'activate_store',
+        targetId: storeId,
+        targetType: 'store',
+      );
     }
-    ref.invalidate(adminDashboardMetricsProvider);
+    if (ref.mounted) {
+      ref.invalidate(adminDashboardMetricsProvider);
+    }
     return result;
   }
 
   Future<Either<String, Unit>> deleteStore(String storeId) async {
-    final result =
-        await ref.read(adminRepositoryProvider).deleteStore(storeId);
-    if (result.isRight()) {
-      await _auditAction('delete_store', storeId, 'store');
+    final repo = ref.read(adminRepositoryProvider);
+    final user = ref.read(currentUserProfileProvider).value;
+
+    final result = await repo.deleteStore(storeId);
+    if (result.isRight() && user != null) {
+      await _auditActionHelper(
+        repo: repo,
+        user: user,
+        action: 'delete_store',
+        targetId: storeId,
+        targetType: 'store',
+      );
     }
-    ref.invalidate(adminDashboardMetricsProvider);
+    if (ref.mounted) {
+      ref.invalidate(adminDashboardMetricsProvider);
+    }
     return result;
   }
 
   // ── User actions ─────────────────────────────────────────────────────────
   Future<Either<String, Unit>> deleteUser(String uid) async {
-    final result = await ref.read(adminRepositoryProvider).deleteUser(uid);
-    if (result.isRight()) {
-      await _auditAction('delete_user', uid, 'user');
+    final repo = ref.read(adminRepositoryProvider);
+    final user = ref.read(currentUserProfileProvider).value;
+
+    final result = await repo.deleteUser(uid);
+    if (result.isRight() && user != null) {
+      await _auditActionHelper(
+        repo: repo,
+        user: user,
+        action: 'delete_user',
+        targetId: uid,
+        targetType: 'user',
+      );
     }
     return result;
   }
@@ -201,9 +287,19 @@ class AdminController extends _$AdminController {
     String uid,
     List<String> roles,
   ) async {
-    final result = await ref.read(adminRepositoryProvider).updateUserRoles(uid, roles);
-    if (result.isRight()) {
-      await _auditAction('update_user_roles', uid, 'user', metadata: {'roles': roles});
+    final repo = ref.read(adminRepositoryProvider);
+    final user = ref.read(currentUserProfileProvider).value;
+
+    final result = await repo.updateUserRoles(uid, roles);
+    if (result.isRight() && user != null) {
+      await _auditActionHelper(
+        repo: repo,
+        user: user,
+        action: 'update_user_roles',
+        targetId: uid,
+        targetType: 'user',
+        metadata: {'roles': roles},
+      );
     }
     return result;
   }
@@ -212,9 +308,19 @@ class AdminController extends _$AdminController {
     String uid,
     bool isActive,
   ) async {
-    final result = await ref.read(adminRepositoryProvider).setUserActiveStatus(uid, isActive);
-    if (result.isRight()) {
-      await _auditAction('set_user_active_status', uid, 'user', metadata: {'isActive': isActive});
+    final repo = ref.read(adminRepositoryProvider);
+    final user = ref.read(currentUserProfileProvider).value;
+
+    final result = await repo.setUserActiveStatus(uid, isActive);
+    if (result.isRight() && user != null) {
+      await _auditActionHelper(
+        repo: repo,
+        user: user,
+        action: 'set_user_active_status',
+        targetId: uid,
+        targetType: 'user',
+        metadata: {'isActive': isActive},
+      );
     }
     return result;
   }
@@ -225,16 +331,21 @@ class AdminController extends _$AdminController {
     String newStatus, {
     String? trackingNumber,
   }) async {
-    final result = await ref.read(adminRepositoryProvider).updateOrderStatus(
+    final repo = ref.read(adminRepositoryProvider);
+    final user = ref.read(currentUserProfileProvider).value;
+
+    final result = await repo.updateOrderStatus(
       orderId,
       newStatus,
       trackingNumber: trackingNumber,
     );
-    if (result.isRight()) {
-      await _auditAction(
-        'update_order_status',
-        orderId,
-        'order',
+    if (result.isRight() && user != null) {
+      await _auditActionHelper(
+        repo: repo,
+        user: user,
+        action: 'update_order_status',
+        targetId: orderId,
+        targetType: 'order',
         metadata: {
           'newStatus': newStatus,
           'trackingNumber': trackingNumber,
@@ -250,10 +361,11 @@ class AdminController extends _$AdminController {
     required String reasonCategory,
     required double refundAmount,
   }) async {
+    final repo = ref.read(adminRepositoryProvider);
     final user = ref.read(currentUserProfileProvider).value;
     if (user == null) return left('Not authenticated');
 
-    final result = await ref.read(adminRepositoryProvider).processRefund(
+    final result = await repo.processRefund(
       orderId: orderId,
       adminId: user.uid,
       reason: reason,
@@ -262,10 +374,12 @@ class AdminController extends _$AdminController {
     );
 
     if (result.isRight()) {
-      await _auditAction(
-        'order.refund',
-        orderId,
-        'order',
+      await _auditActionHelper(
+        repo: repo,
+        user: user,
+        action: 'order.refund',
+        targetId: orderId,
+        targetType: 'order',
         metadata: {
           'reason': reason,
           'reasonCategory': reasonCategory,
@@ -278,10 +392,18 @@ class AdminController extends _$AdminController {
 
   // ── Settlement actions ───────────────────────────────────────────────────
   Future<Either<String, Unit>> processSettlement(String settlementId) async {
-    final result =
-        await ref.read(adminRepositoryProvider).processSettlement(settlementId);
-    if (result.isRight()) {
-      await _auditAction('process_settlement', settlementId, 'settlement');
+    final repo = ref.read(adminRepositoryProvider);
+    final user = ref.read(currentUserProfileProvider).value;
+
+    final result = await repo.processSettlement(settlementId);
+    if (result.isRight() && user != null) {
+      await _auditActionHelper(
+        repo: repo,
+        user: user,
+        action: 'process_settlement',
+        targetId: settlementId,
+        targetType: 'settlement',
+      );
     }
     return result;
   }
@@ -290,14 +412,17 @@ class AdminController extends _$AdminController {
     String settlementId,
     String reason,
   ) async {
-    final result = await ref
-        .read(adminRepositoryProvider)
-        .rejectSettlement(settlementId, reason);
-    if (result.isRight()) {
-      await _auditAction(
-        'reject_settlement',
-        settlementId,
-        'settlement',
+    final repo = ref.read(adminRepositoryProvider);
+    final user = ref.read(currentUserProfileProvider).value;
+
+    final result = await repo.rejectSettlement(settlementId, reason);
+    if (result.isRight() && user != null) {
+      await _auditActionHelper(
+        repo: repo,
+        user: user,
+        action: 'reject_settlement',
+        targetId: settlementId,
+        targetType: 'settlement',
         metadata: {'reason': reason},
       );
     }
@@ -305,11 +430,18 @@ class AdminController extends _$AdminController {
   }
 
   Future<Either<String, Unit>> completeSettlement(String settlementId) async {
-    final result = await ref
-        .read(adminRepositoryProvider)
-        .completeSettlement(settlementId);
-    if (result.isRight()) {
-      await _auditAction('complete_settlement', settlementId, 'settlement');
+    final repo = ref.read(adminRepositoryProvider);
+    final user = ref.read(currentUserProfileProvider).value;
+
+    final result = await repo.completeSettlement(settlementId);
+    if (result.isRight() && user != null) {
+      await _auditActionHelper(
+        repo: repo,
+        user: user,
+        action: 'complete_settlement',
+        targetId: settlementId,
+        targetType: 'settlement',
+      );
     }
     return result;
   }
@@ -319,14 +451,17 @@ class AdminController extends _$AdminController {
     String ticketId,
     String reason,
   ) async {
-    final result = await ref
-        .read(adminRepositoryProvider)
-        .updateTicketStatus(ticketId, TicketStatus.rejected);
-    if (result.isRight()) {
-      await _auditAction(
-        'reject_ticket',
-        ticketId,
-        'dispute_ticket',
+    final repo = ref.read(adminRepositoryProvider);
+    final user = ref.read(currentUserProfileProvider).value;
+
+    final result = await repo.updateTicketStatus(ticketId, TicketStatus.rejected);
+    if (result.isRight() && user != null) {
+      await _auditActionHelper(
+        repo: repo,
+        user: user,
+        action: 'reject_ticket',
+        targetId: ticketId,
+        targetType: 'dispute_ticket',
         metadata: {'reason': reason},
       );
     }

@@ -166,6 +166,12 @@ class MenuScreen extends ConsumerWidget {
               onTap: () => context.push(AppRoutes.buyerAddresses),
             ),
             _MenuTile(
+              icon: Icons.forum_outlined,
+              title: 'Messages',
+              subtitle: 'Chat with sellers',
+              onTap: () => context.push(AppRoutes.chatRooms),
+            ),
+            _MenuTile(
               icon: Icons.notifications_outlined,
               title: 'Notifications',
               onTap: () => context.push(AppRoutes.buyerNotifications),

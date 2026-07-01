@@ -272,7 +272,7 @@ service cloud.firestore {
       );
       allow update: if isLoggedIn()
                     && resource.data.storeId == request.auth.uid
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'releaseRequestedAt'])
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'releaseRequestedAt', 'releaseTarget', 'releaseReason'])
                     && request.resource.data.status == 'release_requested';
       allow create, delete: if false;
     }
@@ -316,25 +316,55 @@ service cloud.firestore {
 
     // =========================================================================
     // CHATS & MESSAGES
+    // Rooms are keyed by sorted(buyerId + '_' + sellerId).
+    // Only the two participants may access the room and its messages.
+    // Admins may list rooms for moderation purposes.
     // =========================================================================
     match /chats/{roomId} {
-      allow read:   if isLoggedIn() && request.auth.uid in resource.data.participants;
-      allow list:   if isAdmin();
+      function isParticipant() {
+        return isLoggedIn() && request.auth.uid in resource.data.participants;
+      }
+
+      allow get:    if isParticipant() || isAdmin();
+      allow list:   if isAdmin()
+                    || (isLoggedIn()
+                        && request.auth.uid in resource.data.participants);
+
+      // A participant can create a new room. The participants array must
+      // contain exactly two elements and must include the creator.
       allow create: if isLoggedIn()
-                    && isList(request.resource.data.participants, 10)
-                    && request.auth.uid in request.resource.data.participants;
-      allow update: if isLoggedIn()
-                    && request.auth.uid in resource.data.participants
-                    && request.auth.uid in request.resource.data.participants;
+                    && request.resource.data.participants.size() == 2
+                    && request.auth.uid in request.resource.data.participants
+                    && request.resource.data.buyerId is string
+                    && request.resource.data.sellerId is string;
+
+      // Participants may update metadata (lastMessage, unreadCounts,
+      // typing indicators). They cannot change participants list or
+      // buyerId/sellerId identity fields.
+      allow update: if (isParticipant()
+                        && !request.resource.data.diff(resource.data)
+                            .affectedKeys().hasAny(['participants', 'buyerId', 'sellerId']))
+                    || isAdmin();
+
+      allow delete: if false;
 
       match /messages/{messageId} {
-        allow read: if isLoggedIn()
-                    && request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.participants;
+        function roomParticipants() {
+          return get(/databases/$(database)/documents/chats/$(roomId)).data.participants;
+        }
+
+        allow read:   if isLoggedIn() && request.auth.uid in roomParticipants();
+
         allow create: if isLoggedIn()
+                      && request.auth.uid in roomParticipants()
                       && request.resource.data.senderId == request.auth.uid
-                      && isString(request.resource.data.text, 1, 2000)
-                      && (!exists(/databases/$(database)/documents/chats/$(roomId))
-                          || request.auth.uid in get(/databases/$(database)/documents/chats/$(roomId)).data.participants);
+                      && (
+                           (request.resource.data.type == 'text'
+                            && isString(request.resource.data.text, 1, 4000))
+                           || request.resource.data.type == 'image'
+                         );
+
+        // Messages are immutable — no edits, no deletes (by clients).
         allow update, delete: if false;
       }
     }

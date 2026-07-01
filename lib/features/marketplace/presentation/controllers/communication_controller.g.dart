@@ -134,6 +134,150 @@ final class LiveMessageStreamFamily extends $Family
   String toString() => r'liveMessageStreamProvider';
 }
 
+@ProviderFor(chatRoomsStream)
+final chatRoomsStreamProvider = ChatRoomsStreamFamily._();
+
+final class ChatRoomsStreamProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<ChatRoom>>,
+          List<ChatRoom>,
+          Stream<List<ChatRoom>>
+        >
+    with $FutureModifier<List<ChatRoom>>, $StreamProvider<List<ChatRoom>> {
+  ChatRoomsStreamProvider._({
+    required ChatRoomsStreamFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'chatRoomsStreamProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$chatRoomsStreamHash();
+
+  @override
+  String toString() {
+    return r'chatRoomsStreamProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $StreamProviderElement<List<ChatRoom>> $createElement(
+    $ProviderPointer pointer,
+  ) => $StreamProviderElement(pointer);
+
+  @override
+  Stream<List<ChatRoom>> create(Ref ref) {
+    final argument = this.argument as String;
+    return chatRoomsStream(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ChatRoomsStreamProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$chatRoomsStreamHash() => r'9c58522ed4cfa726cf6bbcf993002ed02587114a';
+
+final class ChatRoomsStreamFamily extends $Family
+    with $FunctionalFamilyOverride<Stream<List<ChatRoom>>, String> {
+  ChatRoomsStreamFamily._()
+    : super(
+        retry: null,
+        name: r'chatRoomsStreamProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  ChatRoomsStreamProvider call(String userId) =>
+      ChatRoomsStreamProvider._(argument: userId, from: this);
+
+  @override
+  String toString() => r'chatRoomsStreamProvider';
+}
+
+@ProviderFor(otherTypingStream)
+final otherTypingStreamProvider = OtherTypingStreamFamily._();
+
+final class OtherTypingStreamProvider
+    extends $FunctionalProvider<AsyncValue<bool>, bool, Stream<bool>>
+    with $FutureModifier<bool>, $StreamProvider<bool> {
+  OtherTypingStreamProvider._({
+    required OtherTypingStreamFamily super.from,
+    required (String, String) super.argument,
+  }) : super(
+         retry: null,
+         name: r'otherTypingStreamProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$otherTypingStreamHash();
+
+  @override
+  String toString() {
+    return r'otherTypingStreamProvider'
+        ''
+        '$argument';
+  }
+
+  @$internal
+  @override
+  $StreamProviderElement<bool> $createElement($ProviderPointer pointer) =>
+      $StreamProviderElement(pointer);
+
+  @override
+  Stream<bool> create(Ref ref) {
+    final argument = this.argument as (String, String);
+    return otherTypingStream(ref, argument.$1, argument.$2);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is OtherTypingStreamProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$otherTypingStreamHash() => r'6eeb885cdf7a6bce0799f30fffb7998818a07477';
+
+final class OtherTypingStreamFamily extends $Family
+    with $FunctionalFamilyOverride<Stream<bool>, (String, String)> {
+  OtherTypingStreamFamily._()
+    : super(
+        retry: null,
+        name: r'otherTypingStreamProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  OtherTypingStreamProvider call(String chatId, String userId) =>
+      OtherTypingStreamProvider._(argument: (chatId, userId), from: this);
+
+  @override
+  String toString() => r'otherTypingStreamProvider';
+}
+
 @ProviderFor(CommunicationController)
 final communicationControllerProvider = CommunicationControllerProvider._();
 
@@ -159,7 +303,7 @@ final class CommunicationControllerProvider
 }
 
 String _$communicationControllerHash() =>
-    r'20152f3998e090b0e890b0c39e5e189e93ecbf64';
+    r'797318612bf62bed0498e1119e4fa208e19ff2e3';
 
 abstract class _$CommunicationController extends $AsyncNotifier<void> {
   FutureOr<void> build();

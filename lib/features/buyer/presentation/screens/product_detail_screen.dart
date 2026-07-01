@@ -4,10 +4,12 @@ import 'package:ecom/core/theme/app_colors.dart';
 import 'package:ecom/core/widgets/app_network_image.dart';
 import 'package:ecom/core/widgets/app_primary_button.dart';
 import 'package:ecom/core/widgets/app_scaffold.dart';
+import 'package:ecom/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:ecom/features/buyer/domain/entities/cart_item.dart';
 import 'package:ecom/features/buyer/presentation/controllers/cart_controller.dart';
 import 'package:ecom/features/marketplace/data/dtos/catalog_item_dto.dart';
 import 'package:ecom/features/marketplace/domain/entities/catalog_item.dart';
+import 'package:ecom/features/marketplace/presentation/controllers/communication_controller.dart';
 import 'package:ecom/features/seller/domain/entities/seller_product.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -490,10 +492,44 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
         isLoading: _addingToCart,
         onAddToCart: () => _addToCart(item),
         onBuyNow: () => _addToCart(item, buyNow: true),
+        onChatSeller: () => _startSellerChat(item),
         surface: surface,
         isDark: isDark,
       ),
     );
+  }
+
+  Future<void> _startSellerChat(CatalogItem item) async {
+    final currentUserId = ref.read(currentUserIdProvider);
+    if (currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sign in to chat with the seller')),
+      );
+      return;
+    }
+    // Buyer's display name (best effort)
+    final profileAsync = ref.read(currentUserProfileProvider);
+    final buyerName = profileAsync.value?.displayName ?? 'Buyer';
+    final buyerPhoto = profileAsync.value?.photoUrl;
+
+    final sellerId = item.storeId;
+    final sellerName =
+        item.metadata['storeName'] as String? ?? 'Seller Store';
+
+    final chatId = await ref
+        .read(communicationControllerProvider.notifier)
+        .createOrGetRoom(
+          buyerId: currentUserId,
+          sellerId: sellerId,
+          buyerName: buyerName,
+          sellerName: sellerName,
+          buyerPhotoUrl: buyerPhoto,
+        );
+
+    if (!mounted) return;
+    if (chatId != null) {
+      context.push('/chat/$chatId');
+    }
   }
 
   void _share(CatalogItem item) {
@@ -1329,6 +1365,7 @@ class _BottomBar extends StatelessWidget {
   final bool isLoading;
   final VoidCallback onAddToCart;
   final VoidCallback onBuyNow;
+  final VoidCallback onChatSeller;
   final Color surface;
   final bool isDark;
 
@@ -1338,6 +1375,7 @@ class _BottomBar extends StatelessWidget {
     required this.isLoading,
     required this.onAddToCart,
     required this.onBuyNow,
+    required this.onChatSeller,
     required this.surface,
     required this.isDark,
   });
@@ -1368,6 +1406,31 @@ class _BottomBar extends StatelessWidget {
       ),
       child: Row(
         children: [
+          // ── Chat with Seller ─────────────────────────────────────────────
+          Tooltip(
+            message: 'Chat with Seller',
+            child: InkWell(
+              onTap: onChatSeller,
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.chat_bubble_outline_rounded,
+                  color: AppColors.primary,
+                  size: 22,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
           Expanded(
             child: OutlinedButton(
               onPressed: isOutOfStock || isLoading ? null : onAddToCart,

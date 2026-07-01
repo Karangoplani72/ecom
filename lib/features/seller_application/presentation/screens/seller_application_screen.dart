@@ -7,6 +7,7 @@ import '../../../../core/widgets/app_text_field.dart';
 import '../../../../core/widgets/app_loading_view.dart';
 import '../controllers/seller_application_controller.dart';
 import '../../domain/entities/seller_application.dart';
+import 'package:ecom/services/ifsc_service.dart';
 
 class SellerApplicationScreen extends ConsumerStatefulWidget {
   const SellerApplicationScreen({super.key});
@@ -32,6 +33,90 @@ class _SellerApplicationScreenState
 
   String? _selectedCategory;
   bool _hasPrefilled = false;
+
+  bool _isFetchingIfsc = false;
+  String? _ifscError;
+  IfscBankDetails? _verifiedDetails;
+  static final RegExp _ifscPattern = RegExp(r'^[A-Z]{4}0[A-Z0-9]{6}$');
+  static const int _ifscLength = 11;
+
+  Future<void> _verifyIfsc(String code) async {
+    if (!mounted) return;
+    setState(() {
+      _isFetchingIfsc = true;
+      _ifscError = null;
+      _verifiedDetails = null;
+    });
+    try {
+      final details = await IfscService.fetchByIfsc(code);
+      if (!mounted) return;
+      setState(() {
+        _verifiedDetails = details;
+        _isFetchingIfsc = false;
+        _bankNameController.text = details.bankName;
+      });
+    } on IfscNotFoundException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _ifscError = e.toString();
+        _isFetchingIfsc = false;
+        _bankNameController.clear();
+      });
+    } on IfscFetchException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _ifscError = e.toString();
+        _isFetchingIfsc = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _ifscError = 'Could not verify IFSC code. Please try again.';
+        _isFetchingIfsc = false;
+      });
+    }
+  }
+
+  void _onIfscChanged(String rawValue) {
+    final upper = rawValue.toUpperCase();
+    if (upper != rawValue) {
+      _ifscCodeController.value = TextEditingValue(
+        text: upper,
+        selection: TextSelection.collapsed(offset: upper.length),
+      );
+    }
+    setState(() {
+      _verifiedDetails = null;
+      _ifscError = null;
+    });
+    if (upper.length == _ifscLength) {
+      if (_ifscPattern.hasMatch(upper)) {
+        _verifyIfsc(upper);
+      } else {
+        setState(() => _ifscError = 'Invalid IFSC code format.');
+      }
+    }
+  }
+
+  Widget? _buildIfscSuffixIcon() {
+    if (_isFetchingIfsc) {
+      return const Padding(
+        padding: EdgeInsets.all(12),
+        child: SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    if (_verifiedDetails != null) {
+      return const Icon(Icons.check_circle_rounded, color: Colors.green);
+    }
+    if (_ifscError != null) {
+      return const Icon(Icons.error_rounded, color: Colors.red);
+    }
+    return null;
+  }
 
   @override
   void dispose() {
@@ -118,6 +203,9 @@ class _SellerApplicationScreenState
           _accountNumberController.text = app.accountNumber ?? '';
           _ifscCodeController.text = app.ifscCode ?? '';
           _accountHolderNameController.text = app.accountHolderName ?? '';
+          if (app.ifscCode != null && app.ifscCode!.isNotEmpty) {
+            _verifyIfsc(app.ifscCode!);
+          }
           setState(() {
             _selectedCategory = app.businessCategory;
             _hasPrefilled = true;
@@ -260,10 +348,28 @@ class _SellerApplicationScreenState
                           hint: 'e.g. SBIN0001234',
                           prefixIcon: Icons.code_rounded,
                           enabled: !isLoading,
-                          validator: (v) => (v == null || v.trim().isEmpty)
-                              ? 'IFSC code is required'
-                              : null,
+                          suffixIcon: _buildIfscSuffixIcon(),
+                          onChanged: _onIfscChanged,
+                          validator: (v) {
+                            final code = (v ?? '').trim().toUpperCase();
+                            if (code.isEmpty) return 'IFSC code is required';
+                            if (code.length != _ifscLength) return 'IFSC code must be 11 characters';
+                            if (!_ifscPattern.hasMatch(code)) return 'Invalid IFSC code format';
+                            if (_isFetchingIfsc) return 'Verifying IFSC code...';
+                            if (_verifiedDetails == null) return 'Please enter a valid IFSC code';
+                            return null;
+                          },
                         ),
+                        if (_ifscError != null) ...[
+                          const SizedBox(height: 4),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: Text(
+                              _ifscError!,
+                              style: const TextStyle(color: Colors.red, fontSize: 12),
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 16),
                         AppTextField(
                           controller: _accountHolderNameController,

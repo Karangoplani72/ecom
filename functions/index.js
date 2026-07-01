@@ -765,6 +765,8 @@ exports.releaseMaturedEscrows = onRequest(
         }
 
         const releasedIds = [];
+        const bankPayoutsToTrigger = [];
+
         await db.runTransaction(async (txn) => {
           for (const doc of maturedDocs) {
             // Read the escrow inside the transaction to prevent race conditions
@@ -794,6 +796,15 @@ exports.releaseMaturedEscrows = onRequest(
               updatedAt: serverNow,
             });
 
+            if (escrow.releaseTarget === "bank") {
+              bankPayoutsToTrigger.push({
+                storeId,
+                amount,
+                orderId: escrow.orderId,
+                escrowId: escrow.id,
+              });
+            }
+
             const transactionRef = db.collection("transactions").doc();
             txn.set(transactionRef, {
               id: transactionRef.id,
@@ -814,6 +825,64 @@ exports.releaseMaturedEscrows = onRequest(
             releasedIds.push(doc.id);
           }
         });
+
+        // Outside transaction, perform bank payouts if target is bank
+        for (const payoutItem of bankPayoutsToTrigger) {
+          const {storeId, amount, orderId} = payoutItem;
+          console.log(`[EARLY RELEASE][BANK] Automated bank payout for store ${storeId}, amount ₹${amount}`);
+
+          const payoutRef = db.collection("payouts").doc();
+          const payoutId = payoutRef.id;
+
+          // Deduct from wallet balance
+          let hasSufficientBalance = false;
+          await db.runTransaction(async (txn) => {
+            const walletRef = db.collection("wallets").doc(storeId);
+            const walletDoc = await txn.get(walletRef);
+            if (walletDoc.exists) {
+              const currentBalance = walletDoc.data().balance || 0;
+              if (currentBalance >= amount) {
+                txn.update(walletRef, {
+                  balance: admin.firestore.FieldValue.increment(-amount),
+                  updatedAt: serverNow,
+                });
+                txn.set(payoutRef, {
+                  id: payoutId,
+                  sellerId: storeId,
+                  storeId,
+                  amount,
+                  status: "processing",
+                  requestedAt: serverNow,
+                  createdAt: serverNow,
+                  updatedAt: serverNow,
+                  bankAccountId: "primary",
+                  walletDecremented: true,
+                  description: `Automated early release payout for order ${orderId}`,
+                });
+                hasSufficientBalance = true;
+              }
+            }
+          });
+
+          if (hasSufficientBalance) {
+            try {
+              await performRazorpayPayout(storeId, amount, payoutId, db);
+              await payoutRef.update({
+                status: "completed",
+                processedAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+              console.log(`[EARLY RELEASE][BANK] Automated payout successful for payoutId ${payoutId}`);
+            } catch (payoutErr) {
+              console.error(`[EARLY RELEASE][BANK][ERROR] Payout failed for payoutId ${payoutId}:`, payoutErr.message);
+              await payoutRef.update({
+                status: "failed",
+                failureReason: payoutErr.message,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+            }
+          }
+        }
 
         console.log("[ESCROW] Successfully released", releasedIds.length, "escrows.");
         return res.json({success: true, releasedCount: releasedIds.length, releasedIds});
@@ -1010,22 +1079,29 @@ exports.completeSettlement = onRequest(
           throw new Error("Settlement amount must be greater than zero.");
         }
 
-        // Validate wallet balance before executing payout
+        const isAlreadyDecremented =
+            docData.walletDecremented === true ||
+            (docData.description && typeof docData.description === "string" &&
+             docData.description.startsWith("Automated early release"));
+
         const walletRef = db.collection("wallets").doc(storeId);
-        const walletDoc = await walletRef.get();
+        if (!isAlreadyDecremented) {
+          // Validate wallet balance before executing payout
+          const walletDoc = await walletRef.get();
 
-        if (!walletDoc.exists) {
-          throw new Error(`Wallet not found for storeId: ${storeId}`);
-        }
+          if (!walletDoc.exists) {
+            throw new Error(`Wallet not found for storeId: ${storeId}`);
+          }
 
-        const currentBalance = typeof walletDoc.data().balance === "number" ?
-            walletDoc.data().balance : 0;
+          const currentBalance = typeof walletDoc.data().balance === "number" ?
+              walletDoc.data().balance : 0;
 
-        if (currentBalance < amount) {
-          throw new Error(
-              `Insufficient wallet balance for payout. ` +
-              `Available: ₹${currentBalance.toFixed(2)}, Requested: ₹${amount.toFixed(2)}.`,
-          );
+          if (currentBalance < amount) {
+            throw new Error(
+                `Insufficient wallet balance for payout. ` +
+                `Available: ₹${currentBalance.toFixed(2)}, Requested: ₹${amount.toFixed(2)}.`,
+            );
+          }
         }
 
         // ── TRIGGER BANK PAYMENT (RazorpayX Payout) ─────────────────────────────
@@ -1048,11 +1124,13 @@ exports.completeSettlement = onRequest(
         await db.runTransaction(async (txn) => {
           const serverNow = admin.firestore.FieldValue.serverTimestamp();
 
-          // 1. Decrement wallet balance
-          txn.update(walletRef, {
-            balance: admin.firestore.FieldValue.increment(-amount),
-            updatedAt: serverNow,
-          });
+          // 1. Decrement wallet balance if not already decremented
+          if (!isAlreadyDecremented) {
+            txn.update(walletRef, {
+              balance: admin.firestore.FieldValue.increment(-amount),
+              updatedAt: serverNow,
+            });
+          }
 
           // 2. Mark settlement as completed
           txn.update(docRef, {

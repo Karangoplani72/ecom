@@ -37,6 +37,22 @@ final sellerPayoutsProvider =
           );
     });
 
+final sellerPendingEscrowsProvider = StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
+  final firestore = ref.watch(firebaseFirestoreProvider);
+  final sellerId = ref.watch(currentUserIdProvider);
+  if (sellerId == null || sellerId.isEmpty) return Stream.value([]);
+  return firestore
+      .collection('escrows')
+      .where('storeId', isEqualTo: sellerId)
+      .where('status', whereIn: ['pending', 'release_requested'])
+      .snapshots()
+      .map((snap) => snap.docs.map((d) {
+            final data = d.data();
+            data['id'] = d.id;
+            return data;
+          }).toList());
+});
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 class SellerFinancesScreen extends ConsumerStatefulWidget {
@@ -221,6 +237,10 @@ class _OverviewTab extends ConsumerWidget {
               return _WithdrawButton(wallet: wallet, bank: bank);
             },
           ),
+          if (wallet.lockedBalance > 0) ...[
+            const SizedBox(height: 20),
+            _PendingEscrowsSection(currencyFmt: currencyFmt),
+          ],
         ],
       ),
     );
@@ -2439,6 +2459,276 @@ class _BankAccountDialogState extends ConsumerState<_BankAccountDialog> {
               : const Text('Save'),
         ),
       ],
+    );
+  }
+}
+
+class _PendingEscrowsSection extends ConsumerWidget {
+  final NumberFormat currencyFmt;
+
+  const _PendingEscrowsSection({required this.currencyFmt});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final escrowsAsync = ref.watch(sellerPendingEscrowsProvider);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return escrowsAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (e, _) => const SizedBox.shrink(),
+      data: (escrows) {
+        if (escrows.isEmpty) return const SizedBox.shrink();
+
+        return Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: isDark ? Colors.white12 : Colors.black12,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.lock_clock_rounded, color: AppColors.primary, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Locked Escrows',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: escrows.length,
+                  separatorBuilder: (context, index) => const Divider(height: 16),
+                  itemBuilder: (context, index) {
+                    final escrow = escrows[index];
+                    final escrowId = escrow['id'] as String? ?? '';
+                    final orderId = escrow['orderId'] as String? ?? '';
+                    final amount = (escrow['amount'] as num?)?.toDouble() ?? 0.0;
+                    final status = escrow['status'] as String? ?? 'pending';
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Order #${orderId.length >= 8 ? orderId.substring(0, 8).toUpperCase() : orderId.toUpperCase()}',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Text(
+                                      currencyFmt.format(amount),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 15,
+                                        color: isDark ? Colors.white : Colors.black87,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      status == 'release_requested'
+                                          ? '• Release Requested'
+                                          : '• Auto-unlocks in 10 days',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                        color: status == 'release_requested' ? Colors.amber.shade700 : Colors.grey,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          if (status == 'pending')
+                            FilledButton.icon(
+                              onPressed: () => _showRequestReleaseDialog(context, ref, escrowId, amount),
+                              icon: const Icon(Icons.flash_on_rounded, size: 12),
+                              label: const Text(
+                                'Request Release',
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                              ),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            )
+                          else
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.hourglass_empty_rounded, color: Colors.amber, size: 12),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Requested',
+                                    style: TextStyle(color: Colors.amber, fontSize: 11, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showRequestReleaseDialog(
+    BuildContext context,
+    WidgetRef ref,
+    String escrowId,
+    double amount,
+  ) {
+    String destination = 'wallet';
+    final reasonController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Request Early Release'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Request release of ₹${amount.toStringAsFixed(0)} before maturation.',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text('Destination', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: destination,
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.all(10),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'wallet', child: Text('Wallet Balance')),
+                        DropdownMenuItem(value: 'bank', child: Text('Bank Account')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setState(() => destination = val);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    const Text('Reason for Early Release', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: reasonController,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        hintText: 'Enter reason (e.g. delivered, customer accepted)',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.all(10),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    if (reasonController.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please enter a reason')),
+                      );
+                      return;
+                    }
+                    Navigator.pop(context);
+                    final firestore = ref.read(firebaseFirestoreProvider);
+                    final sellerId = ref.read(currentUserIdProvider) ?? '';
+                    await firestore.collection('escrows').doc(escrowId).update({
+                      'status': 'release_requested',
+                      'releaseTarget': destination,
+                      'releaseReason': reasonController.text.trim(),
+                      'releaseRequestedAt': FieldValue.serverTimestamp(),
+                    });
+                    
+                    // Notify admins in the background
+                    try {
+                      final storeDoc = await firestore.collection('stores').doc(sellerId).get();
+                      final storeName = storeDoc.exists 
+                          ? (storeDoc.data()?['storeName'] as String? ?? 'Store') 
+                          : 'Store';
+                      final adminsSnap = await firestore
+                          .collection('users')
+                          .where('roles', arrayContains: 'admin')
+                          .get();
+                      for (final adminDoc in adminsSnap.docs) {
+                        await firestore
+                            .collection('users')
+                            .doc(adminDoc.id)
+                            .collection('notifications')
+                            .add({
+                          'title': '⚡ Early Release Requested',
+                          'body': 'Store "$storeName" requested early release of ₹${amount.toStringAsFixed(0)} ($destination).',
+                          'deepLinkPath': '/admin/early-releases',
+                          'isRead': false,
+                          'createdAt': FieldValue.serverTimestamp(),
+                        });
+                      }
+                    } catch (e) {
+                      debugPrint('Failed to notify admins: $e');
+                    }
+
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Release request submitted to admin')),
+                      );
+                    }
+                  },
+                  style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+                  child: const Text('Submit Request'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

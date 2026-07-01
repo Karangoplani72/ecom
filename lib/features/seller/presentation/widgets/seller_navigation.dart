@@ -115,6 +115,18 @@ class SellerSidebar extends StatelessWidget {
             ],
           ),
           _SidebarSection(
+            label: 'Communication',
+            children: [
+              _SidebarItem(
+                icon: Icons.forum_outlined,
+                activeIcon: Icons.forum_rounded,
+                label: 'Messages',
+                route: '/chat-rooms',
+                isActive: currentPath.startsWith('/chat'),
+              ),
+            ],
+          ),
+          _SidebarSection(
             label: 'Finance',
             children: [
               _SidebarItem(

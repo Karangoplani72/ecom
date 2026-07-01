@@ -168,6 +168,7 @@ class AdminSidebar extends ConsumerWidget {
     final metrics = metricsAsync.asData?.value;
     final pendingApprovals = metrics?.pendingApplications ?? 0;
     final openDisputes = metrics?.openDisputes ?? 0;
+    final pendingEarlyReleases = ref.watch(pendingEarlyReleaseRequestsCountProvider).asData?.value ?? 0;
 
     final currentPath = GoRouterState.of(context).uri.toString();
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -331,6 +332,14 @@ class AdminSidebar extends ConsumerWidget {
                         label: 'Settlements',
                         route: '/admin/settlements',
                         isActive: currentPath.startsWith('/admin/settlements'),
+                      ),
+                      _SidebarItem(
+                        icon: Icons.flash_on_rounded,
+                        activeIcon: Icons.flash_on_rounded,
+                        label: 'Early Releases',
+                        route: '/admin/early-releases',
+                        isActive: currentPath.startsWith('/admin/early-releases'),
+                        badgeCount: pendingEarlyReleases,
                       ),
                       _SidebarItem(
                         icon: Icons.analytics_outlined,

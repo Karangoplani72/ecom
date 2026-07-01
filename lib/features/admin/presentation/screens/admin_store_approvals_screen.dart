@@ -118,6 +118,7 @@ class _ApplicationCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final currentUser = ref.watch(currentUserProfileProvider).value;
     final dateText = DateFormat(
       'd MMM yyyy, h:mm a',
     ).format(application.submittedAt);
@@ -189,14 +190,15 @@ class _ApplicationCard extends ConsumerWidget {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  icon: const Icon(Icons.close_rounded),
+                  icon: const Icon(Icons.close_rounded, size: 16),
                   label: const Text('Reject'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.red,
                     side: const BorderSide(color: Colors.red),
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+                    textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
                   ),
                   onPressed: () async {
-                    final currentUser = ref.read(authStateSignalingProvider).value;
                     if (currentUser == null || application.applicationId == null) return;
 
                     final reason = await _showFeedbackDialog(
@@ -228,10 +230,13 @@ class _ApplicationCard extends ConsumerWidget {
 
               Expanded(
                 child: OutlinedButton.icon(
-                  icon: const Icon(Icons.edit_note_rounded),
+                  icon: const Icon(Icons.edit_note_rounded, size: 16),
                   label: const Text('Request Changes'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+                    textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                  ),
                   onPressed: () async {
-                    final currentUser = ref.read(authStateSignalingProvider).value;
                     if (currentUser == null || application.applicationId == null) return;
 
                     final feedback = await _showFeedbackDialog(
@@ -263,13 +268,13 @@ class _ApplicationCard extends ConsumerWidget {
 
               Expanded(
                 child: FilledButton.icon(
-                  icon: const Icon(Icons.check_rounded),
+                  icon: const Icon(Icons.check_rounded, size: 16),
                   label: const Text('Approve'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+                    textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                  ),
                   onPressed: () async {
-                    final currentUser = ref
-                        .read(authStateSignalingProvider)
-                        .value;
-
                     if (currentUser == null || application.applicationId == null) {
                       return;
                     }

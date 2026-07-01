@@ -830,6 +830,7 @@ class AdminRepositoryImpl implements AdminRepository {
     return _firestore
         .collection('audit_logs')
         .orderBy('createdAt', descending: true)
+        .limit(100)
         .snapshots()
         .map(
           (s) => s.docs.map((d) => AuditLog.fromJson(d.data(), d.id)).toList(),

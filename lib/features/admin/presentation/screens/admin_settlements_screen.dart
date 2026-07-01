@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:ecom/core/providers/common_providers.dart';
 import 'package:ecom/core/theme/app_colors.dart';
@@ -725,9 +724,6 @@ class _AdminSettlementsScreenState
           // Live wallet balances owed to sellers, before any payout request
           SliverToBoxAdapter(
             child: _UnsettledBalancesSection(currencyFmt: currencyFmt),
-          ),
-          SliverToBoxAdapter(
-            child: _EarlyReleaseRequestsSection(currencyFmt: currencyFmt),
           ),
           // Feature 1: Summary metrics row
           SliverToBoxAdapter(
@@ -2287,153 +2283,5 @@ class _TimelineStep extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-class _EarlyReleaseRequestsSection extends ConsumerWidget {
-  final NumberFormat currencyFmt;
-
-  const _EarlyReleaseRequestsSection({required this.currencyFmt});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final firestore = ref.watch(firebaseFirestoreProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: firestore
-          .collection('escrows')
-          .where('status', isEqualTo: 'release_requested')
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting || snapshot.hasError) {
-          return const SizedBox.shrink();
-        }
-
-        final docs = snapshot.data?.docs ?? [];
-        if (docs.isEmpty) return const SizedBox.shrink();
-
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-          child: AdminSectionCard(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.flash_on_rounded,
-                      size: 16,
-                      color: Colors.teal,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Early Escrow Release Requests (${docs.length})',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: docs.length,
-                  separatorBuilder: (context, index) => const Divider(height: 16),
-                  itemBuilder: (context, index) {
-                    final data = docs[index].data() as Map<String, dynamic>;
-                    final escrowId = docs[index].id;
-                    final storeId = data['storeId'] as String? ?? '';
-                    final orderId = data['orderId'] as String? ?? '';
-                    final amount = (data['amount'] as num?)?.toDouble() ?? 0.0;
-                    
-                    return Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _ResolvedStoreName(storeId: storeId),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Order #${orderId.length >= 8 ? orderId.substring(0, 8).toUpperCase() : orderId.toUpperCase()}',
-                                style: const TextStyle(fontSize: 11, color: Colors.grey),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Text(
-                          currencyFmt.format(amount),
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                        ),
-                        const SizedBox(width: 12),
-                        ElevatedButton(
-                          onPressed: () => _approveEarlyRelease(context, ref, escrowId),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.teal,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: const Text('Approve', style: TextStyle(fontSize: 11)),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _approveEarlyRelease(BuildContext context, WidgetRef ref, String escrowId) async {
-    try {
-      final idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
-      if (idToken == null) return;
-
-      final response = await http.post(
-        Uri.parse('https://releasematuredescrows-oshbhnscba-uc.a.run.app'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $idToken',
-        },
-        body: jsonEncode({'escrowId': escrowId}),
-      ).timeout(const Duration(seconds: 15));
-
-      if (context.mounted) {
-        if (response.statusCode == 200) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Escrow released successfully to wallet'),
-              backgroundColor: AppColors.success,
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to release escrow: ${response.body}'),
-              backgroundColor: AppColors.error,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to release escrow: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    }
   }
 }

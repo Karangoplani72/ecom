@@ -12,6 +12,7 @@ import 'package:ecom/features/admin/presentation/screens/admin_products_screen.d
 import 'package:ecom/features/admin/presentation/screens/admin_reports_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_sellers_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_settings_screen.dart';
+import 'package:ecom/features/admin/presentation/screens/admin_early_releases_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_settlements_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_store_approvals_screen.dart';
 import 'package:ecom/features/admin/presentation/screens/admin_stores_screen.dart';
@@ -41,6 +42,7 @@ import 'package:ecom/features/buyer/presentation/screens/products_screen.dart';
 import 'package:ecom/features/buyer/presentation/screens/profile_screen.dart';
 import 'package:ecom/features/buyer/presentation/screens/wishlist_screen.dart';
 
+import 'package:ecom/features/marketplace/presentation/screens/chat_rooms_screen.dart';
 import 'package:ecom/features/marketplace/presentation/screens/chat_screen.dart';
 import 'package:ecom/features/marketplace/presentation/screens/notification_screen.dart';
 import 'package:ecom/features/orders/presentation/screens/order_detail_screen.dart';
@@ -96,6 +98,7 @@ abstract class AppRoutes {
   static const buyerAbout = '/buyer/about';
   static const productDetail = '/buyer/home/product/:productId';
   static const chat = '/chat/:chatId';
+  static const chatRooms = '/chat-rooms';
 
   // Seller shell tabs
   static const sellerDashboard = '/seller/dashboard';
@@ -129,6 +132,7 @@ abstract class AppRoutes {
   static const adminOrderDetail = '/admin/orders/:orderId';
   static const adminStoreDetail = '/admin/stores/:storeId';
   static const adminSettlements = '/admin/settlements';
+  static const adminEarlyReleases = '/admin/early-releases';
   static const adminAnalytics = '/admin/analytics';
   static const adminReports = '/admin/reports';
   static const adminSettings = '/admin/settings';
@@ -369,6 +373,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) =>
             ChatScreen(chatId: state.pathParameters['chatId']!),
       ),
+      GoRoute(
+        path: AppRoutes.chatRooms,
+        builder: (context, state) => const ChatRoomsScreen(),
+      ),
 
       // ── Buyer shell ───────────────────────────────────────────────────────
       StatefulShellRoute.indexedStack(
@@ -532,6 +540,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.adminSettlements,
         builder: (context, state) => const AdminSettlementsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminEarlyReleases,
+        builder: (context, state) => const AdminEarlyReleasesScreen(),
       ),
       GoRoute(
         path: AppRoutes.adminAnalytics,
