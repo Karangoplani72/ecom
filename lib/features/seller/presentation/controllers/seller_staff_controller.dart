@@ -90,7 +90,7 @@ class SellerStaffController extends _$SellerStaffController {
   }
 
   /// Invite a staff member by email
-  Future<Either<String, Unit>> inviteStaff(String email, String role) async {
+  Future<Either<String, Unit>> inviteStaff(String email, String role, [StaffPermissions? customPermissions]) async {
     final store = ref.read(sellerControllerProvider).value;
     if (store == null) return const Left('Store not loaded');
 
@@ -121,8 +121,9 @@ class SellerStaffController extends _$SellerStaffController {
           'roles': rolesList,
         });
 
-        // Add to store's staff subcollection with default permissions
-        final defaultPerms = StaffPermissions.defaultForRole(role);
+        final finalPerms = customPermissions ?? StaffPermissions.defaultForRole(role);
+
+        // Add to store's staff subcollection with default or custom permissions
         await firestore
             .collection('stores')
             .doc(store.id)
@@ -132,7 +133,7 @@ class SellerStaffController extends _$SellerStaffController {
           'email': cleanEmail,
           'displayName': doc.data()['displayName'] ?? 'Staff Member',
           'role': role,
-          'permissions': defaultPerms.toList(),
+          'permissions': finalPerms.toList(),
           'joinedAt': FieldValue.serverTimestamp(),
         });
 
@@ -145,12 +146,15 @@ class SellerStaffController extends _$SellerStaffController {
       // Resolve the inviter's display name
       final currentUser = ref.read(firebaseAuthProvider).currentUser;
       final inviterName = currentUser?.displayName ?? currentUser?.email ?? 'Store Owner';
+      
+      final finalPerms = customPermissions ?? StaffPermissions.defaultForRole(role);
 
       await firestore.collection('store_invitations').doc(inviteId).set({
         'email': cleanEmail,
         'storeId': store.id,
         'storeName': store.storeName,
         'role': role,
+        'permissions': finalPerms.toList(),
         'invitedBy': inviterName,
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),

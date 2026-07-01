@@ -207,6 +207,13 @@ class AuthRepositoryImpl implements AuthRepository {
       await _firestore.collection('users').doc(userId).set(userProfile);
 
       if (invitedStoreId != null) {
+        final inviteData = inviteSnapshot.docs.first.data();
+        final inviteRole = inviteData['role'] as String? ?? 'storeManager';
+        final savedPerms = inviteData['permissions'] as List<dynamic>?;
+        final finalPerms = savedPerms != null 
+            ? List<String>.from(savedPerms) 
+            : StaffPermissions.defaultForRole('storeManager').toList();
+
         await _firestore
             .collection('stores')
             .doc(invitedStoreId)
@@ -215,8 +222,8 @@ class AuthRepositoryImpl implements AuthRepository {
             .set({
           'email': email.trim(),
           'displayName': displayName.trim(),
-          'role': 'storeManager',
-          'permissions': StaffPermissions.defaultForRole('storeManager').toList(),
+          'role': inviteRole,
+          'permissions': finalPerms,
           'joinedAt': Timestamp.fromDate(now),
         });
       }
@@ -329,6 +336,13 @@ class AuthRepositoryImpl implements AuthRepository {
       });
 
       if (invitedStoreId != null) {
+        final inviteData = inviteSnapshot.docs.first.data();
+        final inviteRole = inviteData['role'] as String? ?? 'storeManager';
+        final savedPerms = inviteData['permissions'] as List<dynamic>?;
+        final finalPerms = savedPerms != null 
+            ? List<String>.from(savedPerms) 
+            : StaffPermissions.defaultForRole('storeManager').toList();
+
         await _firestore
             .collection('stores')
             .doc(invitedStoreId)
@@ -337,8 +351,8 @@ class AuthRepositoryImpl implements AuthRepository {
             .set({
           'email': email.trim(),
           'displayName': firebaseUser.displayName ?? 'Staff Member',
-          'role': 'storeManager',
-          'permissions': StaffPermissions.defaultForRole('storeManager').toList(),
+          'role': inviteRole,
+          'permissions': finalPerms,
           'joinedAt': Timestamp.fromDate(now),
         });
       }
@@ -380,6 +394,11 @@ class AuthRepositoryImpl implements AuthRepository {
             });
           }
 
+          final savedPerms = inviteData['permissions'] as List<dynamic>?;
+          final finalPerms = savedPerms != null 
+              ? List<String>.from(savedPerms) 
+              : StaffPermissions.defaultForRole(inviteRole).toList();
+
           // Add to store staff subcollection
           await _firestore
               .collection('stores')
@@ -390,7 +409,7 @@ class AuthRepositoryImpl implements AuthRepository {
             'email': email.trim(),
             'displayName': displayName.trim(),
             'role': inviteRole,
-            'permissions': StaffPermissions.defaultForRole(inviteRole).toList(),
+            'permissions': finalPerms,
             'joinedAt': FieldValue.serverTimestamp(),
           });
 

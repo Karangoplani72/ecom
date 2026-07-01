@@ -276,7 +276,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── 7. Shared, role-agnostic feature ─────────────────────────────────
       // Chat is used by both buyers and sellers to talk to each other, so
       // it's intentionally exempt from panel isolation.
-      if (loc.startsWith('/chat')) return null;
+      if (loc.startsWith('/chat')) {
+        if (isSeller && !user.roles.contains(UserRole.seller) && user.roles.contains(UserRole.storeManager)) {
+          final permsAsync = ref.read(staffPermissionsProvider);
+          final perms = permsAsync.value;
+          if (perms != null && !perms.has(StaffPermission.messages)) {
+            return AppRoutes.sellerDashboard;
+          }
+        }
+        return null;
+      }
       if (loc == AppRoutes.buyerNotifications) return null;
       if (loc == AppRoutes.notificationPreferences) return null;
 
@@ -305,6 +314,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             if (loc.startsWith('/seller/store-profile') && !perms.has(StaffPermission.storeProfile)) return AppRoutes.sellerDashboard;
             if (loc.startsWith('/seller/settings') && !perms.has(StaffPermission.settings)) return AppRoutes.sellerDashboard;
             if (loc.startsWith('/seller/staff') && !perms.has(StaffPermission.staff)) return AppRoutes.sellerDashboard;
+            if (loc.startsWith('/seller/returns') && !perms.has(StaffPermission.orders)) return AppRoutes.sellerDashboard;
           }
         }
       } else if (isAdminPath || isSellerPath) {

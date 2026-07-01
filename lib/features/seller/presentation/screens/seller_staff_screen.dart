@@ -33,6 +33,7 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
   void _showInviteBottomSheet(BuildContext context) {
     _emailController.clear();
     _selectedRole = 'Manager';
+    Set<StaffPermission> customPermissions = {};
 
     showModalBottomSheet(
       context: context,
@@ -110,6 +111,10 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
                         value: 'Viewer',
                         child: Text('Viewer (Read-only access)'),
                       ),
+                      DropdownMenuItem(
+                        value: 'Custom',
+                        child: Text('Custom (Select permissions)'),
+                      ),
                     ],
                     onChanged: (val) {
                       if (val != null) {
@@ -117,6 +122,46 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
                       }
                     },
                   ),
+                  if (_selectedRole == 'Custom') ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      'Select Permissions',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.3,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: isDark ? Colors.white24 : AppColors.border),
+                        borderRadius: AppRadius.borderLG,
+                      ),
+                      child: SingleChildScrollView(
+                        child: Column(
+                          children: StaffPermission.values.map((perm) {
+                            final isSelected = customPermissions.contains(perm);
+                            return CheckboxListTile(
+                              title: Text(perm.name),
+                              value: isSelected,
+                              activeColor: AppColors.primary,
+                              onChanged: (val) {
+                                setModalState(() {
+                                  if (val == true) {
+                                    customPermissions.add(perm);
+                                  } else {
+                                    customPermissions.remove(perm);
+                                  }
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   AppPrimaryButton(
                     text: 'Send Invitation',
@@ -124,12 +169,26 @@ class _SellerStaffScreenState extends ConsumerState<SellerStaffScreen> {
                       final email = _emailController.text.trim();
                       if (email.isEmpty) return;
 
+                      StaffPermissions? customPerms;
+                      if (_selectedRole == 'Custom') {
+                        if (customPermissions.isEmpty) {
+                          ScaffoldMessenger.of(this.context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please select at least one custom permission.'),
+                              backgroundColor: AppColors.error,
+                            ),
+                          );
+                          return;
+                        }
+                        customPerms = StaffPermissions.fromList(customPermissions.map((e) => e.name).toList());
+                      }
+
                       // Close bottom sheet first
                       Navigator.pop(context);
 
                       final result = await ref
                           .read(sellerStaffControllerProvider.notifier)
-                          .inviteStaff(email, _selectedRole);
+                          .inviteStaff(email, _selectedRole, customPerms);
 
                       if (mounted) {
                         result.fold(
